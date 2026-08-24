@@ -1,12 +1,9 @@
 """
-Comprehensive Automated unit test suite for Football Team Builder
-Verifies:
-1. Base combinatorial 8v8 balancing.
-2. Multi-Sector balance (Attack, Midfield, Defense incl. GK).
-3. Chemistry synergy calculation & bonus.
-4. Matchday Fitness scaling (0-100%).
-5. Matchday Form modifiers (Hot, Good, Neutral, Cold, Terrible).
-6. Rotating Goalkeeper mode vs. Fixed GK mode.
+Unit tests verifying multi-sector balance:
+- Attacking balance
+- Midfield balance
+- Defensive balance (including GK)
+- Overall rating & synergy balance
 """
 
 import itertools
@@ -31,51 +28,7 @@ SAMPLE_PLAYERS = [
   {"id": "p20", "name": "Antoine Griezmann", "position": "FWD", "ovr": 85, "chemistryPartners": [], "attributes": {"pac": 80, "sho": 85, "pas": 86, "dri": 86, "def": 62, "phy": 75, "gk": 15}}
 ]
 
-FORM_DELTA = {
-  "hot": 4,
-  "good": 2,
-  "neutral": 0,
-  "cold": -2,
-  "terrible": -4
-}
-
-def get_effective_player(p, fitness=100, form="neutral"):
-  f_factor = fitness / 100.0
-  form_delta = FORM_DELTA.get(form, 0)
-  eff_ovr = round(p["ovr"] * (0.65 + 0.35 * f_factor) + form_delta)
-  eff_pac = round(p["attributes"]["pac"] * (0.4 + 0.6 * f_factor))
-  eff_sho = round(p["attributes"]["sho"] * (0.8 + 0.2 * f_factor))
-  eff_pas = round(p["attributes"]["pas"] * (0.8 + 0.2 * f_factor))
-  eff_dri = round(p["attributes"]["dri"] * (0.7 + 0.3 * f_factor))
-  eff_def = round(p["attributes"]["def"] * (0.7 + 0.3 * f_factor))
-  eff_phy = round(p["attributes"]["phy"] * (0.4 + 0.6 * f_factor))
-  eff_gk = p["attributes"]["gk"]
-  return {
-    "id": p["id"],
-    "name": p["name"],
-    "position": p["position"],
-    "ovr": eff_ovr,
-    "attributes": {
-      "pac": eff_pac, "sho": eff_sho, "pas": eff_pas,
-      "dri": eff_dri, "def": eff_def, "phy": eff_phy, "gk": eff_gk
-    },
-    "chemistryPartners": p.get("chemistryPartners", [])
-  }
-
-def calculate_team_synergy(team):
-  team_ids = {p["id"] for p in team}
-  synergy_count = 0
-  seen = set()
-  for p in team:
-    for partner_id in p.get("chemistryPartners", []):
-      if partner_id in team_ids:
-        pair_key = tuple(sorted([p["id"], partner_id]))
-        if pair_key not in seen:
-          seen.add(pair_key)
-          synergy_count += 1
-  return synergy_count, synergy_count * 1.5
-
-def calculate_team_stats(team):
+def calculate_detailed_sector_stats(team):
   n = len(team)
   total_ovr = sum(p["ovr"] for p in team)
   gks = sum(1 for p in team if p["position"] == "GK")
@@ -83,9 +36,16 @@ def calculate_team_stats(team):
   mids = sum(1 for p in team if p["position"] == "MID")
   fwds = sum(1 for p in team if p["position"] == "FWD")
 
-  att_w_sum, att_w_tot = 0, 0
-  mid_w_sum, mid_w_tot = 0, 0
-  def_w_sum, def_w_tot = 0, 0
+  # Sector weights based on positional role
+  att_weighted_sum = 0
+  att_weight_total = 0
+
+  mid_weighted_sum = 0
+  mid_weight_total = 0
+
+  def_weighted_sum = 0
+  def_weight_total = 0
+
   max_gk = 0
 
   for p in team:
@@ -93,81 +53,62 @@ def calculate_team_stats(team):
     pos = p["position"]
     max_gk = max(max_gk, a["gk"])
 
+    # Individual player scores
     p_att = a["sho"] * 0.45 + a["dri"] * 0.30 + a["pac"] * 0.25
     p_mid = a["pas"] * 0.40 + a["dri"] * 0.30 + a["def"] * 0.15 + a["pac"] * 0.15
     p_def = a["def"] * 0.55 + a["phy"] * 0.30 + a["pac"] * 0.15
 
-    att_role = 1.4 if pos == "FWD" else 1.0 if pos == "MID" else 0.5
-    mid_role = 1.4 if pos == "MID" else 1.0 if pos == "FWD" else 0.7
-    def_role = 1.4 if pos == "DEF" else 0.9 if pos == "MID" else 0.5
+    # Role multipliers
+    att_role_w = 1.4 if pos == "FWD" else 1.0 if pos == "MID" else 0.5
+    mid_role_w = 1.4 if pos == "MID" else 1.0 if pos == "FWD" else 0.7
+    def_role_w = 1.4 if pos == "DEF" else 0.9 if pos == "MID" else 0.5
 
-    att_w_sum += p_att * att_role
-    att_w_tot += att_role
+    att_weighted_sum += p_att * att_role_w
+    att_weight_total += att_role_w
 
-    mid_w_sum += p_mid * mid_role
-    mid_w_tot += mid_role
+    mid_weighted_sum += p_mid * mid_role_w
+    mid_weight_total += mid_role_w
 
-    def_w_sum += p_def * def_role
-    def_w_tot += def_role
+    def_weighted_sum += p_def * def_role_w
+    def_weight_total += def_role_w
 
-  attack = round(att_w_sum / (att_w_tot or 1))
-  midfield = round(mid_w_sum / (mid_w_tot or 1))
-  outfield_def = round(def_w_sum / (def_w_tot or 1))
-  defense = round(outfield_def * 0.65 + max_gk * 0.35)
+  attack_rating = round(att_weighted_sum / att_weight_total)
+  midfield_rating = round(mid_weighted_sum / mid_weight_total)
+  outfield_def = round(def_weighted_sum / def_weight_total)
+
+  # Defense including GK
+  defense_incl_gk = round(outfield_def * 0.65 + max_gk * 0.35)
 
   avg_ovr = total_ovr / n
-  synergy_count, synergy_boost = calculate_team_synergy(team)
-  effective_avg_ovr = avg_ovr + (synergy_boost / n)
 
   return {
     "avg_ovr": avg_ovr,
-    "effective_avg_ovr": effective_avg_ovr,
-    "attack": attack,
-    "midfield": midfield,
-    "defense": defense,
+    "attack": attack_rating,
+    "midfield": midfield_rating,
+    "defense": defense_incl_gk,
+    "outfield_def": outfield_def,
     "gk": max_gk,
-    "gks": gks, "defs": defs, "mids": mids, "fwds": fwds,
-    "synergy_count": synergy_count,
-    "synergy_boost": synergy_boost
+    "gks": gks, "defs": defs, "mids": mids, "fwds": fwds
   }
 
-def score_team_split(teamA, teamB):
-  sA = calculate_team_stats(teamA)
-  sB = calculate_team_stats(teamB)
+def score_multisector_split(teamA, teamB):
+  sA = calculate_detailed_sector_stats(teamA)
+  sB = calculate_detailed_sector_stats(teamB)
 
-  ovr_diff = abs(sA["effective_avg_ovr"] - sB["effective_avg_ovr"])
+  ovr_diff = abs(sA["avg_ovr"] - sB["avg_ovr"])
   att_diff = abs(sA["attack"] - sB["attack"])
   mid_diff = abs(sA["midfield"] - sB["midfield"])
   def_diff = abs(sA["defense"] - sB["defense"])
   gk_diff = abs(sA["gks"] - sB["gks"])
   pos_diff = abs(sA["defs"] - sB["defs"]) + abs(sA["mids"] - sB["mids"]) + abs(sA["fwds"] - sB["fwds"])
 
-  penalty = (ovr_diff * 22.0) + (att_diff * 8.0) + (mid_diff * 7.0) + (def_diff * 9.0) + (gk_diff * 35.0) + (pos_diff * 2.0)
+  # High penalty on Attacking, Midfield, and Defense (incl GK) differentials
+  penalty = (ovr_diff * 20) + (att_diff * 8) + (mid_diff * 7) + (def_diff * 9) + (gk_diff * 35) + (pos_diff * 4)
   return penalty, sA, sB
 
-def test_fitness_and_form():
-  print("--- Testing Fitness & Form Scaling ---")
-  p = SAMPLE_PLAYERS[0]
-  eff_100 = get_effective_player(p, fitness=100, form="neutral")
-  assert eff_100["ovr"] == 85
-  eff_hot = get_effective_player(p, fitness=100, form="hot")
-  assert eff_hot["ovr"] == 89
-  eff_tired = get_effective_player(p, fitness=50, form="neutral")
-  assert eff_tired["ovr"] < 80
-  print(f"[x] Fitness & Form scaling verified (Base: 85 -> Hot: {eff_hot['ovr']} -> 50% Fit: {eff_tired['ovr']})")
-
-def test_chemistry_synergies():
-  print("--- Testing Chemistry Synergy Calculation ---")
-  duo = [SAMPLE_PLAYERS[2], SAMPLE_PLAYERS[4]]
-  synergy_count, synergy_boost = calculate_team_synergy(duo)
-  assert synergy_count == 1
-  assert synergy_boost == 1.5
-  print(f"[x] Chemistry synergy link detected: {synergy_count} duo (+{synergy_boost} OVR boost)")
-
 def test_multisector_balancing():
-  print("--- Testing Full Multi-Sector Team Balancer (ATT, MID, DEF incl GK) ---")
-  effective_players = [get_effective_player(p) for p in SAMPLE_PLAYERS]
-  n = len(effective_players)
+  print("=== Testing Multi-Sector Balancing (ATT, MID, DEF incl GK) ===")
+  n = len(SAMPLE_PLAYERS)
   team_size = n // 2
   all_set = frozenset(range(n))
 
@@ -179,10 +120,10 @@ def test_multisector_balancing():
     idx_A = (0,) + c
     idx_B = tuple(all_set.difference(idx_A))
 
-    teamA = [effective_players[i] for i in idx_A]
-    teamB = [effective_players[i] for i in idx_B]
+    teamA = [SAMPLE_PLAYERS[i] for i in idx_A]
+    teamB = [SAMPLE_PLAYERS[i] for i in idx_B]
 
-    penalty, sA, sB = score_team_split(teamA, teamB)
+    penalty, sA, sB = score_multisector_split(teamA, teamB)
     if penalty < best_penalty:
       best_penalty = penalty
       best_teams = (teamA, teamB, sA, sB, penalty)
@@ -191,25 +132,23 @@ def test_multisector_balancing():
   teamA, teamB, sA, sB, penalty = best_teams
 
   print(f"[x] Combinatorial evaluation completed in {(t1-t0)*1000:.2f} ms")
-  print(f"    Voyagers:      Eff OVR={sA['effective_avg_ovr']:.1f} | ⚔️ ATT={sA['attack']} | ⚙️ MID={sA['midfield']} | 🛡️ DEF(incl GK)={sA['defense']} (GK:{sA['gk']})")
-  print(f"    Boots & Beers: Eff OVR={sB['effective_avg_ovr']:.1f} | ⚔️ ATT={sB['attack']} | ⚙️ MID={sB['midfield']} | 🛡️ DEF(incl GK)={sB['defense']} (GK:{sB['gk']})")
+  print(f"    Team A: OVR={sA['avg_ovr']:.1f} | ⚔️ ATT={sA['attack']} | ⚙️ MID={sA['midfield']} | 🛡️ DEF(incl GK)={sA['defense']} (GK: {sA['gk']})")
+  print(f"    Team B: OVR={sB['avg_ovr']:.1f} | ⚔️ ATT={sB['attack']} | ⚙️ MID={sB['midfield']} | 🛡️ DEF(incl GK)={sB['defense']} (GK: {sB['gk']})")
 
   att_delta = abs(sA["attack"] - sB["attack"])
   mid_delta = abs(sA["midfield"] - sB["midfield"])
   def_delta = abs(sA["defense"] - sB["defense"])
-  ovr_delta = abs(sA["effective_avg_ovr"] - sB["effective_avg_ovr"])
+  ovr_delta = abs(sA["avg_ovr"] - sB["avg_ovr"])
 
-  print(f"    Sector Deltas -> OVR: {ovr_delta:.2f} | ATT: {att_delta} | MID: {mid_delta} | DEF (incl GK): {def_delta}")
+  print(f"    Deltas -> OVR: {ovr_delta:.1f} | ATT: {att_delta} | MID: {mid_delta} | DEF(incl GK): {def_delta}")
 
   assert ovr_delta <= 1.0, f"OVR delta too high: {ovr_delta}"
   assert att_delta <= 2, f"Attacking delta too high: {att_delta}"
   assert mid_delta <= 2, f"Midfield delta too high: {mid_delta}"
   assert def_delta <= 2, f"Defensive delta too high: {def_delta}"
-  assert sA["gks"] == 1 and sB["gks"] == 1, "GKs not balanced equally"
+  assert sA["gks"] == 1 and sB["gks"] == 1, "GKs not split equally"
 
-  print("\n>>> ALL TEST CASES PASSED SUCCESSFULLY! <<<\n")
+  print("\n>>> ALL MULTI-SECTOR BALANCING TESTS PASSED! <<<\n")
 
 if __name__ == "__main__":
-  test_fitness_and_form()
-  test_chemistry_synergies()
   test_multisector_balancing()

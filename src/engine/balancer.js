@@ -1,6 +1,7 @@
 /**
  * Team Balancing Engine for Football Team Builder
- * Advanced features:
+ * Advanced Multi-Sector Balancing:
+ * - Sector-specific balance: Attacking, Midfield, and Defensive (including GK)
  * - Matchday Fitness (0-100%) and Form Scaling (⬆️ ↗️ ➡️ ↘️ ⬇️)
  * - Chemistry & Duo Synergy Boosts
  * - Rotating Goalkeeper vs. Fixed GK mode
@@ -103,7 +104,11 @@ export function calculateTeamChemistry(teamPlayers) {
 }
 
 /**
- * Calculates aggregate stats for a team of players, factoring in matchday settings and chemistry.
+ * Calculates aggregate and sector-specific stats for a team of players.
+ * Evaluates:
+ * 1. Attack Strength (weighted by FWD and MID finishing, dribbling, pace)
+ * 2. Midfield Strength (weighted by playmaking, dribbling, transition, defensive shielding)
+ * 3. Defensive Strength (including Goalkeeping shot-stopping + CB/FB tackling & physical presence)
  */
 export function calculateTeamStats(players, matchdaySettingsMap = {}) {
   if (!players || players.length === 0) {
@@ -114,10 +119,12 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}) {
       attack: 0,
       midfield: 0,
       defense: 0,
+      outfieldDef: 0,
       pace: 0,
       passing: 0,
       physical: 0,
       goalkeeping: 0,
+      avgGkReflex: 0,
       synergyCount: 0,
       synergyBoost: 0,
       activeDuos: [],
@@ -136,6 +143,16 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}) {
   let totalPhy = 0;
   let totalGk = 0;
   let maxGk = 0;
+
+  // Sector weighted accumulators
+  let attWeightedSum = 0;
+  let attWeightTotal = 0;
+
+  let midWeightedSum = 0;
+  let midWeightTotal = 0;
+
+  let defWeightedSum = 0;
+  let defWeightTotal = 0;
 
   const positions = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
 
@@ -163,6 +180,26 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}) {
       positions.MID++;
     }
 
+    // Role-specific weighted sector contributions
+    // Individual player sector capabilities:
+    const pAtt = a.sho * 0.45 + a.dri * 0.30 + a.pac * 0.25;
+    const pMid = a.pas * 0.40 + a.dri * 0.30 + a.def * 0.15 + a.pac * 0.15;
+    const pDef = a.def * 0.55 + a.phy * 0.30 + a.pac * 0.15;
+
+    // Positional weight in sector:
+    const attWeight = pos === "FWD" ? 1.4 : pos === "MID" ? 1.0 : 0.5;
+    const midWeight = pos === "MID" ? 1.4 : pos === "FWD" ? 1.0 : 0.7;
+    const defWeight = pos === "DEF" ? 1.4 : pos === "MID" ? 0.9 : 0.5;
+
+    attWeightedSum += pAtt * attWeight;
+    attWeightTotal += attWeight;
+
+    midWeightedSum += pMid * midWeight;
+    midWeightTotal += midWeight;
+
+    defWeightedSum += pDef * defWeight;
+    defWeightTotal += defWeight;
+
     return eff;
   });
 
@@ -170,20 +207,20 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}) {
 
   const baseAvgOvr = Math.round((totalBaseOvr / n) * 10) / 10;
   const rawEffAvgOvr = totalEffOvr / n;
-  // Effective OVR includes chemistry synergy
   const effectiveAvgOvr = Math.round((rawEffAvgOvr + chemistry.synergyBoost / n) * 10) / 10;
 
   const avgPac = totalPac / n;
-  const avgSho = totalSho / n;
   const avgPas = totalPas / n;
-  const avgDri = totalDri / n;
-  const avgDef = totalDef / n;
   const avgPhy = totalPhy / n;
+  const avgGkReflex = totalGk / n;
 
-  // Composite tactical ratings (FIFA style)
-  const attack = Math.round(avgSho * 0.45 + avgDri * 0.30 + avgPac * 0.25);
-  const midfield = Math.round(avgPas * 0.40 + avgDri * 0.30 + avgDef * 0.15 + avgPac * 0.15);
-  const defense = Math.round(avgDef * 0.55 + avgPhy * 0.30 + avgPac * 0.15);
+  // Composite tactical sector ratings
+  const attack = Math.round(attWeightedSum / (attWeightTotal || 1));
+  const midfield = Math.round(midWeightedSum / (midWeightTotal || 1));
+  const outfieldDef = Math.round(defWeightedSum / (defWeightTotal || 1));
+
+  // Defense including Goalkeeping (65% outfield structure + 35% GK shot-stopping)
+  const defense = Math.round(outfieldDef * 0.65 + maxGk * 0.35);
 
   return {
     avgOvr: effectiveAvgOvr,
@@ -192,11 +229,12 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}) {
     attack,
     midfield,
     defense,
+    outfieldDef,
     pace: Math.round(avgPac),
     passing: Math.round(avgPas),
     physical: Math.round(avgPhy),
     goalkeeping: Math.round(maxGk),
-    avgGkReflex: Math.round(totalGk / n),
+    avgGkReflex: Math.round(avgGkReflex),
     positions,
     synergyCount: chemistry.synergyCount,
     synergyBoost: chemistry.synergyBoost,
@@ -226,7 +264,12 @@ function getCombinations(array, k) {
 }
 
 /**
- * Scores a split of two teams based on multi-criteria penalty function.
+ * Scores a split of two teams based on multi-sector fitness function.
+ * Strictly checks that:
+ * 1. Attacking power is balanced (|ATT_A - ATT_B| -> 0)
+ * 2. Midfield battle is balanced (|MID_A - MID_B| -> 0)
+ * 3. Defensive fortress (including GK) is balanced (|DEF_A - DEF_B| -> 0)
+ * 4. Overall effective rating and position counts are balanced.
  */
 export function scoreTeamBalance(teamA, teamB, options = {}) {
   const {
@@ -238,60 +281,83 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
   const statsA = calculateTeamStats(teamA, matchdaySettingsMap);
   const statsB = calculateTeamStats(teamB, matchdaySettingsMap);
 
-  // 1. Effective Rating Delta (including Fitness, Form, and Chemistry synergy)
+  // 1. Overall Effective Rating Delta
   const ovrDelta = Math.abs(statsA.effectiveAvgOvr - statsB.effectiveAvgOvr);
 
-  // 2. Goalkeeper Penalty
+  // 2. Tactical Sector Deltas (Attack, Midfield, Defense incl GK)
+  const attDelta = Math.abs(statsA.attack - statsB.attack);
+  const midDelta = Math.abs(statsA.midfield - statsB.midfield);
+  const defDelta = Math.abs(statsA.defense - statsB.defense);
+
+  // 3. Goalkeeper Penalty
   let gkPenalty = 0;
   if (gkMode === "fixed") {
-    // Dedicated GK mode: heavily penalize unbalanced GK counts
     const gkDelta = Math.abs(statsA.positions.GK - statsB.positions.GK);
-    gkPenalty = gkDelta > 1 ? gkDelta * 30 : gkDelta * 14;
+    gkPenalty = gkDelta > 1 ? gkDelta * 35 : gkDelta * 18;
   } else {
-    // Rotating GK mode: penalize only if average team goalkeeping reflexes differ widely
     const gkReflexDelta = Math.abs(statsA.avgGkReflex - statsB.avgGkReflex);
-    gkPenalty = gkReflexDelta * 0.3;
+    gkPenalty = gkReflexDelta * 0.4;
   }
 
-  // 3. Positional Balance Penalty
-  const defDelta = Math.abs(statsA.positions.DEF - statsB.positions.DEF);
-  const midDelta = Math.abs(statsA.positions.MID - statsB.positions.MID);
-  const fwdDelta = Math.abs(statsA.positions.FWD - statsB.positions.FWD);
-  const posPenalty = (defDelta + midDelta + fwdDelta) * 3.5;
+  // 4. Positional Count Disparity
+  const defCountDelta = Math.abs(statsA.positions.DEF - statsB.positions.DEF);
+  const midCountDelta = Math.abs(statsA.positions.MID - statsB.positions.MID);
+  const fwdCountDelta = Math.abs(statsA.positions.FWD - statsB.positions.FWD);
+  const posPenalty = (defCountDelta + midCountDelta + fwdCountDelta) * 3.5;
 
-  // 4. Tactical Sub-stat Deltas
-  const attDelta = Math.abs(statsA.attack - statsB.attack);
-  const midStatDelta = Math.abs(statsA.midfield - statsB.midfield);
-  const defStatDelta = Math.abs(statsA.defense - statsB.defense);
+  // 5. Sub-attributes
   const pacDelta = Math.abs(statsA.pace - statsB.pace);
   const phyDelta = Math.abs(statsA.physical - statsB.physical);
 
   let penalty = 0;
   switch (mode) {
     case "ratings_first":
-      penalty = ovrDelta * 50 + gkPenalty * 1.5 + posPenalty * 0.8 + (attDelta + defStatDelta) * 0.5;
+      // Heavily weights overall rating with secondary sector checks
+      penalty = (ovrDelta * 40) +
+                (attDelta * 5.0) +
+                (midDelta * 5.0) +
+                (defDelta * 6.0) +
+                (gkPenalty * 1.5) +
+                (posPenalty * 0.8);
       break;
+
     case "tactical":
-      penalty = ovrDelta * 15 + gkPenalty * 2.0 + posPenalty * 3.0 + (attDelta + defStatDelta + midStatDelta) * 1.5;
+      // Maximum emphasis on sector and position parity
+      penalty = (attDelta * 12.0) +
+                (midDelta * 10.0) +
+                (defDelta * 12.0) +
+                (gkPenalty * 2.0) +
+                (posPenalty * 4.0) +
+                (ovrDelta * 12.0);
       break;
+
     case "pace_power":
-      penalty = ovrDelta * 20 + gkPenalty * 1.5 + posPenalty * 1.0 + pacDelta * 4.0 + phyDelta * 3.0;
+      // Emphasis on speed, stamina, and physical equality
+      penalty = (ovrDelta * 18) +
+                (attDelta * 6.0) +
+                (defDelta * 7.0) +
+                (pacDelta * 5.0) +
+                (phyDelta * 4.0) +
+                (gkPenalty * 1.5);
       break;
+
     case "balanced":
     default:
-      penalty = (ovrDelta * 28) +
-                (gkPenalty * 1.8) +
-                (posPenalty * 1.2) +
-                (attDelta * 1.0) +
-                (defStatDelta * 1.0) +
-                (midStatDelta * 0.8) +
-                (pacDelta * 0.7) +
-                (phyDelta * 0.6);
+      // Balanced multi-sector optimization:
+      // Guarantees balanced Attack, Midfield, Defense (incl GK), and Overall
+      penalty = (ovrDelta * 22.0) +
+                (attDelta * 8.0) +
+                (midDelta * 7.0) +
+                (defDelta * 9.0) +
+                (gkPenalty * 2.0) +
+                (posPenalty * 2.0) +
+                (pacDelta * 0.8) +
+                (phyDelta * 0.7);
       break;
   }
 
   // Calculate Match Fairness Percentage (100% = perfectly equal)
-  const fairnessScore = Math.max(0, Math.min(100, Math.round(100 - (penalty * 1.1))));
+  const fairnessScore = Math.max(0, Math.min(100, Math.round(100 - (penalty * 0.9))));
 
   return {
     penalty,
@@ -301,10 +367,11 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
     deltas: {
       ovr: Math.round(ovrDelta * 10) / 10,
       attack: attDelta,
-      midfield: midStatDelta,
-      defense: defStatDelta,
+      midfield: midDelta,
+      defense: defDelta,
       pace: pacDelta,
       physical: phyDelta,
+      gk: Math.abs(statsA.goalkeeping - statsB.goalkeeping),
       synergyA: statsA.synergyCount,
       synergyB: statsB.synergyCount
     }

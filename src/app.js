@@ -691,15 +691,15 @@ function renderTeamComparison() {
     `;
   }
 
-  // Stat comparison metrics
+  // Stat comparison metrics (Primary Tactical Sectors First)
   const metrics = [
-    { label: "Attack (ATT)", a: statsA.attack, b: statsB.attack },
-    { label: "Midfield (MID)", a: statsA.midfield, b: statsB.midfield },
-    { label: "Defense (DEF)", a: statsA.defense, b: statsB.defense },
+    { label: "⚔️ Attack (ATT)", a: statsA.attack, b: statsB.attack, highlight: true },
+    { label: "⚙️ Midfield (MID)", a: statsA.midfield, b: statsB.midfield, highlight: true },
+    { label: "🛡️ Defense & GK (DEF)", a: statsA.defense, b: statsB.defense, highlight: true },
     { label: "Pace / Speed (PAC)", a: statsA.pace, b: statsB.pace },
     { label: "Physical / Stamina (PHY)", a: statsA.physical, b: statsB.physical },
-    { label: "Passing (PAS)", a: statsA.passing, b: statsB.passing },
-    { label: "Goalkeeping (GK)", a: statsA.goalkeeping, b: statsB.goalkeeping }
+    { label: "Passing & Vision (PAS)", a: statsA.passing, b: statsB.passing },
+    { label: "🧤 GK Shot-Stopping", a: statsA.goalkeeping, b: statsB.goalkeeping }
   ];
 
   const statContainer = document.getElementById("team-comparison-bars");
@@ -713,15 +713,16 @@ function renderTeamComparison() {
 
     const widthA = Math.round((m.a / maxVal) * 100);
     const widthB = Math.round((m.b / maxVal) * 100);
+    const isHighlight = m.highlight;
 
     return `
-      <div class="space-y-1">
+      <div class="space-y-1 ${isHighlight ? 'p-1.5 rounded-xl bg-slate-900/60 border border-slate-700/60 shadow-sm' : ''}">
         <div class="flex justify-between items-center text-xs font-semibold">
-          <span class="${winnerClassA}">${m.a}</span>
-          <span class="text-slate-400 uppercase tracking-wider font-mono text-[11px]">${m.label}</span>
-          <span class="${winnerClassB}">${m.b}</span>
+          <span class="${winnerClassA} text-sm">${m.a}</span>
+          <span class="${isHighlight ? 'text-amber-300 font-bold' : 'text-slate-400 font-mono'} uppercase tracking-wider text-[11px]">${m.label}</span>
+          <span class="${winnerClassB} text-sm">${m.b}</span>
         </div>
-        <div class="grid grid-cols-2 gap-1.5 h-2.5 bg-slate-900/80 rounded-full p-0.5 border border-slate-800">
+        <div class="grid grid-cols-2 gap-1.5 h-2.5 bg-slate-950 rounded-full p-0.5 border border-slate-800">
           <div class="flex justify-end bg-slate-900 rounded-l-full overflow-hidden">
             <div class="h-full bg-blue-500 rounded-full stat-bar-fill" style="width: ${widthA}%"></div>
           </div>
