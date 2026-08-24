@@ -1,0 +1,321 @@
+/* ============================================================
+   8x8 Football Team Builder - Custom Styles & FIFA Aesthetics
+   ============================================================ */
+
+:root {
+  --pitch-green-dark: #1b4d2e;
+  --pitch-green-light: #235e39;
+  --pitch-line: rgba(255, 255, 255, 0.75);
+  --team-blue: #3b82f6;
+  --team-red: #ef4444;
+  --gold-gradient: linear-gradient(135deg, #ffe066 0%, #d4af37 50%, #aa8010 100%);
+  --silver-gradient: linear-gradient(135deg, #f3f4f6 0%, #cbd5e1 50%, #94a3b8 100%);
+  --bronze-gradient: linear-gradient(135deg, #fed7aa 0%, #d97706 50%, #92400e 100%);
+  --special-gradient: linear-gradient(135deg, #818cf8 0%, #c084fc 50%, #f472b6 100%);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* ============================================================
+   Soccer Pitch Styling
+   ============================================================ */
+.pitch-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  max-height: 580px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pitch-green-dark),
+    var(--pitch-green-dark) 8%,
+    var(--pitch-green-light) 8%,
+    var(--pitch-green-light) 16%
+  );
+  border: 4px solid rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5), 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Pitch Field Markings */
+.pitch-half-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: var(--pitch-line);
+  transform: translateX(-50%);
+}
+
+.pitch-center-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120px;
+  height: 120px;
+  border: 2px solid var(--pitch-line);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.pitch-center-spot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  background: var(--pitch-line);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Left Penalty Box */
+.pitch-penalty-left {
+  position: absolute;
+  top: 20%;
+  left: 0;
+  width: 18%;
+  height: 60%;
+  border-right: 2px solid var(--pitch-line);
+  border-top: 2px solid var(--pitch-line);
+  border-bottom: 2px solid var(--pitch-line);
+}
+
+.pitch-goal-left {
+  position: absolute;
+  top: 35%;
+  left: 0;
+  width: 6%;
+  height: 30%;
+  border-right: 2px solid var(--pitch-line);
+  border-top: 2px solid var(--pitch-line);
+  border-bottom: 2px solid var(--pitch-line);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Right Penalty Box */
+.pitch-penalty-right {
+  position: absolute;
+  top: 20%;
+  right: 0;
+  width: 18%;
+  height: 60%;
+  border-left: 2px solid var(--pitch-line);
+  border-top: 2px solid var(--pitch-line);
+  border-bottom: 2px solid var(--pitch-line);
+}
+
+.pitch-goal-right {
+  position: absolute;
+  top: 35%;
+  right: 0;
+  width: 6%;
+  height: 30%;
+  border-left: 2px solid var(--pitch-line);
+  border-top: 2px solid var(--pitch-line);
+  border-bottom: 2px solid var(--pitch-line);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ============================================================
+   Pitch Player Token / Marker
+   ============================================================ */
+.player-token {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+}
+
+.player-token:hover {
+  transform: translate(-50%, -55%) scale(1.1);
+  z-index: 20;
+}
+
+.player-token.selected-swap {
+  animation: tokenPulse 1.2s infinite ease-in-out;
+  z-index: 30;
+}
+
+.player-token.selected-swap .token-jersey {
+  ring: 4px solid #facc15;
+  box-shadow: 0 0 20px #facc15;
+}
+
+@keyframes tokenPulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1.15); }
+  50% { transform: translate(-50%, -50%) scale(1.25); }
+}
+
+.token-jersey {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+  color: white;
+  border: 2px solid white;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.token-jersey.team-a {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
+}
+
+.token-jersey.team-b {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  box-shadow: 0 0 12px rgba(220, 38, 38, 0.6);
+}
+
+.token-jersey.gk-jersey {
+  background: linear-gradient(135deg, #059669, #047857) !important;
+  box-shadow: 0 0 12px rgba(5, 150, 105, 0.7) !important;
+}
+
+.token-name-badge {
+  margin-top: 3px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 85px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.token-ovr-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #facc15;
+  color: #1e1e1e;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 0 4px;
+  border-radius: 9999px;
+  border: 1px solid #78350f;
+}
+
+.token-form-badge {
+  position: absolute;
+  bottom: -4px;
+  left: -4px;
+  font-size: 10px;
+  line-height: 1;
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 50%;
+  padding: 1px;
+}
+
+/* ============================================================
+   FIFA-Style Ultimate Team Card
+   ============================================================ */
+.fifa-card {
+  position: relative;
+  width: 100%;
+  max-width: 260px;
+  aspect-ratio: 1 / 1.45;
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(255, 255, 255, 0.2);
+  user-select: none;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: #1e293b;
+}
+
+.fifa-card:hover {
+  transform: translateY(-4px) scale(1.02);
+}
+
+.fifa-card.card-gold {
+  background: var(--gold-gradient);
+  border: 2px solid #fef08a;
+  color: #451a03;
+}
+
+.fifa-card.card-silver {
+  background: var(--silver-gradient);
+  border: 2px solid #f8fafc;
+  color: #0f172a;
+}
+
+.fifa-card.card-bronze {
+  background: var(--bronze-gradient);
+  border: 2px solid #fed7aa;
+  color: #431407;
+}
+
+.fifa-card.card-special {
+  background: var(--special-gradient);
+  border: 2px solid #f472b6;
+  color: #312e81;
+}
+
+/* Position Badge Color Accents */
+.badge-gk { background: #059669; color: white; }
+.badge-def { background: #2563eb; color: white; }
+.badge-mid { background: #d97706; color: white; }
+.badge-fwd { background: #dc2626; color: white; }
+
+/* Stat Bar Comparison */
+.stat-bar-fill {
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Selection Ripple & Glass Effects */
+.glass-panel {
+  background: rgba(30, 41, 59, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-card {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-card:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+/* Chemistry & Synergy badges */
+.synergy-chip {
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(249, 115, 22, 0.2));
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  color: #fef08a;
+}

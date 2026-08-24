@@ -1,0 +1,10 @@
+# Dependencies & OS files
+.DS_Store
+Thumbs.db
+*.log
+__pycache__/
+*.pyc
+
+# Local scratch files
+.vscode/
+.idea/

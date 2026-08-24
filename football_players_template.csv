@@ -1,0 +1,23 @@
+Name,PrimaryPosition,SecondaryPosition,OVR,PAC,SHO,PAS,DRI,DEF,PHY,GK,PreferredFoot,ChemistryPartners,Notes
+# --- INSTRUCTIONS & EXAMPLES (Leave OVR blank to auto-calculate | Chemistry: list names of players you combine well with) ---
+Marcus Vance,GK,DEF,85,58,30,68,52,45,82,87,Right,"Carlos Mendoza; Sami Al-Khatib",Great shot stopper and vocal organizer
+Carlos Mendoza,DEF,MID,86,78,55,76,72,88,86,25,Right,"Marcus Vance; Sami Al-Khatib; Mateo Kovacic",Dominant center back strong in air
+Lucas Romero,MID,FWD,88,82,83,89,88,72,79,15,Right,"Rafael Santos; Julian Alvarez; Trent Walker",Playmaker maestro with vision and passing
+Rafael Santos,FWD,MID,89,88,90,80,87,42,83,15,Right,"Lucas Romero; Trent Walker",Clinical striker and fast finisher
+# --- FILL YOUR SQUAD PLAYERS BELOW THIS LINE ---
+Player 1,MID,FWD,80,78,75,80,78,65,72,15,Right,"Player 3; Player 7",Box-to-box midfielder
+Player 2,DEF,DEF,78,75,45,70,68,82,80,18,Right,"Player 6; Player 9",Solid center back
+Player 3,FWD,MID,82,85,84,76,82,40,75,12,Left,"Player 1; Player 8",Fast winger and finisher
+Player 4,GK,DEF,80,55,25,65,50,40,78,82,Right,"Player 2",Reliable goalkeeper
+Player 5,MID,DEF,77,74,68,78,75,76,78,15,Right,"Player 1; Player 10",Defensive midfielder
+Player 6,DEF,MID,79,82,58,74,72,79,76,Left,"Player 2; Player 11",Attacking left back
+Player 7,MID,FWD,81,84,78,80,83,55,70,Right,"Player 3",Creative attacking midfielder
+Player 8,FWD,FWD,80,80,82,68,76,38,84,Right,"Player 3; Player 12",Physical striker target man
+Player 9,DEF,DEF,76,72,40,68,65,78,80,Right,"Player 2",Strong tackler
+Player 10,MID,MID,78,79,72,77,78,65,72,Right,"Player 5; Player 13",High energy midfielder
+Player 11,DEF,MID,75,78,50,66,68,76,75,Right,"Player 6",Right back with stamina
+Player 12,FWD,MID,79,83,79,74,78,45,72,Right,"Player 8",Direct attacker
+Player 13,MID,DEF,76,70,65,76,74,72,76,Right,"Player 10",Passing midfielder
+Player 14,GK,DEF,77,54,20,62,48,38,75,78,Right,"Player 15",Reflex shot stopper
+Player 15,DEF,DEF,74,76,42,64,65,75,78,Left,"Player 14",Tenacious defender
+Player 16,FWD,FWD,76,86,75,68,77,35,73,Right,"Player 12",Pacy counter-attack forward
