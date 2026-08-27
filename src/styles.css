@@ -183,19 +183,21 @@
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
 }
 
-.token-jersey.team-a {
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
-}
+/* ── Team jersey colours — driven by data-jersey-color on the token ── */
+.token-jersey.team-a  { background: var(--jersey-a, linear-gradient(135deg,#2563eb,#1d4ed8)); box-shadow: 0 0 12px var(--jersey-a-glow, rgba(37,99,235,0.6)); }
+.token-jersey.team-b  { background: var(--jersey-b, linear-gradient(135deg,#dc2626,#b91c1c)); box-shadow: 0 0 12px var(--jersey-b-glow, rgba(220,38,38,0.6)); }
 
-.token-jersey.team-b {
-  background: linear-gradient(135deg, #dc2626, #b91c1c);
-  box-shadow: 0 0 12px rgba(220, 38, 38, 0.6);
-}
+/* Individual colour overrides applied as data-jersey-color="X" on .token-jersey */
+.token-jersey[data-jersey-color="blue"]   { background: linear-gradient(135deg,#2563eb,#1d4ed8)!important; color:#fff!important; box-shadow:0 0 12px rgba(37,99,235,.6)!important; }
+.token-jersey[data-jersey-color="red"]    { background: linear-gradient(135deg,#dc2626,#b91c1c)!important; color:#fff!important; box-shadow:0 0 12px rgba(220,38,38,.6)!important; }
+.token-jersey[data-jersey-color="yellow"] { background: linear-gradient(135deg,#eab308,#ca8a04)!important; color:#1e1e1e!important; box-shadow:0 0 12px rgba(234,179,8,.6)!important; }
+.token-jersey[data-jersey-color="black"]  { background: linear-gradient(135deg,#1f2937,#111827)!important; color:#fff!important; box-shadow:0 0 12px rgba(0,0,0,.8)!important; }
+.token-jersey[data-jersey-color="white"]  { background: linear-gradient(135deg,#f1f5f9,#e2e8f0)!important; color:#1e1e1e!important; border-color:#94a3b8!important; box-shadow:0 0 12px rgba(255,255,255,.4)!important; }
 
 .token-jersey.gk-jersey {
   background: linear-gradient(135deg, #059669, #047857) !important;
   box-shadow: 0 0 12px rgba(5, 150, 105, 0.7) !important;
+  color: #fff !important;
 }
 
 .token-name-badge {

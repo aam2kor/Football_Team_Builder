@@ -43,6 +43,8 @@ const state = {
   teamAName: "Voyagers",
   teamBName: "Boots & Beers",
   balanceMode: "balanced",
+  teamAColor: "blue",   // jersey colour: blue | red | yellow | black | white
+  teamBColor: "red",
 
   // Configurable Sector Weights
   sectorWeights: loadSectorWeights(),
@@ -213,6 +215,23 @@ function setupGeneratorEvents() {
   document.getElementById("btn-coin-toss")?.addEventListener("click", triggerCoinToss);
   document.getElementById("btn-random-captains")?.addEventListener("click", assignRandomCaptains);
 
+  // ── Jersey Colour Swatches ────────────────────────────────────
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-team-color-target]");
+    if (!btn) return;
+    const teamTarget = btn.dataset.teamColorTarget; // "A" or "B"
+    const color      = btn.dataset.color;           // blue|red|yellow|black|white
+
+    if (teamTarget === "A") {
+      state.teamAColor = color;
+      updateColorSwatchActiveState("A", color);
+    } else {
+      state.teamBColor = color;
+      updateColorSwatchActiveState("B", color);
+    }
+    renderPitch();
+  });
+
   // ── Sector Weights Panel ──────────────────────────────────────
   initSectorWeightsPanel();
 }
@@ -222,6 +241,32 @@ function setupGeneratorEvents() {
 // ============================================================
 
 /** Populates all sliders from state.sectorWeights and wires up all events */
+// ============================================================
+// Jersey Colour Swatch Helper
+// ============================================================
+
+/** Updates the ring/border on colour swatches to indicate the active choice */
+function updateColorSwatchActiveState(team, activeColor) {
+  const ringClasses = {
+    blue:   ["ring-2", "ring-offset-1", "ring-offset-slate-900", "ring-blue-400",   "border-blue-300"],
+    red:    ["ring-2", "ring-offset-1", "ring-offset-slate-900", "ring-red-400",    "border-red-300"],
+    yellow: ["ring-2", "ring-offset-1", "ring-offset-slate-900", "ring-yellow-400", "border-yellow-300"],
+    black:  ["ring-2", "ring-offset-1", "ring-offset-slate-900", "ring-gray-400",   "border-gray-400"],
+    white:  ["ring-2", "ring-offset-1", "ring-offset-slate-900", "ring-slate-300",  "border-slate-300"]
+  };
+
+  document.querySelectorAll(`[data-team-color-target="${team}"]`).forEach(btn => {
+    const btnColor = btn.dataset.color;
+    // Remove all ring/highlight classes first
+    Object.values(ringClasses).flat().forEach(cls => btn.classList.remove(cls));
+    btn.classList.add("border-slate-700"); // reset to neutral border
+    if (btnColor === activeColor) {
+      btn.classList.remove("border-slate-700");
+      (ringClasses[activeColor] || []).forEach(cls => btn.classList.add(cls));
+    }
+  });
+}
+
 function initSectorWeightsPanel() {
   // Toggle collapse
   const toggleBtn = document.getElementById("sector-weights-toggle");
@@ -708,18 +753,22 @@ function createPlayerToken(player, team, posX, posY, slotLabel) {
   token.dataset.playerId = player.id;
   token.dataset.team = team;
 
-  const jerseyClass = isGk 
-    ? "gk-jersey" 
+  const jerseyClass = isGk
+    ? "gk-jersey"
     : team === "A" ? "team-a" : "team-b";
 
+  // Jersey colour: GK always green; outfield uses team colour from state
+  const jerseyColor = isGk ? null : (team === "A" ? state.teamAColor : state.teamBColor);
+
+  // Abbreviated name: first name only (max 9 chars)
+  const displayName = player.name.split(" ")[0].substring(0, 9);
+
   token.innerHTML = `
-    <div class="token-jersey ${jerseyClass}">
-      ${player.avatar || (team === "A" ? "⚽" : "🔴")}
-      <span class="token-ovr-badge">${effective.effectiveOvr}</span>
+    <div class="token-jersey ${jerseyClass}"${jerseyColor ? ` data-jersey-color="${jerseyColor}"` : ""}>
       <span class="token-form-badge">${effective.formMod.icon}</span>
     </div>
     <div class="token-name-badge">
-      ${player.name.split(" ")[0]}
+      ${displayName}
     </div>
   `;
 
@@ -734,28 +783,41 @@ function createPlayerToken(player, team, posX, posY, slotLabel) {
 
 function handlePlayerSwapClick(player, team) {
   if (!state.selectedSwapPlayerId) {
+    // First click — select any player from either team
     state.selectedSwapPlayerId = player.id;
     state.selectedSwapTeam = team;
-    showToast(`Selected ${player.name} (${team === "A" ? state.teamAName : state.teamBName}). Now click a player on the opposite team to swap!`, "info");
+    const teamName = team === "A" ? state.teamAName : state.teamBName;
+    showToast(`Selected ${player.name} (${teamName}). Click another player to swap position or move to the other team.`, "info");
     renderPitch();
+    return;
+  }
+
+  // Second click — deselect if same player clicked again
+  if (state.selectedSwapPlayerId === player.id) {
+    state.selectedSwapPlayerId = null;
+    state.selectedSwapTeam = null;
+    renderPitch();
+    return;
+  }
+
+  const firstId   = state.selectedSwapPlayerId;
+  const firstTeam = state.selectedSwapTeam;
+
+  if (firstTeam === team) {
+    // ── WITHIN-TEAM position swap ─────────────────────────────────
+    const teamList = team === "A" ? state.activeTeamA : state.activeTeamB;
+    const idxFirst  = teamList.findIndex(p => p.id === firstId);
+    const idxSecond = teamList.findIndex(p => p.id === player.id);
+
+    if (idxFirst !== -1 && idxSecond !== -1) {
+      [teamList[idxFirst], teamList[idxSecond]] = [teamList[idxSecond], teamList[idxFirst]];
+      const teamName = team === "A" ? state.teamAName : state.teamBName;
+      showToast(`↕️ Position swap: ${teamList[idxSecond].name} ↔ ${teamList[idxFirst].name} (${teamName})`, "success");
+    }
   } else {
-    if (state.selectedSwapPlayerId === player.id) {
-      state.selectedSwapPlayerId = null;
-      state.selectedSwapTeam = null;
-      renderPitch();
-      return;
-    }
-
-    if (state.selectedSwapTeam === team) {
-      state.selectedSwapPlayerId = player.id;
-      state.selectedSwapTeam = team;
-      renderPitch();
-      return;
-    }
-
-    // Perform the swap!
-    const playerAId = state.selectedSwapTeam === "A" ? state.selectedSwapPlayerId : player.id;
-    const playerBId = state.selectedSwapTeam === "B" ? state.selectedSwapPlayerId : player.id;
+    // ── CROSS-TEAM swap ───────────────────────────────────────────
+    const playerAId = firstTeam === "A" ? firstId : player.id;
+    const playerBId = firstTeam === "B" ? firstId : player.id;
 
     const idxA = state.activeTeamA.findIndex(p => p.id === playerAId);
     const idxB = state.activeTeamB.findIndex(p => p.id === playerBId);
@@ -764,16 +826,15 @@ function handlePlayerSwapClick(player, team) {
       const temp = state.activeTeamA[idxA];
       state.activeTeamA[idxA] = state.activeTeamB[idxB];
       state.activeTeamB[idxB] = temp;
-
-      showToast(`🔄 Swapped ${state.activeTeamA[idxA].name} and ${state.activeTeamB[idxB].name}!`, "success");
+      showToast(`🔄 Swapped ${state.activeTeamA[idxA].name} (${state.teamAName}) ↔ ${state.activeTeamB[idxB].name} (${state.teamBName})`, "success");
     }
-
-    state.selectedSwapPlayerId = null;
-    state.selectedSwapTeam = null;
-    renderPitch();
-    renderTeamComparison();
-    renderSynergyBanner();
   }
+
+  state.selectedSwapPlayerId = null;
+  state.selectedSwapTeam = null;
+  renderPitch();
+  renderTeamComparison();
+  renderSynergyBanner();
 }
 
 // ============================================================

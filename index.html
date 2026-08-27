@@ -380,6 +380,14 @@
                 <input id="team-a-name-input" type="text" value="Voyagers" class="bg-transparent text-sm font-black text-blue-400 focus:outline-none w-full border-b border-transparent focus:border-blue-500">
                 <span class="text-[10px] text-slate-400">Home / Left Side</span>
               </div>
+              <!-- Jersey colour swatches -->
+              <div class="flex items-center gap-1" title="Jersey Colour">
+                <button data-team-color-target="A" data-color="blue"   class="w-5 h-5 rounded-full bg-blue-600   border-2 border-blue-300  ring-2 ring-offset-1 ring-offset-slate-900 ring-blue-400 team-color-swatch-A" title="Blue"></button>
+                <button data-team-color-target="A" data-color="red"    class="w-5 h-5 rounded-full bg-red-600    border-2 border-slate-700 team-color-swatch-A" title="Red"></button>
+                <button data-team-color-target="A" data-color="yellow" class="w-5 h-5 rounded-full bg-yellow-400 border-2 border-slate-700 team-color-swatch-A" title="Yellow"></button>
+                <button data-team-color-target="A" data-color="black"  class="w-5 h-5 rounded-full bg-gray-900  border-2 border-slate-700 team-color-swatch-A" title="Black"></button>
+                <button data-team-color-target="A" data-color="white"  class="w-5 h-5 rounded-full bg-white     border-2 border-slate-700 team-color-swatch-A" title="White"></button>
+              </div>
               <div class="w-36">
                 <select id="formation-team-a" class="bg-slate-900 border border-slate-700 text-white text-xs font-bold rounded-lg px-2 py-1.5 w-full focus:ring-1 focus:ring-blue-500">
                   <!-- Options populated dynamically -->
@@ -391,8 +399,16 @@
             <div class="flex items-center gap-3 p-2.5 rounded-xl bg-red-950/30 border border-red-500/30">
               <span class="text-xl">🔴</span>
               <div class="flex-1">
-                <input id="team-b-name-input" type="text" value="Boots & Beers" class="bg-transparent text-sm font-black text-red-400 focus:outline-none w-full border-b border-transparent focus:border-red-500">
+                <input id="team-b-name-input" type="text" value="Boots &amp; Beers" class="bg-transparent text-sm font-black text-red-400 focus:outline-none w-full border-b border-transparent focus:border-red-500">
                 <span class="text-[10px] text-slate-400">Away / Right Side</span>
+              </div>
+              <!-- Jersey colour swatches -->
+              <div class="flex items-center gap-1" title="Jersey Colour">
+                <button data-team-color-target="B" data-color="blue"   class="w-5 h-5 rounded-full bg-blue-600   border-2 border-slate-700 team-color-swatch-B" title="Blue"></button>
+                <button data-team-color-target="B" data-color="red"    class="w-5 h-5 rounded-full bg-red-600    border-2 border-red-300  ring-2 ring-offset-1 ring-offset-slate-900 ring-red-400 team-color-swatch-B" title="Red"></button>
+                <button data-team-color-target="B" data-color="yellow" class="w-5 h-5 rounded-full bg-yellow-400 border-2 border-slate-700 team-color-swatch-B" title="Yellow"></button>
+                <button data-team-color-target="B" data-color="black"  class="w-5 h-5 rounded-full bg-gray-900  border-2 border-slate-700 team-color-swatch-B" title="Black"></button>
+                <button data-team-color-target="B" data-color="white"  class="w-5 h-5 rounded-full bg-white     border-2 border-slate-700 team-color-swatch-B" title="White"></button>
               </div>
               <div class="w-36">
                 <select id="formation-team-b" class="bg-slate-900 border border-slate-700 text-white text-xs font-bold rounded-lg px-2 py-1.5 w-full focus:ring-1 focus:ring-red-500">
@@ -413,7 +429,7 @@
           <div class="flex items-center justify-between mb-2">
             <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
               <span>🏟️ Interactive Match Pitch</span>
-              <span class="text-[11px] font-normal text-slate-500">(Click a player on Voyagers, then Boots & Beers to swap)</span>
+              <span class="text-[11px] font-normal text-slate-500">(Click any player to select, then click another to swap — same team or opposite team)</span>
             </span>
             <div class="flex items-center gap-3 text-xs font-bold">
               <span class="text-blue-400 team-a-name-label">Voyagers</span>
