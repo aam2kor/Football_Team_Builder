@@ -45,6 +45,8 @@ const state = {
   balanceMode: "balanced",
   teamAColor: "blue",   // jersey colour: blue | red | yellow | black | white
   teamBColor: "red",
+  assignedSlotsA: [],
+  assignedSlotsB: [],
 
   // Configurable Sector Weights
   sectorWeights: loadSectorWeights(),
@@ -82,6 +84,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initial render
   renderApp();
+  updateColorSwatchActiveState("A", state.teamAColor);
+  updateColorSwatchActiveState("B", state.teamBColor);
 });
 
 // ============================================================
@@ -190,11 +194,19 @@ function setupGeneratorEvents() {
   // Formations Change
   document.getElementById("formation-team-a")?.addEventListener("change", (e) => {
     state.formationTeamA = e.target.value;
+    const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
+    const formations = getFormationsForSize(sizeKey);
+    const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
+    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA);
     renderPitch();
   });
 
   document.getElementById("formation-team-b")?.addEventListener("change", (e) => {
     state.formationTeamB = e.target.value;
+    const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
+    const formations = getFormationsForSize(sizeKey);
+    const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
+    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
     renderPitch();
   });
 
@@ -247,22 +259,20 @@ function setupGeneratorEvents() {
 
 /** Updates the ring/border on colour swatches to indicate the active choice */
 function updateColorSwatchActiveState(team, activeColor) {
-  const ringClasses = {
-    blue:   ["ring-2", "ring-offset-1", "ring-offset-slate-900", "ring-blue-400",   "border-blue-300"],
-    red:    ["ring-2", "ring-offset-1", "ring-offset-slate-900", "ring-red-400",    "border-red-300"],
-    yellow: ["ring-2", "ring-offset-1", "ring-offset-slate-900", "ring-yellow-400", "border-yellow-300"],
-    black:  ["ring-2", "ring-offset-1", "ring-offset-slate-900", "ring-gray-400",   "border-gray-400"],
-    white:  ["ring-2", "ring-offset-1", "ring-offset-slate-900", "ring-slate-300",  "border-slate-300"]
-  };
-
   document.querySelectorAll(`[data-team-color-target="${team}"]`).forEach(btn => {
     const btnColor = btn.dataset.color;
-    // Remove all ring/highlight classes first
-    Object.values(ringClasses).flat().forEach(cls => btn.classList.remove(cls));
-    btn.classList.add("border-slate-700"); // reset to neutral border
     if (btnColor === activeColor) {
-      btn.classList.remove("border-slate-700");
-      (ringClasses[activeColor] || []).forEach(cls => btn.classList.add(cls));
+      btn.style.outline = "2px solid #facc15";
+      btn.style.outlineOffset = "2px";
+      btn.style.transform = "scale(1.2)";
+      btn.style.borderColor = "#ffffff";
+      btn.style.opacity = "1";
+    } else {
+      btn.style.outline = "none";
+      btn.style.outlineOffset = "0";
+      btn.style.transform = "scale(1)";
+      btn.style.borderColor = "#475569";
+      btn.style.opacity = "0.75";
     }
   });
 }
@@ -412,6 +422,15 @@ function applySolution(solution) {
   state.activeTeamB = [...solution.teamB];
   state.selectedSwapPlayerId = null;
   state.selectedSwapTeam = null;
+
+  const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
+  const formations = getFormationsForSize(sizeKey);
+  const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
+  const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
+
+  state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA);
+  state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
+
   renderPitch();
   renderTeamComparison();
   renderSolutionPicker();
@@ -716,22 +735,27 @@ function renderPitch() {
   const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
   const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
 
-  const assignedA = assignPlayersToFormation(state.activeTeamA, formA);
-  const assignedB = assignPlayersToFormation(state.activeTeamB, formB);
+  // Initialize slot assignments if missing or size changed
+  if (!state.assignedSlotsA || state.assignedSlotsA.length !== state.activeTeamA.length) {
+    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA);
+  }
+  if (!state.assignedSlotsB || state.assignedSlotsB.length !== state.activeTeamB.length) {
+    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
+  }
 
   // Clear existing player tokens while keeping pitch markings
   pitchContainer.querySelectorAll(".player-token").forEach(el => el.remove());
 
   // Render Team A (Left Half of Pitch: x: 0% -> 48%)
-  assignedA.forEach(({ slot, player }) => {
-    const posX = 4 + (slot.y / 100) * 42; 
+  state.assignedSlotsA.forEach(({ slot, player }) => {
+    const posX = 4 + (slot.y / 100) * 42;
     const posY = slot.x;
     const token = createPlayerToken(player, "A", posX, posY, slot.label);
     pitchContainer.appendChild(token);
   });
 
   // Render Team B (Right Half of Pitch: x: 52% -> 96%)
-  assignedB.forEach(({ slot, player }) => {
+  state.assignedSlotsB.forEach(({ slot, player }) => {
     const posX = 96 - (slot.y / 100) * 42;
     const posY = slot.x;
     const token = createPlayerToken(player, "B", posX, posY, slot.label);
@@ -749,30 +773,33 @@ function createPlayerToken(player, team, posX, posY, slotLabel) {
 
   token.className = `player-token ${isSelected ? "selected-swap" : ""}`;
   token.style.left = `${posX}%`;
-  token.style.top = `${posY}%`;
+  token.style.top  = `${posY}%`;
   token.dataset.playerId = player.id;
-  token.dataset.team = team;
-
-  const jerseyClass = isGk
-    ? "gk-jersey"
-    : team === "A" ? "team-a" : "team-b";
-
-  // Jersey colour: GK always green; outfield uses team colour from state
-  const jerseyColor = isGk ? null : (team === "A" ? state.teamAColor : state.teamBColor);
+  token.dataset.team     = team;
 
   // Abbreviated name: first name only (max 9 chars)
   const displayName = player.name.split(" ")[0].substring(0, 9);
 
-  token.innerHTML = `
-    <div class="token-jersey ${jerseyClass}"${jerseyColor ? ` data-jersey-color="${jerseyColor}"` : ""}>
-      <span class="token-form-badge">${effective.formMod.icon}</span>
-    </div>
-    <div class="token-name-badge">
-      ${displayName}
-    </div>
-  `;
+  // Build jersey div with explicit color class
+  const jersey = document.createElement("div");
+  const color = team === "A" ? state.teamAColor : state.teamBColor;
+  jersey.className = `token-jersey ${isGk ? "gk-jersey" : `jersey-${color}`}`;
 
-  // Player Swap click listener
+  // Form icon inside jersey
+  const formBadge = document.createElement("span");
+  formBadge.className = "token-form-badge";
+  formBadge.textContent = effective.formMod.icon;
+  jersey.appendChild(formBadge);
+
+  // Name badge below jersey
+  const nameBadge = document.createElement("div");
+  nameBadge.className = "token-name-badge";
+  nameBadge.textContent = displayName;
+
+  token.appendChild(jersey);
+  token.appendChild(nameBadge);
+
+  // Player Swap click listener directly on token
   token.addEventListener("click", (e) => {
     e.stopPropagation();
     handlePlayerSwapClick(player, team);
@@ -783,19 +810,20 @@ function createPlayerToken(player, team, posX, posY, slotLabel) {
 
 function handlePlayerSwapClick(player, team) {
   if (!state.selectedSwapPlayerId) {
-    // First click — select any player from either team
+    // First click — select player
     state.selectedSwapPlayerId = player.id;
     state.selectedSwapTeam = team;
     const teamName = team === "A" ? state.teamAName : state.teamBName;
-    showToast(`Selected ${player.name} (${teamName}). Click another player to swap position or move to the other team.`, "info");
+    showToast(`Selected ${player.name} (${teamName}). Click another player on either team to swap!`, "info");
     renderPitch();
     return;
   }
 
-  // Second click — deselect if same player clicked again
+  // Second click on the exact same player — deselect
   if (state.selectedSwapPlayerId === player.id) {
     state.selectedSwapPlayerId = null;
     state.selectedSwapTeam = null;
+    showToast("Deselected player.", "info");
     renderPitch();
     return;
   }
@@ -803,30 +831,42 @@ function handlePlayerSwapClick(player, team) {
   const firstId   = state.selectedSwapPlayerId;
   const firstTeam = state.selectedSwapTeam;
 
-  if (firstTeam === team) {
-    // ── WITHIN-TEAM position swap ─────────────────────────────────
-    const teamList = team === "A" ? state.activeTeamA : state.activeTeamB;
-    const idxFirst  = teamList.findIndex(p => p.id === firstId);
-    const idxSecond = teamList.findIndex(p => p.id === player.id);
+  if (firstTeam === "A" && team === "A") {
+    // ── WITHIN TEAM A POSITION SWAP ──────────────────────────────
+    const idx1 = state.assignedSlotsA.findIndex(s => s.player.id === firstId);
+    const idx2 = state.assignedSlotsA.findIndex(s => s.player.id === player.id);
 
-    if (idxFirst !== -1 && idxSecond !== -1) {
-      [teamList[idxFirst], teamList[idxSecond]] = [teamList[idxSecond], teamList[idxFirst]];
-      const teamName = team === "A" ? state.teamAName : state.teamBName;
-      showToast(`↕️ Position swap: ${teamList[idxSecond].name} ↔ ${teamList[idxFirst].name} (${teamName})`, "success");
+    if (idx1 !== -1 && idx2 !== -1) {
+      const p1 = state.assignedSlotsA[idx1].player;
+      state.assignedSlotsA[idx1].player = state.assignedSlotsA[idx2].player;
+      state.assignedSlotsA[idx2].player = p1;
+      state.activeTeamA = state.assignedSlotsA.map(s => s.player);
+      showToast(`↕️ Position swap: ${state.assignedSlotsA[idx2].player.name} ↔ ${state.assignedSlotsA[idx1].player.name} (${state.teamAName})`, "success");
+    }
+  } else if (firstTeam === "B" && team === "B") {
+    // ── WITHIN TEAM B POSITION SWAP ──────────────────────────────
+    const idx1 = state.assignedSlotsB.findIndex(s => s.player.id === firstId);
+    const idx2 = state.assignedSlotsB.findIndex(s => s.player.id === player.id);
+
+    if (idx1 !== -1 && idx2 !== -1) {
+      const p1 = state.assignedSlotsB[idx1].player;
+      state.assignedSlotsB[idx1].player = state.assignedSlotsB[idx2].player;
+      state.assignedSlotsB[idx2].player = p1;
+      state.activeTeamB = state.assignedSlotsB.map(s => s.player);
+      showToast(`↕️ Position swap: ${state.assignedSlotsB[idx2].player.name} ↔ ${state.assignedSlotsB[idx1].player.name} (${state.teamBName})`, "success");
     }
   } else {
-    // ── CROSS-TEAM swap ───────────────────────────────────────────
-    const playerAId = firstTeam === "A" ? firstId : player.id;
-    const playerBId = firstTeam === "B" ? firstId : player.id;
-
-    const idxA = state.activeTeamA.findIndex(p => p.id === playerAId);
-    const idxB = state.activeTeamB.findIndex(p => p.id === playerBId);
+    // ── CROSS-TEAM SWAP (Team A <-> Team B) ──────────────────────
+    const idxA = state.assignedSlotsA.findIndex(s => s.player.id === (firstTeam === "A" ? firstId : player.id));
+    const idxB = state.assignedSlotsB.findIndex(s => s.player.id === (firstTeam === "B" ? firstId : player.id));
 
     if (idxA !== -1 && idxB !== -1) {
-      const temp = state.activeTeamA[idxA];
-      state.activeTeamA[idxA] = state.activeTeamB[idxB];
-      state.activeTeamB[idxB] = temp;
-      showToast(`🔄 Swapped ${state.activeTeamA[idxA].name} (${state.teamAName}) ↔ ${state.activeTeamB[idxB].name} (${state.teamBName})`, "success");
+      const pA = state.assignedSlotsA[idxA].player;
+      state.assignedSlotsA[idxA].player = state.assignedSlotsB[idxB].player;
+      state.assignedSlotsB[idxB].player = pA;
+      state.activeTeamA = state.assignedSlotsA.map(s => s.player);
+      state.activeTeamB = state.assignedSlotsB.map(s => s.player);
+      showToast(`🔄 Swapped ${state.assignedSlotsA[idxA].player.name} (${state.teamAName}) ↔ ${state.assignedSlotsB[idxB].player.name} (${state.teamBName})`, "success");
     }
   }
 

@@ -53,6 +53,16 @@
 }
 
 /* Pitch Field Markings */
+.pitch-half-line,
+.pitch-center-circle,
+.pitch-center-spot,
+.pitch-penalty-left,
+.pitch-goal-left,
+.pitch-penalty-right,
+.pitch-goal-right {
+  pointer-events: none;
+}
+
 .pitch-half-line {
   position: absolute;
   top: 0;
@@ -144,28 +154,30 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 10;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 20;
+  user-select: none;
 }
 
 .player-token:hover {
-  transform: translate(-50%, -55%) scale(1.1);
-  z-index: 20;
+  transform: translate(-50%, -55%) scale(1.15);
+  z-index: 40;
 }
 
 .player-token.selected-swap {
   animation: tokenPulse 1.2s infinite ease-in-out;
-  z-index: 30;
+  z-index: 50;
 }
 
 .player-token.selected-swap .token-jersey {
-  ring: 4px solid #facc15;
-  box-shadow: 0 0 20px #facc15;
+  outline: 3px solid #facc15 !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 20px #facc15 !important;
 }
 
 @keyframes tokenPulse {
-  0%, 100% { transform: translate(-50%, -50%) scale(1.15); }
-  50% { transform: translate(-50%, -50%) scale(1.25); }
+  0%, 100% { transform: translate(-50%, -50%) scale(1.18); }
+  50% { transform: translate(-50%, -50%) scale(1.3); }
 }
 
 .token-jersey {
@@ -181,23 +193,50 @@
   color: white;
   border: 2px solid white;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s ease;
 }
 
-/* ── Team jersey colours — driven by data-jersey-color on the token ── */
-.token-jersey.team-a  { background: var(--jersey-a, linear-gradient(135deg,#2563eb,#1d4ed8)); box-shadow: 0 0 12px var(--jersey-a-glow, rgba(37,99,235,0.6)); }
-.token-jersey.team-b  { background: var(--jersey-b, linear-gradient(135deg,#dc2626,#b91c1c)); box-shadow: 0 0 12px var(--jersey-b-glow, rgba(220,38,38,0.6)); }
+/* ── 5 Selectable Team Jersey Colors + GK ── */
+.jersey-blue {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.7) !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
 
-/* Individual colour overrides applied as data-jersey-color="X" on .token-jersey */
-.token-jersey[data-jersey-color="blue"]   { background: linear-gradient(135deg,#2563eb,#1d4ed8)!important; color:#fff!important; box-shadow:0 0 12px rgba(37,99,235,.6)!important; }
-.token-jersey[data-jersey-color="red"]    { background: linear-gradient(135deg,#dc2626,#b91c1c)!important; color:#fff!important; box-shadow:0 0 12px rgba(220,38,38,.6)!important; }
-.token-jersey[data-jersey-color="yellow"] { background: linear-gradient(135deg,#eab308,#ca8a04)!important; color:#1e1e1e!important; box-shadow:0 0 12px rgba(234,179,8,.6)!important; }
-.token-jersey[data-jersey-color="black"]  { background: linear-gradient(135deg,#1f2937,#111827)!important; color:#fff!important; box-shadow:0 0 12px rgba(0,0,0,.8)!important; }
-.token-jersey[data-jersey-color="white"]  { background: linear-gradient(135deg,#f1f5f9,#e2e8f0)!important; color:#1e1e1e!important; border-color:#94a3b8!important; box-shadow:0 0 12px rgba(255,255,255,.4)!important; }
+.jersey-red {
+  background: linear-gradient(135deg, #dc2626, #b91c1c) !important;
+  box-shadow: 0 0 12px rgba(220, 38, 38, 0.7) !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+.jersey-yellow {
+  background: linear-gradient(135deg, #eab308, #ca8a04) !important;
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.7) !important;
+  color: #1e1e1e !important;
+  border-color: #fef08a !important;
+}
+
+.jersey-black {
+  background: linear-gradient(135deg, #1f2937, #111827) !important;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.8) !important;
+  color: #ffffff !important;
+  border-color: #6b7280 !important;
+}
+
+.jersey-white {
+  background: linear-gradient(135deg, #ffffff, #e2e8f0) !important;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.5) !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
 
 .token-jersey.gk-jersey {
   background: linear-gradient(135deg, #059669, #047857) !important;
-  box-shadow: 0 0 12px rgba(5, 150, 105, 0.7) !important;
-  color: #fff !important;
+  box-shadow: 0 0 12px rgba(5, 150, 105, 0.8) !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
 }
 
 .token-name-badge {
