@@ -763,6 +763,45 @@ function renderPitch() {
   });
 }
 
+const JERSEY_COLOR_MAP = {
+  blue: {
+    bg: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    shadow: "0 0 12px rgba(37, 99, 235, 0.7)",
+    color: "#ffffff",
+    border: "2px solid #ffffff"
+  },
+  red: {
+    bg: "linear-gradient(135deg, #dc2626, #b91c1c)",
+    shadow: "0 0 12px rgba(220, 38, 38, 0.7)",
+    color: "#ffffff",
+    border: "2px solid #ffffff"
+  },
+  yellow: {
+    bg: "linear-gradient(135deg, #eab308, #ca8a04)",
+    shadow: "0 0 12px rgba(234, 179, 8, 0.7)",
+    color: "#1e1e1e",
+    border: "2px solid #fef08a"
+  },
+  black: {
+    bg: "linear-gradient(135deg, #1f2937, #111827)",
+    shadow: "0 0 12px rgba(0, 0, 0, 0.8)",
+    color: "#ffffff",
+    border: "2px solid #6b7280"
+  },
+  white: {
+    bg: "linear-gradient(135deg, #ffffff, #e2e8f0)",
+    shadow: "0 0 12px rgba(255, 255, 255, 0.5)",
+    color: "#0f172a",
+    border: "2px solid #94a3b8"
+  },
+  gk: {
+    bg: "linear-gradient(135deg, #059669, #047857)",
+    shadow: "0 0 12px rgba(5, 150, 105, 0.8)",
+    color: "#ffffff",
+    border: "2px solid #ffffff"
+  }
+};
+
 function createPlayerToken(player, team, posX, posY, slotLabel) {
   const token = document.createElement("div");
   const isSelected = state.selectedSwapPlayerId === player.id;
@@ -780,10 +819,16 @@ function createPlayerToken(player, team, posX, posY, slotLabel) {
   // Abbreviated name: first name only (max 9 chars)
   const displayName = player.name.split(" ")[0].substring(0, 9);
 
-  // Build jersey div with explicit color class
+  // Build jersey div with explicit color class and inline style fallback
   const jersey = document.createElement("div");
   const color = team === "A" ? state.teamAColor : state.teamBColor;
   jersey.className = `token-jersey ${isGk ? "gk-jersey" : `jersey-${color}`}`;
+
+  const styleConfig = isGk ? JERSEY_COLOR_MAP.gk : (JERSEY_COLOR_MAP[color] || JERSEY_COLOR_MAP.blue);
+  jersey.style.background = styleConfig.bg;
+  jersey.style.boxShadow = styleConfig.shadow;
+  jersey.style.color = styleConfig.color;
+  jersey.style.border = styleConfig.border;
 
   // Form icon inside jersey
   const formBadge = document.createElement("span");
