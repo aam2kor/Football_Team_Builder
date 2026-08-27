@@ -1,21 +1,38 @@
 import { PlayerDatabase, calculateOvr } from "./storage/db.js";
-import { buildBalancedTeams, calculateTeamStats, FORM_MODIFIERS, getEffectivePlayerStats } from "./engine/balancer.js";
+import { buildBalancedTeams, calculateTeamStats, FORM_MODIFIERS, getEffectivePlayerStats, DEFAULT_SECTOR_WEIGHTS, cloneSectorWeights } from "./engine/balancer.js";
 import { FORMATIONS, getFormationsForSize, assignPlayersToFormation } from "./engine/formations.js";
 
 // Initialize Database instance
 const db = new PlayerDatabase();
 
+// ============================================================
+// Sector Weights — Load from localStorage or use defaults
+// ============================================================
+function loadSectorWeights() {
+  try {
+    const saved = localStorage.getItem("ftb_sector_weights");
+    if (saved) return JSON.parse(saved);
+  } catch (e) { /* ignore */ }
+  return cloneSectorWeights(DEFAULT_SECTOR_WEIGHTS);
+}
+
+function saveSectorWeights(weights) {
+  try {
+    localStorage.setItem("ftb_sector_weights", JSON.stringify(weights));
+  } catch (e) { /* ignore */ }
+}
+
 // Application State
 const state = {
-  currentTab: "generator", // "generator", "roster", "backup"
-  targetTeamSize: 8,       // 8v8 = 16 players
-  gkMode: "fixed",         // "fixed" or "rotating"
+  currentTab: "generator",
+  targetTeamSize: 8,
+  gkMode: "fixed",
   selectedPlayerIds: new Set(),
-  matchdaySettings: {},    // [playerId]: { fitness: 100, form: 'neutral' }
+  matchdaySettings: {},
   filterPosition: "ALL",
   searchQuery: "",
   sortBy: "ovr_desc",
-  
+
   // Generator State
   generatedSolutions: [],
   currentSolutionIndex: 0,
@@ -26,14 +43,18 @@ const state = {
   teamAName: "Voyagers",
   teamBName: "Boots & Beers",
   balanceMode: "balanced",
-  
+
+  // Configurable Sector Weights
+  sectorWeights: loadSectorWeights(),
+
   // Swap State
   selectedSwapPlayerId: null,
-  selectedSwapTeam: null, // "A" or "B"
+  selectedSwapTeam: null,
 
   // Modal State
   editingPlayerId: null
 };
+
 
 // ============================================================
 // Initialization & Event Listeners
@@ -191,6 +212,102 @@ function setupGeneratorEvents() {
   document.getElementById("btn-export-image")?.addEventListener("click", exportPitchAsImage);
   document.getElementById("btn-coin-toss")?.addEventListener("click", triggerCoinToss);
   document.getElementById("btn-random-captains")?.addEventListener("click", assignRandomCaptains);
+
+  // ── Sector Weights Panel ──────────────────────────────────────
+  initSectorWeightsPanel();
+}
+
+// ============================================================
+// Sector Weights Panel
+// ============================================================
+
+/** Populates all sliders from state.sectorWeights and wires up all events */
+function initSectorWeightsPanel() {
+  // Toggle collapse
+  const toggleBtn = document.getElementById("sector-weights-toggle");
+  const panel     = document.getElementById("sector-weights-panel");
+  if (toggleBtn && panel) {
+    toggleBtn.addEventListener("click", () => {
+      const hidden = panel.classList.toggle("hidden");
+      toggleBtn.querySelector(".sw-toggle-icon").textContent = hidden ? "▼" : "▲";
+    });
+  }
+
+  // Populate sliders from current state
+  populateSectorSliders();
+
+  // Wire per-slider input events via delegation
+  document.getElementById("sector-weights-panel")?.addEventListener("input", (e) => {
+    const el = e.target;
+    if (!el.matches("[data-sw-sector][data-sw-group][data-sw-key]")) return;
+
+    const sector = el.dataset.swSector;   // "attack" | "midfield" | "defense" | "overall"
+    const group  = el.dataset.swGroup;    // "attributes" | "positions" | "gkBlend" | "penaltyMult"
+    const key    = el.dataset.swKey;      // e.g. "sho" | "FWD" | "value"
+    const val    = parseFloat(el.value);
+
+    if (group === "gkBlend" || group === "penaltyMult") {
+      state.sectorWeights[sector][group] = val;
+    } else {
+      state.sectorWeights[sector][group][key] = val;
+    }
+
+    // Update readout
+    const readout = document.getElementById(`sw-readout-${sector}-${group}-${key}`);
+    if (readout) readout.textContent = val.toFixed(2);
+
+    saveSectorWeights(state.sectorWeights);
+  });
+
+  // Per-sector reset buttons
+  document.getElementById("sector-weights-panel")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-sw-reset-sector]");
+    if (!btn) return;
+    const sector = btn.dataset.swResetSector;
+    state.sectorWeights[sector] = cloneSectorWeights(DEFAULT_SECTOR_WEIGHTS)[sector];
+    saveSectorWeights(state.sectorWeights);
+    populateSectorSliders();
+    showToast(`↺ ${sector.charAt(0).toUpperCase() + sector.slice(1)} weights reset to defaults`, "info");
+  });
+
+  // Global reset button
+  document.getElementById("btn-reset-all-sector-weights")?.addEventListener("click", () => {
+    state.sectorWeights = cloneSectorWeights(DEFAULT_SECTOR_WEIGHTS);
+    saveSectorWeights(state.sectorWeights);
+    populateSectorSliders();
+    showToast("↺ All sector weights reset to defaults", "info");
+  });
+}
+
+/** Reads state.sectorWeights and sets all slider values + readouts */
+function populateSectorSliders() {
+  const sw = state.sectorWeights;
+
+  function setSlider(sector, group, key, value) {
+    const el = document.querySelector(`[data-sw-sector="${sector}"][data-sw-group="${group}"][data-sw-key="${key}"]`);
+    if (el) el.value = value;
+    const readout = document.getElementById(`sw-readout-${sector}-${group}-${key}`);
+    if (readout) readout.textContent = parseFloat(value).toFixed(2);
+  }
+
+  // Attack
+  ["sho","dri","pac","pas","def","phy"].forEach(k => setSlider("attack", "attributes", k, sw.attack.attributes[k] ?? 0));
+  ["GK","DEF","MID","FWD"].forEach(k  => setSlider("attack", "positions", k, sw.attack.positions[k] ?? 1));
+  setSlider("attack", "penaltyMult", "value", sw.attack.penaltyMult ?? 8.0);
+
+  // Midfield
+  ["sho","dri","pac","pas","def","phy"].forEach(k => setSlider("midfield", "attributes", k, sw.midfield.attributes[k] ?? 0));
+  ["GK","DEF","MID","FWD"].forEach(k  => setSlider("midfield", "positions", k, sw.midfield.positions[k] ?? 1));
+  setSlider("midfield", "penaltyMult", "value", sw.midfield.penaltyMult ?? 7.0);
+
+  // Defense
+  ["sho","dri","pac","pas","def","phy"].forEach(k => setSlider("defense", "attributes", k, sw.defense.attributes[k] ?? 0));
+  ["GK","DEF","MID","FWD"].forEach(k  => setSlider("defense", "positions", k, sw.defense.positions[k] ?? 1));
+  setSlider("defense", "gkBlend",      "value", sw.defense.gkBlend ?? 0.35);
+  setSlider("defense", "penaltyMult",  "value", sw.defense.penaltyMult ?? 9.0);
+
+  // Overall
+  setSlider("overall", "penaltyMult", "value", sw.overall?.penaltyMult ?? 22.0);
 }
 
 function updateFormationOptions() {
@@ -223,6 +340,7 @@ function handleBuildTeams() {
       mode: state.balanceMode,
       gkMode: state.gkMode,
       matchdaySettingsMap: state.matchdaySettings,
+      sectorWeights: state.sectorWeights,
       topK: 3
     });
 
