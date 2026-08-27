@@ -819,12 +819,12 @@ function createPlayerToken(player, team, posX, posY, slotLabel) {
   // Abbreviated name: first name only (max 9 chars)
   const displayName = player.name.split(" ")[0].substring(0, 9);
 
-  // Build jersey div with explicit color class and inline style fallback
+  // Build jersey div with explicit team color class and inline style fallback
   const jersey = document.createElement("div");
   const color = team === "A" ? state.teamAColor : state.teamBColor;
-  jersey.className = `token-jersey ${isGk ? "gk-jersey" : `jersey-${color}`}`;
+  jersey.className = `token-jersey jersey-${color}`;
 
-  const styleConfig = isGk ? JERSEY_COLOR_MAP.gk : (JERSEY_COLOR_MAP[color] || JERSEY_COLOR_MAP.blue);
+  const styleConfig = JERSEY_COLOR_MAP[color] || JERSEY_COLOR_MAP.blue;
   jersey.style.background = styleConfig.bg;
   jersey.style.boxShadow = styleConfig.shadow;
   jersey.style.color = styleConfig.color;
