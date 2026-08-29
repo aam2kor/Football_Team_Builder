@@ -743,8 +743,21 @@ function renderPitch() {
     state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
   }
 
-  // Clear existing player tokens while keeping pitch markings
-  pitchContainer.querySelectorAll(".player-token").forEach(el => el.remove());
+  // Clear existing player tokens and watermarks while keeping pitch markings
+  pitchContainer.querySelectorAll(".player-token, .pitch-team-watermark").forEach(el => el.remove());
+
+  // ── Team Side Watermark Badges ─────────────────────────────
+  // Left Side Team (Team A / Voyagers)
+  const watermarkLeft = document.createElement("div");
+  watermarkLeft.className = "pitch-team-watermark left";
+  watermarkLeft.innerHTML = `<span class="w-2.5 h-2.5 rounded-full inline-block jersey-${state.teamAColor}"></span> <span>${state.teamAName}</span>`;
+  pitchContainer.appendChild(watermarkLeft);
+
+  // Right Side Team (Team B / Boots & Beers)
+  const watermarkRight = document.createElement("div");
+  watermarkRight.className = "pitch-team-watermark right";
+  watermarkRight.innerHTML = `<span>${state.teamBName}</span> <span class="w-2.5 h-2.5 rounded-full inline-block jersey-${state.teamBColor}"></span>`;
+  pitchContainer.appendChild(watermarkRight);
 
   // Render Team A (Left Half of Pitch: x: 0% -> 48%)
   state.assignedSlotsA.forEach(({ slot, player }) => {
@@ -1516,43 +1529,100 @@ function exportPitchAsImage() {
   canvas.width = 1200;
   canvas.height = 750;
 
+  // Draw turf stripes
   const stripeWidth = canvas.width / 12;
   for (let i = 0; i < 12; i++) {
     ctx.fillStyle = i % 2 === 0 ? "#1b4d2e" : "#235e39";
     ctx.fillRect(i * stripeWidth, 0, stripeWidth, canvas.height);
   }
 
+  // Pitch boundary lines
   ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
   ctx.lineWidth = 4;
   ctx.strokeRect(30, 30, canvas.width - 60, canvas.height - 60);
 
+  // Halfway line
   ctx.beginPath();
   ctx.moveTo(canvas.width / 2, 30);
   ctx.lineTo(canvas.width / 2, canvas.height - 30);
   ctx.stroke();
 
+  // Center circle & spot
   ctx.beginPath();
   ctx.arc(canvas.width / 2, canvas.height / 2, 90, 0, Math.PI * 2);
   ctx.stroke();
 
+  ctx.beginPath();
+  ctx.arc(canvas.width / 2, canvas.height / 2, 6, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.fill();
+
+  // Penalty boxes
   ctx.strokeRect(30, canvas.height * 0.2, 180, canvas.height * 0.6);
   ctx.strokeRect(canvas.width - 210, canvas.height * 0.2, 180, canvas.height * 0.6);
 
+  // Goal areas
+  ctx.strokeRect(30, canvas.height * 0.35, 60, canvas.height * 0.3);
+  ctx.strokeRect(canvas.width - 90, canvas.height * 0.35, 60, canvas.height * 0.3);
+
+  // ── Team Name Banners on Left & Right Sides ────────────────
+  const CANVAS_COLOR_HEX = {
+    blue: "#2563eb",
+    red: "#dc2626",
+    yellow: "#eab308",
+    black: "#111827",
+    white: "#f8fafc"
+  };
+
+  // Left Side Team Banner (VOYAGERS)
+  const colorHexA = CANVAS_COLOR_HEX[state.teamAColor] || "#2563eb";
+  ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+  ctx.beginPath();
+  ctx.roundRect(50, 45, 340, 50, 25);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(80, 70, 10, 0, Math.PI * 2);
+  ctx.fillStyle = colorHexA;
+  ctx.fill();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 26px sans-serif";
-  ctx.fillText(`🔵 ${state.teamAName}`, 60, 70);
-  ctx.textAlign = "right";
-  ctx.fillText(`🔴 ${state.teamBName}`, canvas.width - 60, 70);
+  ctx.font = "bold 20px sans-serif";
   ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`LEFT: ${state.teamAName.toUpperCase()}`, 102, 70);
 
-  const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
-  const formations = getFormationsForSize(sizeKey);
-  const formA = formations[state.formationTeamA];
-  const formB = formations[state.formationTeamB];
+  // Right Side Team Banner (BOOTS & BEERS)
+  const colorHexB = CANVAS_COLOR_HEX[state.teamBColor] || "#dc2626";
+  ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+  ctx.beginPath();
+  ctx.roundRect(canvas.width - 390, 45, 340, 50, 25);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
 
-  const assignedA = assignPlayersToFormation(state.activeTeamA, formA);
-  const assignedB = assignPlayersToFormation(state.activeTeamB, formB);
+  ctx.beginPath();
+  ctx.arc(canvas.width - 80, 70, 10, 0, Math.PI * 2);
+  ctx.fillStyle = colorHexB;
+  ctx.fill();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2;
+  ctx.stroke();
 
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 20px sans-serif";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`RIGHT: ${state.teamBName.toUpperCase()}`, canvas.width - 102, 70);
+
+  // Draw Tokens for Team A & Team B from current assignedSlots
   const drawToken = (p, team, xPercent, yPercent) => {
     const x = (xPercent / 100) * (canvas.width - 60) + 30;
     const y = (yPercent / 100) * (canvas.height - 60) + 30;
@@ -1560,46 +1630,65 @@ function exportPitchAsImage() {
     const mSetting = state.matchdaySettings[p.id] || { fitness: 100, form: "neutral" };
     const eff = getEffectivePlayerStats(p, mSetting);
 
+    const teamColor = team === "A" ? state.teamAColor : state.teamBColor;
+    const fillColor = CANVAS_COLOR_HEX[teamColor] || (team === "A" ? "#2563eb" : "#dc2626");
+
+    // Jersey circle
     ctx.beginPath();
     ctx.arc(x, y, 22, 0, Math.PI * 2);
-    ctx.fillStyle = p.position === "GK" ? "#059669" : (team === "A" ? "#2563eb" : "#dc2626");
+    ctx.fillStyle = fillColor;
     ctx.fill();
     ctx.lineWidth = 3;
-    ctx.strokeStyle = "#ffffff";
+    ctx.strokeStyle = teamColor === "white" ? "#94a3b8" : "#ffffff";
+    ctx.stroke();
+
+    // Form icon inside jersey circle
+    ctx.font = "14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(eff.formMod.icon, x, y);
+
+    // Name badge below jersey
+    ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+    const nameStr = p.name.split(" ")[0];
+    ctx.font = "bold 13px sans-serif";
+    const textWidth = ctx.measureText(nameStr).width;
+    ctx.beginPath();
+    ctx.roundRect(x - textWidth / 2 - 8, y + 26, textWidth + 16, 22, 11);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+    ctx.lineWidth = 1;
     ctx.stroke();
 
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 13px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(eff.effectiveOvr.toString(), x, y);
-
-    ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
-    const nameStr = p.name.split(" ")[0];
-    const textWidth = ctx.measureText(nameStr).width;
-    ctx.fillRect(x - textWidth / 2 - 6, y + 26, textWidth + 12, 18);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 11px sans-serif";
-    ctx.fillText(nameStr, x, y + 35);
+    ctx.fillText(nameStr, x, y + 37);
   };
 
-  assignedA.forEach(({ slot, player }) => {
-    const posX = 4 + (slot.y / 100) * 42;
-    const posY = slot.x;
-    drawToken(player, "A", posX, posY);
-  });
+  // Render Left Side Tokens (Team A)
+  if (state.assignedSlotsA && state.assignedSlotsA.length > 0) {
+    state.assignedSlotsA.forEach(({ slot, player }) => {
+      const posX = 4 + (slot.y / 100) * 42;
+      const posY = slot.x;
+      drawToken(player, "A", posX, posY);
+    });
+  }
 
-  assignedB.forEach(({ slot, player }) => {
-    const posX = 96 - (slot.y / 100) * 42;
-    const posY = slot.x;
-    drawToken(player, "B", posX, posY);
-  });
+  // Render Right Side Tokens (Team B)
+  if (state.assignedSlotsB && state.assignedSlotsB.length > 0) {
+    state.assignedSlotsB.forEach(({ slot, player }) => {
+      const posX = 96 - (slot.y / 100) * 42;
+      const posY = slot.x;
+      drawToken(player, "B", posX, posY);
+    });
+  }
 
   const link = document.createElement("a");
-  link.download = `matchday_lineup_${Date.now()}.png`;
+  link.download = `matchday_${state.teamAName}_vs_${state.teamBName}_${Date.now()}.png`;
   link.href = canvas.toDataURL("image/png");
   link.click();
-  showToast("✅ Pitch lineup image downloaded!", "success");
+  showToast("✅ High-res pitch lineup image downloaded!", "success");
 }
 
 function triggerCoinToss() {
