@@ -1,80 +1,98 @@
 # ⚽ 8x8 Football (Soccer) Team Builder
 
-An interactive web application designed to generate perfectly balanced football teams for match day. Built with FIFA-style player cards, customizable tactical attributes, matchday fitness, dynamic form arrows, chemistry synergy duos, and rotating goalkeeper mode.
+An interactive, modern web application designed to generate perfectly balanced football teams for match day. Built with FIFA-style player ratings, multi-sector tactical balancing, customizable sector weights, matchday fitness, dynamic form arrows, chemistry synergy duos, flexible jersey colors, and interactive pitch swapping.
 
 ---
 
 ## 🌟 Key Features
 
-1. **🎯 Smart Multi-Sector Combinatorial Team Balancer**:
-   - Computes all $\binom{16}{8} = 12,870$ team combinations in milliseconds.
-   - Balances teams across **3 primary tactical sectors simultaneously**:
-     - **⚔️ Attacking Power** (SHO, DRI, PAC — weighted by FWD/MID roles)
-     - **⚙️ Midfield Control** (PAS, DRI, defensive work rate)
-     - **🛡️ Defensive Strength incl. GK** (outfield DEF + PHY blended with Goalkeeper shot-stopping rating)
-   - Also ensures:
-     - **Effective Overall Rating Parity** (including Fitness, Form, and Chemistry)
-     - **Goalkeeper Equality** (Fixed GK or Rotating GK mode)
-     - **Positional Count Balance** (equal DEF, MID, FWD distribution)
+### 1. 🎯 Smart Multi-Sector Combinatorial Team Balancer
+- Computes and evaluates all combinations in milliseconds ($\binom{16}{8} = 12,870$ splits for 8v8).
+- Balances teams across **3 primary tactical sectors simultaneously**:
+  - **⚔️ Attacking Power (ATT)**: Shooting, Dribbling, and Pace weighted heavily by Forward and Midfield roles.
+  - **⚙️ Midfield Control (MID)**: Passing, Vision, Dribbling, and defensive work rate.
+  - **🛡️ Defensive Strength (DEF & GK)**: Outfield Defending + Physicality ($65\%$) blended with Goalkeeper shot-stopping ($35\%$).
+- Also optimizes:
+  - **Effective Overall Rating Parity** (including Fitness, Form modifiers, and Chemistry boosts).
+  - **Goalkeeper Parity** (Dedicated GK vs. Rotating GK mode).
+  - **Positional Count Balance** (even distribution of DEF, MID, FWD across teams).
 
-2. **🔀 Balancing Focus Modes**:
-   - **🎯 Multi-Sector Balanced** *(default & recommended)*: Guarantees parity in Attack, Midfield, and Defense (incl. GK) simultaneously. Penalty coefficients: ATT ×8, MID ×7, DEF ×9, OVR ×22.
-   - **⭐ Pure OVR Rating Parity**: Maximises overall rating equality, secondary sector checks.
-   - **🛡️ Tactical Position Match**: Heaviest weight on positional role distribution (DEF vs FWD).
-   - **⚡ Speed & Physicality Equality**: Prioritises Pace and Stamina equality.
+---
 
-3. **⚡ Player Synergy & Chemistry Duos**:
-   - Specify favourite partner duos in the database or spreadsheet.
-   - When teammates with chemistry are placed on the same team, their combined effective rating receives a **Synergy Boost** (+1.5 OVR per active duo link).
+### 2. ⚙️ Advanced Sector Weights Configurator
+Expand the **⚙️ Advanced Sector Weights** panel to customize the engine's internal weights:
+- **Attribute Weights**: Adjust the importance of PAC, SHO, PAS, DRI, DEF, PHY per sector.
+- **Positional Weights**: Tune how heavily FWD, MID, DEF, and GK roles contribute to Attack, Midfield, and Defense.
+- **GK Blend %**: Set how much Goalkeeper shot-stopping contributes to the defensive sector rating ($0\%\text{–}100\%$, default $35\%$).
+- **Penalty Multipliers**: Adjust the priority weights given to balancing OVR ($\times 22.0$), DEF ($\times 9.0$), ATT ($\times 8.0$), and MID ($\times 7.0$).
+- **Persistence & Reset**: Automatically saves to `localStorage`; includes per-sector **↺ Reset** and global **↺ Reset All** buttons.
 
-4. **🔋 Matchday Fitness Level (0%–100%)**:
-   - Real-time slider on matchday to simulate tired or injured players.
-   - Dynamically scales Physicality (PHY), Pace (PAC), and effective matchday rating.
+---
 
-5. **🔥 Matchday Form Modifiers (FIFA/PES Arrows)**:
-   - Cycle through 5 form states:
-     - 🔥 **Super Hot (⬆️)**: $+4$ OVR / $+8\%$ stats
-     - ⚡ **Good Form (↗️)**: $+2$ OVR / $+4\%$ stats
-     - ➡️ **Normal (➡️)**: $+0$
-     - 🌧️ **Off Day (↘️)**: $-2$ OVR / $-4\%$ stats
-     - ❄️ **Terrible (⬇️)**: $-4$ OVR / $-8\%$ stats
+### 3. 🏟️ Interactive Match Pitch Visualizer & Swapping
+- **2-Click Live Swapping**:
+  - **Within-Team Position Swap**: Click two players on the *same team* to immediately swap their tactical pitch slots (e.g. moving a Striker to Centre-Back).
+  - **Cross-Team Swap**: Click a player on Voyagers and a player on Boots & Beers to move them to the opposite team with live stat recalculations.
+- **🎨 5 Selectable Team Jersey Colors**:
+  - Choose between 🔵 **Blue**, 🔴 **Red**, 🟡 **Yellow**, ⚫ **Black**, and ⚪ **White** for either team.
+  - Goalkeepers wear the matching team color for a unified team kit look.
+- **📛 Clean Token Display**: Pitch tokens show the player's **First Name** and active **Matchday Form Arrow** (numerical ratings are hidden on the pitch for a clean broadcast visual).
+- **🏷️ Team Side Watermarks**: Clearly indicates the **LEFT** team (*Voyagers*) and **RIGHT** team (*Boots & Beers*) with active kit color badges on the turf.
 
-6. **🔄 Rotating Goalkeepers vs. Fixed GK Mode**:
-   - **Fixed GK**: Strict 1 dedicated GK per side. GK shot-stopping is blended into the team's defensive score.
-   - **Rotating GK**: All players take turns in goal; balances outfield strength without forcing a designated GK slot.
+---
 
-7. **🏟️ Interactive 2D Soccer Pitch & Live Swapping**:
-   - Authentic turf markings, center circle, and penalty boxes.
-   - Dynamic 8v8 formations: `1-3-3-1`, `1-2-4-1`, `1-3-2-2`, `1-2-3-2` (and formations for 5v5 through 11v11).
-   - **Click-to-Swap**: Click a player on Voyagers and a player on Boots & Beers to instantly swap them with live stat recalculations.
+### 4. ⚡ Matchday Dynamics & Chemistry
+- **🔋 Matchday Fitness Slider (0%–100%)**: Dynamically scales Physicality (PHY), Pace (PAC), and effective matchday rating for tired or recovering players.
+- **🔥 Matchday Form Modifiers (FIFA/PES Arrows)**:
+  - 🔥 **Super Hot (⬆️)**: $+4$ OVR / $+8\%$ stats
+  - ⚡ **Good Form (↗️)**: $+2$ OVR / $+4\%$ stats
+  - ➡️ **Normal (➡️)**: $+0$
+  - 🌧️ **Off Day (↘️)**: $-2$ OVR / $-4\%$ stats
+  - ❄️ **Terrible (⬇️)**: $-4$ OVR / $-8\%$ stats
+- **🤝 Player Synergy & Chemistry Duos**: Pair favorite teammates in the roster database; when assigned to the same team, they trigger a **Chemistry Boost** ($+1.5$ OVR per active duo link).
+- **🧤 Flexible Goalkeeper Rules**:
+  - **Fixed Dedicated GK**: Strict 1 GK per side; GK shot-stopping is blended into the defensive score.
+  - **Rotating GKs**: All players share goalkeeper duties; balances outfield strength without forcing a fixed keeper slot.
 
-8. **📊 Side-by-Side FIFA Team Comparison**:
-   - Head-to-head comparison bars with **primary sectors highlighted**: ⚔️ ATT, ⚙️ MID, 🛡️ DEF & GK — plus Pace, Physical, Passing, GK reflex.
-   - Active Chemistry Duos summary banner.
+---
 
-9. **💬 Matchday & Sharing Tools**:
-   - **Copy to WhatsApp**: Formatted lineup with emojis, player ratings, form arrows, fitness notes, and chemistry links.
-   - **Export Pitch Image**: Generates a high-resolution PNG of the pitch lineup.
-   - **Coin Toss & Captain Picker**: Matchday kickoff decider tools.
+### 5. 📊 Side-by-Side Head-to-Head Comparison Dashboard
+- **Team Overview Cards**: Displays effective average OVR, chemistry links, positional counts, and full matchday rosters.
+- **7 Head-to-Head Comparison Bars**:
+  - **Highlighted Primary Sectors**: ⚔️ Attack (ATT), ⚙️ Midfield (MID), 🛡️ Defense & GK (DEF).
+  - **Technical & Physical Metrics**: ⚡ Pace (PAC), 💪 Physical (PHY), 🎯 Passing (PAS), 🧤 GK Shot-Stopping.
 
-10. **📁 Spreadsheet & CSV / JSON Integration**:
-    - Pre-seeded with 24 realistic players across all positions.
-    - Shareable Google Sheets / Excel template: `football_players_template.csv`.
-    - Full CSV & JSON Backup, Import, and Export.
+---
+
+### 6. 💬 Matchday & Sharing Tools
+- **📋 Copy to WhatsApp**: One-click formatted match report with team names, tactical formations, emojis, player ratings, form arrows, and chemistry links.
+- **📸 Export Pitch Image**: Generates and downloads a high-resolution PNG image of the pitch lineup with team side banners and custom kit colors.
+- **🪙 Coin Toss & 👑 Random Captains**: Instant matchday kickoff decider and captain selector.
+- **📁 CSV / JSON Database**: Pre-seeded with 24 realistic players, with import/export tools and a shareable spreadsheet template (`football_players_template.csv`).
 
 ---
 
 ## 🚀 How to Run Locally
 
-You can run the application in any modern web browser using Python's built-in HTTP server:
+The application runs directly in any modern web browser using Python's built-in HTTP server (no Node.js build step required):
 
 ```bash
-# 1. Navigate to the project folder
+# 1. Navigate to the project directory
 cd /home/abey/Documents/Football_Team_Builder
 
-# 2. Start a local web server
+# 2. Start the local server
 python3 -m http.server 8000
 ```
 
-Then open your browser and navigate to:
+Open your browser and navigate to:
 👉 **`http://localhost:8000`**
+
+---
+
+## 🧪 Automated Test Suite
+
+Run the full verification test suite (verifying fitness scaling, chemistry bonuses, multi-sector balance, and combinatorial engine):
+
+```bash
+python3 tests/run_tests.py
+```
