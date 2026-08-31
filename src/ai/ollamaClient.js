@@ -95,21 +95,32 @@ export async function queryAiCoach(userPrompt, players, context = {}, aiConfig =
   const teamAName = context.teamAName || "Voyagers";
   const teamBName = context.teamBName || "Boots & Beers";
 
-  // Compact roster string to minimize token generation latency
-  const compactRoster = players.map(p => `${p.name} [${p.position}]`).join(", ");
+  // Format individual player ratings (PAC, SHO, PAS, DRI, DEF, PHY, GK) compactly
+  const detailedRoster = players.map(p => {
+    const a = p.attributes || {};
+    if (p.position === "GK") {
+      return `• ${p.name} [GK | OVR:${p.ovr} | GK:${a.gk || 75} PAS:${a.pas || 60} PHY:${a.phy || 70}]`;
+    }
+    return `• ${p.name} [${p.position} | OVR:${p.ovr} | PAC:${a.pac || 70} SHO:${a.sho || 70} PAS:${a.pas || 70} DRI:${a.dri || 70} DEF:${a.def || 70} PHY:${a.phy || 70}]`;
+  }).join("\n");
 
-  const systemPrompt = `You are a football tactics coach balancing two teams: "${teamAName}" and "${teamBName}".
-Players available: ${compactRoster}
+  const systemPrompt = `You are an expert Football Tactics Coach balancing two teams: Team A ("${teamAName}") and Team B ("${teamBName}").
+Player Roster with Individual FIFA-style Attributes:
+${detailedRoster}
 
-Respond with pure JSON matching this exact schema:
+Based on the user's tactical instructions and individual player stats (Pace, Shooting, Passing, Dribbling, Defending, Physicality, GK), output pure JSON matching this exact schema:
 {
   "pinnedTeamA": [],
   "pinnedTeamB": [],
   "separatedPairs": [],
   "pairedTogether": [],
-  "coachBriefing": "2 sentences of tactical pre-match commentary and matchup preview"
+  "coachBriefing": "2-3 sentences of tactical pre-match analysis, playstyle breakdown, and marquee player duels using their stats"
 }
-Rules: Only pin or separate players if explicitly mentioned in the prompt. Use exact player names from the list.`;
+
+Rules:
+1. Only pin or separate players if explicitly or tactically requested in the prompt.
+2. Use exact player names from the roster.
+3. In coachBriefing, highlight key individual strengths and head-to-head battles.`;
 
   const messages = [
     { role: "system", content: systemPrompt },
