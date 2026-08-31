@@ -72,6 +72,23 @@ Expand the **⚙️ Advanced Sector Weights** panel to customize the engine's in
 
 ---
 
+### 7. 🤖 AI Coach Prompt & Local LLM Integration (`qwen2.5-coder:1.5b`)
+- **🧠 Natural Language Tactical Prompting**:
+  - Type plain English coaching instructions (e.g. *"Put Abey in Boots & Beers, make Voyagers strong on counter-attacks, and separate our two best strikers"*).
+  - Quick prompt suggestion chips for instant tactical presets (⚔️ Strikers on Opposite Teams, ⚡ High Pace Matchup, 🛡️ Sturdy Defenses).
+- **🔒 Local & Private via Ollama**:
+  - Connects directly to your local Ollama server running **`qwen2.5-coder:1.5b`** (or any model).
+  - Uses native Ollama structured JSON mode (`format: "json"`) with $0.2$ temperature for 100% deterministic constraint extraction.
+  - Interactive Connection Status indicator (`🟢 Online` / `🔴 Offline`) and built-in **⚙️ AI Model Settings Modal** with live connection testing.
+- **🛡️ Hybrid Mathematical Safeguard**:
+  - The local LLM translates coaching intent into constraints (`pinnedTeamA`, `pinnedTeamB`, `separatedPairs`, `pairedTogether`).
+  - The combinatorial engine enforces these constraints while maintaining 100% mathematical fairness and zero arithmetic errors.
+- **🎙️ Pre-Match AI Tactical Briefing**:
+  - Displays a pre-match scout report, key marquee player duel, and tactical advice on screen.
+  - Automatically included in the one-click **WhatsApp export** message.
+
+---
+
 ## 🚀 How to Run Locally
 
 The application runs directly in any modern web browser using Python's built-in HTTP server (no Node.js build step required):

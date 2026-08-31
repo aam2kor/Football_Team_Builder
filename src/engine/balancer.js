@@ -363,6 +363,52 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
 }
 
 /**
+ * Checks whether a candidate split satisfies user/AI hard constraints.
+ */
+function satisfiesConstraints(teamA, teamB, constraints) {
+  if (!constraints) return true;
+  const { pinnedA, pinnedB, separated, paired } = constraints;
+  const teamAIds = new Set(teamA.map(p => p.id));
+  const teamBIds = new Set(teamB.map(p => p.id));
+
+  // Pinned to Team A
+  if (pinnedA && pinnedA.size > 0) {
+    for (const id of pinnedA) {
+      if (!teamAIds.has(id)) return false;
+    }
+  }
+
+  // Pinned to Team B
+  if (pinnedB && pinnedB.size > 0) {
+    for (const id of pinnedB) {
+      if (!teamBIds.has(id)) return false;
+    }
+  }
+
+  // Separated pairs (must be on different teams)
+  if (separated && separated.length > 0) {
+    for (const [id1, id2] of separated) {
+      if ((teamAIds.has(id1) && teamAIds.has(id2)) || (teamBIds.has(id1) && teamBIds.has(id2))) {
+        return false;
+      }
+    }
+  }
+
+  // Paired duos (must be on the same team)
+  if (paired && paired.length > 0) {
+    for (const [id1, id2] of paired) {
+      const inA1 = teamAIds.has(id1), inA2 = teamAIds.has(id2);
+      const inB1 = teamBIds.has(id1), inB2 = teamBIds.has(id2);
+      if ((inA1 && inB2) || (inB1 && inA2)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+/**
  * Builds balanced teams from a selected list of players.
  */
 export function buildBalancedTeams(selectedPlayers, options = {}) {
@@ -371,6 +417,7 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
     gkMode = "fixed",
     matchdaySettingsMap = {},
     sectorWeights = DEFAULT_SECTOR_WEIGHTS,
+    constraints = null,
     topK = 5
   } = options;
 
@@ -381,6 +428,7 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
 
   const teamSize = n / 2;
   const solutions = [];
+  const fallbackSolutions = [];
 
   if (n <= 18) {
     const firstPlayer = selectedPlayers[0];
@@ -391,8 +439,15 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
       const teamA = [firstPlayer, ...combo];
       const teamAIds = new Set(teamA.map(p => p.id));
       const teamB = selectedPlayers.filter(p => !teamAIds.has(p.id));
+
       const evaluation = scoreTeamBalance(teamA, teamB, { mode, gkMode, matchdaySettingsMap, sectorWeights });
-      solutions.push({ teamA, teamB, ...evaluation });
+      const sol = { teamA, teamB, ...evaluation };
+
+      if (satisfiesConstraints(teamA, teamB, constraints)) {
+        solutions.push(sol);
+      } else {
+        fallbackSolutions.push(sol);
+      }
     });
   } else {
     const seenCombos = new Set();
@@ -403,11 +458,20 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
       const hash = teamA.map(p => p.id).sort().join(",");
       if (seenCombos.has(hash)) continue;
       seenCombos.add(hash);
+
       const evaluation = scoreTeamBalance(teamA, teamB, { mode, gkMode, matchdaySettingsMap, sectorWeights });
-      solutions.push({ teamA, teamB, ...evaluation });
+      const sol = { teamA, teamB, ...evaluation };
+
+      if (satisfiesConstraints(teamA, teamB, constraints)) {
+        solutions.push(sol);
+      } else {
+        fallbackSolutions.push(sol);
+      }
     }
   }
 
-  solutions.sort((a, b) => a.penalty - b.penalty);
-  return solutions.slice(0, topK);
+  // If constraints were too restrictive to find valid solutions, fall back to best unconstrained splits
+  const targetPool = solutions.length > 0 ? solutions : fallbackSolutions;
+  targetPool.sort((a, b) => a.penalty - b.penalty);
+  return targetPool.slice(0, topK);
 }

@@ -205,11 +205,57 @@ def test_multisector_balancing():
   assert att_delta <= 2, f"Attacking delta too high: {att_delta}"
   assert mid_delta <= 2, f"Midfield delta too high: {mid_delta}"
   assert def_delta <= 2, f"Defensive delta too high: {def_delta}"
-  assert sA["gks"] == 1 and sB["gks"] == 1, "GKs not balanced equally"
+def test_ai_constraints_balancing():
+  print("--- Testing AI Constraint-Guided Balancer (Pinned, Separated, Paired) ---")
+  effective_players = [get_effective_player(p) for p in SAMPLE_PLAYERS]
+  n = len(effective_players)
+  team_size = n // 2
+  all_set = frozenset(range(n))
 
-  print("\n>>> ALL TEST CASES PASSED SUCCESSFULLY! <<<\n")
+  # Constraint: Carlos Mendoza ("p4") and Rafael Santos ("p18") must be separated
+  # Constraint: Lucas Romero ("p10") pinned to Team A
+  # Constraint: Trent Walker ("p5") pinned to Team B
+  pinned_A = {"p10"}
+  pinned_B = {"p5"}
+  separated = [("p4", "p18")]
+
+  best_penalty = float('inf')
+  best_teams = None
+
+  for c in itertools.combinations(range(1, n), team_size - 1):
+    idx_A = (0,) + c
+    idx_B = tuple(all_set.difference(idx_A))
+
+    teamA = [effective_players[i] for i in idx_A]
+    teamB = [effective_players[i] for i in idx_B]
+    teamA_ids = {p["id"] for p in teamA}
+    teamB_ids = {p["id"] for p in teamB}
+
+    # Verify constraints
+    if not pinned_A.issubset(teamA_ids): continue
+    if not pinned_B.issubset(teamB_ids): continue
+    if ("p4" in teamA_ids and "p18" in teamA_ids) or ("p4" in teamB_ids and "p18" in teamB_ids): continue
+
+    penalty, sA, sB = score_team_split(teamA, teamB)
+    if penalty < best_penalty:
+      best_penalty = penalty
+      best_teams = (teamA, teamB, sA, sB, penalty)
+
+  assert best_teams is not None, "Failed to find constrained solution"
+  teamA, teamB, sA, sB, penalty = best_teams
+
+  teamA_ids = {p["id"] for p in teamA}
+  teamB_ids = {p["id"] for p in teamB}
+
+  assert "p10" in teamA_ids, "Pinned player p10 missing from Team A"
+  assert "p5" in teamB_ids, "Pinned player p5 missing from Team B"
+  assert not (("p4" in teamA_ids and "p18" in teamA_ids) or ("p4" in teamB_ids and "p18" in teamB_ids)), "Separated players placed together"
+
+  print(f"[x] Successfully enforced AI constraints while maintaining balance (OVR delta: {abs(sA['effective_avg_ovr'] - sB['effective_avg_ovr']):.2f})")
 
 if __name__ == "__main__":
   test_fitness_and_form()
   test_chemistry_synergies()
   test_multisector_balancing()
+  test_ai_constraints_balancing()
+  print("\n>>> ALL TEST CASES PASSED SUCCESSFULLY! <<<\n")

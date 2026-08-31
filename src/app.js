@@ -1,6 +1,7 @@
 import { PlayerDatabase, calculateOvr } from "./storage/db.js";
 import { buildBalancedTeams, calculateTeamStats, FORM_MODIFIERS, getEffectivePlayerStats, DEFAULT_SECTOR_WEIGHTS, cloneSectorWeights } from "./engine/balancer.js";
 import { FORMATIONS, getFormationsForSize, assignPlayersToFormation } from "./engine/formations.js";
+import { loadAiConfig, saveAiConfig, testOllamaConnection, queryAiCoach } from "./ai/ollamaClient.js";
 
 // Initialize Database instance
 const db = new PlayerDatabase();
@@ -51,6 +52,12 @@ const state = {
   // Configurable Sector Weights
   sectorWeights: loadSectorWeights(),
 
+  // AI Coach State
+  aiConfig: loadAiConfig(),
+  aiCoachBriefing: null,
+  aiConstraints: null,
+  isAiLoading: false,
+
   // Swap State
   selectedSwapPlayerId: null,
   selectedSwapTeam: null,
@@ -78,6 +85,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   setupNavigation();
   setupGeneratorEvents();
+  setupAiEvents();
   setupRosterEvents();
   setupBackupEvents();
   setupPlayerModalEvents();
@@ -246,6 +254,219 @@ function setupGeneratorEvents() {
 
   // ── Sector Weights Panel ──────────────────────────────────────
   initSectorWeightsPanel();
+}
+
+// ============================================================
+// AI Coach (Local LLM - qwen2.5-coder:1.5b via Ollama)
+// ============================================================
+function setupAiEvents() {
+  // Check connection on load
+  checkAiConnection(false);
+
+  // Build with AI Coach button
+  document.getElementById("btn-build-ai-teams")?.addEventListener("click", handleBuildAiTeams);
+
+  // Clear prompt button
+  const promptInput = document.getElementById("ai-coach-prompt-input");
+  const clearBtn = document.getElementById("btn-clear-ai-prompt");
+  if (promptInput && clearBtn) {
+    promptInput.addEventListener("input", () => {
+      clearBtn.classList.toggle("hidden", !promptInput.value);
+    });
+    clearBtn.addEventListener("click", () => {
+      promptInput.value = "";
+      clearBtn.classList.add("hidden");
+      promptInput.focus();
+    });
+  }
+
+  // Quick suggestion chips
+  document.querySelectorAll("[data-ai-prompt-chip]").forEach(chip => {
+    chip.addEventListener("click", () => {
+      if (promptInput) {
+        promptInput.value = chip.dataset.aiPromptChip;
+        clearBtn?.classList.remove("hidden");
+        promptInput.focus();
+      }
+    });
+  });
+
+  // Open / Close Settings Modal
+  document.getElementById("btn-open-ai-settings")?.addEventListener("click", openAiSettingsModal);
+  document.getElementById("btn-close-ai-settings")?.addEventListener("click", closeAiSettingsModal);
+
+  // Test Connection in Modal
+  document.getElementById("btn-test-ai-connection")?.addEventListener("click", async () => {
+    const endpoint = document.getElementById("ai-settings-endpoint")?.value?.trim() || "";
+    const model = document.getElementById("ai-settings-model")?.value?.trim() || "";
+    const resultBox = document.getElementById("ai-test-connection-result");
+
+    if (resultBox) {
+      resultBox.className = "p-2.5 rounded-xl text-[11px] font-mono bg-slate-900 border border-slate-700 text-slate-300";
+      resultBox.textContent = "Connecting to Ollama...";
+      resultBox.classList.remove("hidden");
+    }
+
+    const testRes = await testOllamaConnection(endpoint, model);
+    if (resultBox) {
+      if (testRes.ok) {
+        resultBox.className = "p-2.5 rounded-xl text-[11px] font-mono bg-emerald-950/60 border border-emerald-500/50 text-emerald-300";
+        resultBox.innerHTML = `✅ Connected to Ollama!<br>Available models: ${testRes.models.join(", ") || "None"}<br>${testRes.hasTargetModel ? "🎯 Target model '" + model + "' is ready!" : "⚠️ Note: Target model '" + model + "' not found in list."}`;
+      } else {
+        resultBox.className = "p-2.5 rounded-xl text-[11px] font-mono bg-red-950/60 border border-red-500/50 text-red-300";
+        resultBox.innerHTML = `❌ Connection failed: ${testRes.error}`;
+      }
+    }
+  });
+
+  // Save AI Settings
+  document.getElementById("btn-save-ai-settings")?.addEventListener("click", () => {
+    const endpoint = document.getElementById("ai-settings-endpoint")?.value?.trim() || "http://localhost:11434";
+    const model = document.getElementById("ai-settings-model")?.value?.trim() || "qwen2.5-coder:1.5b";
+
+    state.aiConfig.endpoint = endpoint;
+    state.aiConfig.model = model;
+    saveAiConfig(state.aiConfig);
+
+    closeAiSettingsModal();
+    checkAiConnection(true);
+    showToast("⚙️ AI Configuration saved!", "success");
+  });
+
+  // Dismiss AI Briefing Card
+  document.getElementById("btn-dismiss-ai-briefing")?.addEventListener("click", () => {
+    document.getElementById("ai-coach-briefing-card")?.classList.add("hidden");
+  });
+}
+
+async function checkAiConnection(notifyIfOnline = false) {
+  const badge = document.getElementById("ai-status-badge");
+  const dot = document.getElementById("ai-status-dot");
+  const text = document.getElementById("ai-status-text");
+
+  if (!badge) return;
+
+  const result = await testOllamaConnection(state.aiConfig.endpoint, state.aiConfig.model);
+  if (result.ok) {
+    if (dot) dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse";
+    if (text) text.textContent = `${state.aiConfig.model} (Online)`;
+    badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 cursor-pointer";
+    badge.onclick = () => openAiSettingsModal();
+    if (notifyIfOnline) showToast(`🟢 Connected to Ollama (${state.aiConfig.model})`, "success");
+  } else {
+    if (dot) dot.className = "w-1.5 h-1.5 rounded-full bg-slate-500";
+    if (text) text.textContent = "Ollama Offline (Click ⚙️)";
+    badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5 cursor-pointer";
+    badge.onclick = () => openAiSettingsModal();
+  }
+}
+
+async function handleBuildAiTeams() {
+  const promptInput = document.getElementById("ai-coach-prompt-input");
+  const prompt = promptInput?.value?.trim() || "";
+
+  const requiredCount = state.targetTeamSize * 2;
+  const selected = db.getAll().filter(p => state.selectedPlayerIds.has(p.id));
+
+  if (selected.length !== requiredCount) {
+    showToast(`⚠️ Please select exactly ${requiredCount} players (currently ${selected.length} selected).`, "warning");
+    return;
+  }
+
+  if (!prompt) {
+    showToast("ℹ️ Please enter instructions for the AI Coach (or click a quick prompt chip)!", "info");
+    promptInput?.focus();
+    return;
+  }
+
+  const btn = document.getElementById("btn-build-ai-teams");
+  const btnIcon = document.getElementById("ai-btn-icon");
+  const btnText = document.getElementById("ai-btn-text");
+
+  state.isAiLoading = true;
+  if (btn) btn.disabled = true;
+  if (btnIcon) btnIcon.textContent = "⏳";
+  if (btnText) btnText.textContent = "AI Coach Analyzing...";
+
+  showToast(`🤖 Consulting AI Coach (${state.aiConfig.model})...`, "info");
+
+  try {
+    const aiResult = await queryAiCoach(prompt, selected, {
+      teamAName: state.teamAName,
+      teamBName: state.teamBName,
+      targetTeamSize: state.targetTeamSize
+    }, state.aiConfig);
+
+    state.aiCoachBriefing = aiResult.coachBriefing;
+    state.aiConstraints = aiResult.constraints;
+
+    // Run balancer with AI constraints
+    const solutions = buildBalancedTeams(selected, {
+      mode: state.balanceMode,
+      gkMode: state.gkMode,
+      matchdaySettingsMap: state.matchdaySettings,
+      sectorWeights: state.sectorWeights,
+      constraints: aiResult.constraints,
+      topK: 3
+    });
+
+    if (!solutions || solutions.length === 0) {
+      showToast("Could not generate balanced teams with constraints. Please try relaxing your prompt.", "warning");
+      return;
+    }
+
+    state.generatedSolutions = solutions;
+    state.currentSolutionIndex = 0;
+    applySolution(solutions[0]);
+
+    renderAiCoachBriefing();
+
+    // Scroll to pitch section smoothly
+    document.getElementById("match-results-section")?.classList.remove("hidden");
+    document.getElementById("match-results-section")?.scrollIntoView({ behavior: "smooth" });
+    showToast("🎉 AI Coach generated and balanced your matchday lineup!", "success");
+  } catch (err) {
+    showToast(`AI Coach Error: ${err.message}`, "error");
+    console.error("AI Coach Error:", err);
+  } finally {
+    state.isAiLoading = false;
+    if (btn) btn.disabled = false;
+    if (btnIcon) btnIcon.textContent = "🧠";
+    if (btnText) btnText.textContent = "Build with AI Coach";
+  }
+}
+
+function renderAiCoachBriefing() {
+  const card = document.getElementById("ai-coach-briefing-card");
+  const textEl = document.getElementById("ai-coach-briefing-text");
+  const labelEl = document.getElementById("ai-briefing-model-label");
+
+  if (!card || !textEl) return;
+
+  if (state.aiCoachBriefing) {
+    textEl.textContent = `"${state.aiCoachBriefing}"`;
+    if (labelEl) labelEl.textContent = `Model: ${state.aiConfig.model}`;
+    card.classList.remove("hidden");
+  } else {
+    card.classList.add("hidden");
+  }
+}
+
+function openAiSettingsModal() {
+  const modal = document.getElementById("modal-ai-settings");
+  const endpointInput = document.getElementById("ai-settings-endpoint");
+  const modelInput = document.getElementById("ai-settings-model");
+  const resultBox = document.getElementById("ai-test-connection-result");
+
+  if (endpointInput) endpointInput.value = state.aiConfig.endpoint;
+  if (modelInput) modelInput.value = state.aiConfig.model;
+  if (resultBox) resultBox.classList.add("hidden");
+
+  modal?.classList.remove("hidden");
+}
+
+function closeAiSettingsModal() {
+  document.getElementById("modal-ai-settings")?.classList.add("hidden");
 }
 
 // ============================================================
@@ -1498,6 +1719,10 @@ function copyWhatsAppLineup() {
     }).join("\n");
   };
 
+  const aiBriefingText = state.aiCoachBriefing
+    ? `\n🎙️ *AI Coach Tactical Preview*:\n"${state.aiCoachBriefing}"\n-----------------------------------------`
+    : '';
+
   const text = `⚽ *MATCHDAY LINEUP & BALANCED TEAMS* ⚽
 -----------------------------------------
 🔵 *${state.teamAName.toUpperCase()}* (Avg OVR: ${statsA.effectiveAvgOvr})
@@ -1507,7 +1732,7 @@ ${formatList(state.activeTeamA)}
 🔴 *${state.teamBName.toUpperCase()}* (Avg OVR: ${statsB.effectiveAvgOvr})
 Tactics: ${state.formationTeamB} ${statsB.synergyCount > 0 ? `| ⚡ ${statsB.synergyCount} Chemistry (+${statsB.synergyBoost} OVR)` : ''}
 ${formatList(state.activeTeamB)}
------------------------------------------
+-----------------------------------------${aiBriefingText}
 GK Mode: ${state.gkMode === "rotating" ? "🔄 Rotating Goalkeepers" : "🧤 Fixed Dedicated GK"}
 Generated with 8x8 Football Team Builder 🏆`;
 
