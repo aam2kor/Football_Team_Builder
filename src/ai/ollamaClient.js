@@ -95,33 +95,21 @@ export async function queryAiCoach(userPrompt, players, context = {}, aiConfig =
   const teamAName = context.teamAName || "Voyagers";
   const teamBName = context.teamBName || "Boots & Beers";
 
-  const playerRosterSummary = players.map(p => ({
-    id: p.id,
-    name: p.name,
-    pos: p.position,
-    ovr: p.ovr
-  }));
+  // Compact roster string to minimize token generation latency
+  const compactRoster = players.map(p => `${p.name} [${p.position}]`).join(", ");
 
-  const systemPrompt = `You are an expert Football Coach and Tactical Assistant for a matchday team builder.
-Your job is to interpret the user's natural language coaching prompt and output structured constraints to balance the two teams: Team A ("${teamAName}") and Team B ("${teamBName}").
+  const systemPrompt = `You are a football tactics coach balancing two teams: "${teamAName}" and "${teamBName}".
+Players available: ${compactRoster}
 
-Available Players in this match:
-${JSON.stringify(playerRosterSummary, null, 1)}
-
-Rules:
-1. You MUST respond with pure JSON only matching this schema:
+Respond with pure JSON matching this exact schema:
 {
-  "pinnedTeamA": ["exact player name or id to force onto Team A (${teamAName})"],
-  "pinnedTeamB": ["exact player name or id to force onto Team B (${teamBName})"],
-  "separatedPairs": [["Player1 Name", "Player2 Name"]],
-  "pairedTogether": [["Player1 Name", "Player2 Name"]],
-  "tacticalStyle": "brief style description for Team A vs Team B",
-  "coachBriefing": "2-3 sentences of inspiring pre-match tactical commentary and marquee player matchup to watch"
+  "pinnedTeamA": [],
+  "pinnedTeamB": [],
+  "separatedPairs": [],
+  "pairedTogether": [],
+  "coachBriefing": "2 sentences of tactical pre-match commentary and matchup preview"
 }
-
-2. Only pin or separate players if explicitly or strongly implied by the user's request.
-3. Keep player names matching the available players list.
-4. Keep the coachBriefing energetic, insightful, and professional.`;
+Rules: Only pin or separate players if explicitly mentioned in the prompt. Use exact player names from the list.`;
 
   const messages = [
     { role: "system", content: systemPrompt },
@@ -134,13 +122,14 @@ Rules:
     stream: false,
     format: "json",
     options: {
-      temperature: 0.2,
-      num_predict: 500
+      temperature: 0.1,
+      num_predict: 220,
+      num_ctx: 1024
     }
   };
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for model load/CPU
 
   try {
     const res = await fetch(`${endpoint}/api/chat`, {
