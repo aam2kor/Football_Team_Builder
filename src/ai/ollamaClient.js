@@ -123,7 +123,7 @@ Rules: Only pin or separate players if explicitly mentioned in the prompt. Use e
     format: "json",
     options: {
       temperature: 0.1,
-      num_predict: 220,
+      num_predict: 400,
       num_ctx: 1024
     }
   };
@@ -145,14 +145,47 @@ Rules: Only pin or separate players if explicitly mentioned in the prompt. Use e
     }
 
     const data = await res.json();
-    const content = data.message?.content || "{}";
-    let parsed;
-    try {
-      parsed = JSON.parse(content);
-    } catch (parseErr) {
-      const cleaned = content.replace(/```json/gi, "").replace(/```/g, "").trim();
-      parsed = JSON.parse(cleaned);
-    }
+    const content = (data.message?.content || "").trim();
+    
+    // Robust JSON extractor that handles markdown blocks, trailing tokens, or truncated outputs
+    const extractJsonObject = (rawText) => {
+      if (!rawText) return {};
+      // 1. Direct parse attempt
+      try { return JSON.parse(rawText); } catch (e) {}
+
+      // 2. Remove markdown code fences
+      let cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+      try { return JSON.parse(cleaned); } catch (e) {}
+
+      // 3. Extract substring between first '{' and last '}'
+      const firstBrace = cleaned.indexOf("{");
+      const lastBrace = cleaned.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        const sub = cleaned.substring(firstBrace, lastBrace + 1);
+        try { return JSON.parse(sub); } catch (e) {}
+      }
+
+      // 4. Attempt to repair truncated JSON (e.g. missing closing quotes or brackets)
+      if (firstBrace !== -1) {
+        let partial = cleaned.substring(firstBrace);
+        // Count open brackets
+        const openBraces = (partial.match(/{/g) || []).length;
+        const closeBraces = (partial.match(/}/g) || []).length;
+        const openBrackets = (partial.match(/\[/g) || []).length;
+        const closeBrackets = (partial.match(/\]/g) || []).length;
+        
+        if (openBrackets > closeBrackets) partial += "]".repeat(openBrackets - closeBrackets);
+        if (openBraces > closeBraces) partial += "}".repeat(openBraces - closeBraces);
+        try { return JSON.parse(partial); } catch (e) {}
+      }
+
+      // 5. Fallback: return raw text as coachBriefing without crashing
+      return {
+        coachBriefing: rawText.replace(/[{}[\]"]/g, "").trim() || "Tactically balanced lineup created."
+      };
+    };
+
+    const parsed = extractJsonObject(content);
 
     const findIdByName = (nameOrId) => {
       if (!nameOrId) return null;
