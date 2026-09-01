@@ -102,7 +102,23 @@ def test_player_stats():
   print(f"[x] Mathai record: {p_stats['Mathai']['wins']}W - {p_stats['Mathai']['draws']}D - 0L in {p_stats['Mathai']['played']} games (Undefeated!)")
   print(f"[x] Abey record: {p_stats['Abey']['played']} matches played across fixtures.")
 
+def test_top_winners_and_losers():
+  print("--- Testing Top Consistent Winners & Losers ---")
+  p_stats = compute_player_win_rates(SAMPLE_API_RESPONSE["matches"])
+  winners = sorted(p_stats.items(), key=lambda x: (x[1]["wins"], -x[1]["losses"]), reverse=True)[:3]
+  losers = sorted(p_stats.items(), key=lambda x: (x[1]["losses"], -x[1]["wins"]), reverse=True)[:3]
+
+  winner_names = [w[0] for w in winners]
+  loser_names = [l[0] for l in losers]
+
+  assert "Anoop" in winner_names or "Mathai" in winner_names or "Sanjay" in winner_names
+  assert "Ajith" in loser_names and "Akash" in loser_names and "Anup" in loser_names
+
+  print(f"[x] Top Winners: {', '.join(winner_names)}")
+  print(f"[x] Top Underdogs/Losers: {', '.join(loser_names)}")
+
 if __name__ == "__main__":
   test_h2h_calculation()
   test_player_stats()
+  test_top_winners_and_losers()
   print("\n>>> ALL LEAGUE SERVICE TESTS PASSED! <<<\n")

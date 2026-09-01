@@ -2,7 +2,7 @@ import { PlayerDatabase, calculateOvr } from "./storage/db.js";
 import { buildBalancedTeams, calculateTeamStats, FORM_MODIFIERS, getEffectivePlayerStats, DEFAULT_SECTOR_WEIGHTS, cloneSectorWeights } from "./engine/balancer.js";
 import { FORMATIONS, getFormationsForSize, assignPlayersToFormation } from "./engine/formations.js";
 import { loadAiConfig, saveAiConfig, testOllamaConnection, queryAiCoach, queryLeagueInsights } from "./ai/ollamaClient.js";
-import { fetchLeagueMatches, computeHeadToHeadSummary, formatLeagueSummaryForAi, computeTopWinRatePlayers, computeTopWinningChemistries, computeTopGoalImpactPlayers } from "./services/leagueService.js";
+import { fetchLeagueMatches, computeHeadToHeadSummary, formatLeagueSummaryForAi, computeTopWinRatePlayers, computeTopWinningChemistries, computeTopGoalScorers, computeTopConsistentLosers } from "./services/leagueService.js";
 
 // Initialize Database instance
 const db = new PlayerDatabase();
@@ -369,11 +369,12 @@ async function handleGenerateLeagueInsights() {
   if (refreshBtn) refreshBtn.disabled = true;
 
   try {
-    const topWinRates = computeTopWinRatePlayers(state.leagueMatches, 3);
+    const topScorers = computeTopGoalScorers(state.leagueMatches, 3);
+    const topWinners = computeTopWinRatePlayers(state.leagueMatches, 3);
+    const topLosers = computeTopConsistentLosers(state.leagueMatches, 3);
     const topChemistries = computeTopWinningChemistries(state.leagueMatches);
-    const topGoalImpact = computeTopGoalImpactPlayers(state.leagueMatches, 3);
 
-    // Call local LLM for concise 2-line tactical takeaway
+    // Call local LLM for concise tactical takeaway
     const insights = await queryLeagueInsights(state.leagueMatches, state.aiConfig);
 
     if (contentEl) {
@@ -387,55 +388,55 @@ async function handleGenerateLeagueInsights() {
         <!-- 2. Specific Stat Leaderboards (3-Column Grid) -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           
-          <!-- Top Win Rates -->
-          <div class="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-2">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
-              <span class="text-[11px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                <span>🥇</span>
-                <span>Top Win Rates</span>
-              </span>
-            </div>
-            <div class="space-y-1.5">
-              ${topWinRates.map((p, idx) => `
-                <div class="flex items-center justify-between text-[11px]">
-                  <span class="font-bold text-slate-200">#${idx + 1} ${p.name}</span>
-                  <span class="font-mono text-emerald-300 font-bold">${p.winRate}% <span class="text-[10px] text-slate-500">(${p.wins}W-${p.draws}D)</span></span>
-                </div>
-              `).join("") || '<span class="text-slate-500">No data</span>'}
-            </div>
-          </div>
-
-          <!-- Best Winning Chemistries (Duos) -->
-          <div class="p-3 rounded-xl bg-slate-900/90 border border-amber-500/30 space-y-2">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
-              <span class="text-[11px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1">
-                <span>🤝</span>
-                <span>Winning Chemistries</span>
-              </span>
-            </div>
-            <div class="space-y-1.5">
-              ${topChemistries.map((duo, idx) => `
-                <div class="flex items-center justify-between text-[11px]">
-                  <span class="font-bold text-slate-200 truncate pr-1">#${idx + 1} ${duo.p1} &amp; ${duo.p2}</span>
-                  <span class="font-mono text-amber-300 font-bold whitespace-nowrap">${duo.wins} Wins</span>
-                </div>
-              `).join("") || '<span class="text-slate-500">No data</span>'}
-            </div>
-          </div>
-
-          <!-- Top Offensive Impact -->
+          <!-- Top 3 Goal Scorers -->
           <div class="p-3 rounded-xl bg-slate-900/90 border border-blue-500/30 space-y-2">
             <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
               <span class="text-[11px] font-black text-blue-400 uppercase tracking-wider flex items-center gap-1">
                 <span>⚽</span>
-                <span>Top Goal Impact</span>
+                <span>Top 3 Goal Scorers</span>
               </span>
             </div>
             <div class="space-y-1.5">
-              ${topGoalImpact.map((p, idx) => `
+              ${topScorers.map((p, idx) => `
                 <div class="flex items-center justify-between text-[11px]">
                   <span class="font-bold text-slate-200">#${idx + 1} ${p.name}</span>
-                  <span class="font-mono text-blue-300 font-bold">${p.goalsFor} Goals <span class="text-[10px] text-slate-500">(${p.matches}G)</span></span>
+                  <span class="font-mono text-blue-300 font-bold">${p.goals} Goals</span>
+                </div>
+              `).join("") || '<span class="text-slate-500">No data</span>'}
+            </div>
+          </div>
+
+          <!-- Top 3 Consistent Winners -->
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-2">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[11px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                <span>🏆</span>
+                <span>Top 3 Winners</span>
+              </span>
+            </div>
+            <div class="space-y-1.5">
+              ${topWinners.map((p, idx) => `
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="font-bold text-slate-200">#${idx + 1} ${p.name}</span>
+                  <span class="font-mono text-emerald-300 font-bold">${p.wins}W <span class="text-[10px] text-slate-500">(${p.draws}D-${p.losses}L)</span></span>
+                </div>
+              `).join("") || '<span class="text-slate-500">No data</span>'}
+            </div>
+          </div>
+
+          <!-- Top 3 Consistent Losers -->
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-red-500/30 space-y-2">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[11px] font-black text-red-400 uppercase tracking-wider flex items-center gap-1">
+                <span>⚠️</span>
+                <span>Top 3 Underdogs</span>
+              </span>
+            </div>
+            <div class="space-y-1.5">
+              ${topLosers.map((p, idx) => `
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="font-bold text-slate-200">#${idx + 1} ${p.name}</span>
+                  <span class="font-mono text-red-300 font-bold">${p.losses}L <span class="text-[10px] text-slate-500">(${p.draws}D-${p.wins}W)</span></span>
                 </div>
               `).join("") || '<span class="text-slate-500">No data</span>'}
             </div>
@@ -443,13 +444,44 @@ async function handleGenerateLeagueInsights() {
 
         </div>
 
-        <!-- 3. Concise AI Tactical Takeaways -->
-        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
-          <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">🎯 AI Tactical Takeaways</span>
-          <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.tacticalTakeaway}</p>
+        <!-- 3. Best Winning Chemistries -->
+        <div class="p-3 rounded-xl bg-slate-900/90 border border-amber-500/30 space-y-2">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <span class="text-[11px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1">
+              <span>🤝</span>
+              <span>Best Winning Chemistries (Top Duos)</span>
+            </span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            ${topChemistries.map((duo, idx) => `
+              <div class="p-2 rounded-lg bg-slate-950/60 border border-slate-800 flex items-center justify-between text-[11px]">
+                <span class="font-bold text-slate-200 truncate pr-1">#${idx + 1} ${duo.p1} &amp; ${duo.p2}</span>
+                <span class="font-mono text-amber-300 font-bold whitespace-nowrap">${duo.wins} Wins</span>
+              </div>
+            `).join("") || '<span class="text-slate-500">No data</span>'}
+          </div>
         </div>
 
-        <!-- 4. Next Matchday Prediction -->
+        <!-- 4. AI Tactical Takeaways (Winners & Losers) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="p-3 rounded-xl bg-slate-900 border border-emerald-500/20 space-y-1">
+            <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+              <span>🌟</span>
+              <span>Why Top Winners Dominate</span>
+            </span>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.winnersAnalysis}</p>
+          </div>
+
+          <div class="p-3 rounded-xl bg-slate-900 border border-red-500/20 space-y-1">
+            <span class="text-[10px] font-bold text-red-400 uppercase tracking-wider flex items-center gap-1">
+              <span>🛡️</span>
+              <span>Tactical Advice for Underdogs</span>
+            </span>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.losersAdvice}</p>
+          </div>
+        </div>
+
+        <!-- 5. Next Matchday Prediction -->
         <div class="p-3 rounded-xl bg-gradient-to-r from-purple-950/50 via-slate-900 to-indigo-950/50 border border-purple-500/30 space-y-1">
           <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider">🔮 Next Matchday Prediction</span>
           <p class="text-xs leading-relaxed text-slate-200 italic">"${insights.prediction}"</p>

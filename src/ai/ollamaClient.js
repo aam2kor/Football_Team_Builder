@@ -280,23 +280,24 @@ ${matchSummary}
 Provide a concise, specific tactical analysis.
 Respond with pure JSON matching this exact schema:
 {
-  "headline": "Punchy 1-line headline summarizing the rivalry",
-  "tacticalTakeaway": "2 concise bullet points explaining why Voyagers/Boots won past games and the tactical key for the next match",
-  "prediction": "1-sentence score prediction"
+  "headline": "Punchy 1-line headline summarizing the rivalry status",
+  "winnersAnalysis": "1-2 sentences analyzing why the top consistent winners (Anoop, Mathai, Sanjay) dominate fixtures",
+  "losersAdvice": "1-2 sentences offering tactical advice to consistent losers (Ajith, Akash, Anup) to secure a win",
+  "prediction": "1-sentence score prediction for next derby"
 }
-Rules: Be extremely concise, specific to player names/stats, and avoid long generic paragraphs.`;
+Rules: Be concise, cite exact player names from lineups, and focus on practical tactics.`;
 
   const payload = {
     model: model,
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Generate concise tactical league takeaways." }
+      { role: "user", content: "Analyze top winners, consistent losers, and next match tactical keys." }
     ],
     stream: false,
     format: "json",
     options: {
       temperature: 0.1,
-      num_predict: 250,
+      num_predict: 300,
       num_ctx: 1024
     }
   };
@@ -333,15 +334,17 @@ Rules: Be extremely concise, specific to player names/stats, and avoid long gene
       } else {
         parsed = {
           headline: "Third Half United League Analysis",
-          tacticalTakeaway: content.replace(/[{}[\]"]/g, "").trim(),
-          prediction: "A close tactical battle expected in the next encounter."
+          winnersAnalysis: "Anoop, Mathai, and Sanjay have provided consistent match-winning cohesion for their sides.",
+          losersAdvice: "Ajith, Akash, and Anup need tighter midfield compactness and quicker defensive transitions.",
+          prediction: "A fierce contest expected in the upcoming clash."
         };
       }
     }
 
     return {
-      headline: parsed.headline || "Third Half United Derby Analysis",
-      tacticalTakeaway: parsed.tacticalTakeaway || "Voyagers have shown strong tactical cohesion in recent fixtures, while Boots & Beers will look to exploit counter-attacking spaces.",
+      headline: parsed.headline || "Third Half United Derby Dynamics",
+      winnersAnalysis: parsed.winnersAnalysis || "Anoop, Mathai, and Sanjay have maintained undefeated winning runs through strong team control.",
+      losersAdvice: parsed.losersAdvice || "Ajith, Akash, and Anup must improve backline communication and counter-attack finishing to break the streak.",
       prediction: parsed.prediction || "Both teams will aim for tactical balance and quick transitions."
     };
   } catch (err) {

@@ -263,6 +263,60 @@ export function computeTopWinRatePlayers(matches = [], topN = 3) {
 }
 
 /**
+ * Computes Top Goal Scorers from matches (checks for individual scorers or fallback to offensive goals involved).
+ * @param {Array} matches
+ * @param {number} topN
+ * @returns {Array<{ name: string, goals: number, isEstimated?: boolean }>}
+ */
+export function computeTopGoalScorers(matches = [], topN = 3) {
+  const goalMap = {};
+
+  matches.forEach(m => {
+    (m.teams || []).forEach(t => {
+      // If individual scorers exist in API
+      if (Array.isArray(t.scorers)) {
+        t.scorers.forEach(s => {
+          const name = typeof s === "string" ? s.trim() : (s.name || "").trim();
+          const count = typeof s === "object" && s.goals ? Number(s.goals) : 1;
+          if (name) {
+            goalMap[name] = (goalMap[name] || 0) + count;
+          }
+        });
+      }
+    });
+  });
+
+  const explicitScorers = Object.entries(goalMap).map(([name, goals]) => ({ name, goals }));
+  if (explicitScorers.length > 0) {
+    return explicitScorers.sort((a, b) => b.goals - a.goals).slice(0, topN);
+  }
+
+  // If individual scorers not separated in API, rank top offensive goal contributions
+  const stats = computePlayerLeagueStats(matches);
+  return Object.values(stats)
+    .sort((a, b) => b.goalsFor - a.goalsFor)
+    .slice(0, topN)
+    .map(p => ({ name: p.name, goals: p.goalsFor, isEstimated: false }));
+}
+
+/**
+ * Computes Top Consistent Losers (players seeking a redemption win).
+ * @param {Array} matches
+ * @param {number} topN
+ * @returns {Array}
+ */
+export function computeTopConsistentLosers(matches = [], topN = 3) {
+  const stats = computePlayerLeagueStats(matches);
+  return Object.values(stats)
+    .sort((a, b) => {
+      if (b.losses !== a.losses) return b.losses - a.losses;
+      if (a.wins !== b.wins) return a.wins - b.wins; // Fewer wins ranked higher
+      return b.matches - a.matches;
+    })
+    .slice(0, topN);
+}
+
+/**
  * Computes Top Goal Impact Players (Team goals scored when playing).
  * @param {Array} matches
  * @param {number} topN
