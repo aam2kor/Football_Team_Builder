@@ -76,6 +76,56 @@
     <!-- ========================================================== -->
     <div id="view-generator" class="tab-view space-y-6">
 
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <!-- Third Half United League Live Match History & H2H Banner        -->
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <div id="league-history-container" class="glass-panel p-4 rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-slate-900/90 via-indigo-950/40 to-slate-900/90 shadow-xl space-y-3">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="text-base">🏆</span>
+            <div>
+              <h3 class="text-xs font-black text-white uppercase tracking-wider">Third Half United League</h3>
+              <span class="text-[10px] text-slate-400 font-mono">Live Match History &amp; Head-to-Head</span>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <button id="btn-refresh-league" type="button" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-300 flex items-center gap-1 transition-all" title="Fetch latest results from live API">
+              <span id="league-refresh-icon">🔄</span>
+              <span>Sync API</span>
+            </button>
+            <button id="btn-open-league-insights" type="button" class="px-3 py-1 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-[11px] font-black flex items-center gap-1.5 shadow-md shadow-indigo-600/30 transition-all">
+              <span>💡</span>
+              <span>AI League Insights</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Head-to-Head Record & Recent Scores Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+          <!-- H2H Record Box -->
+          <div class="md:col-span-1 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+            <div class="text-center flex-1">
+              <span class="block text-[10px] font-bold text-blue-400 uppercase">Voyagers</span>
+              <span id="h2h-voyagers-wins" class="text-base font-black text-white font-mono">--</span>
+            </div>
+            <div class="text-center px-2 border-x border-slate-800">
+              <span class="block text-[9px] font-bold text-slate-500 uppercase">Draws</span>
+              <span id="h2h-draws-count" class="text-xs font-bold text-amber-400 font-mono">--</span>
+            </div>
+            <div class="text-center flex-1">
+              <span class="block text-[10px] font-bold text-red-400 uppercase">Boots &amp; Beers</span>
+              <span id="h2h-boots-wins" class="text-base font-black text-white font-mono">--</span>
+            </div>
+          </div>
+
+          <!-- Recent Matches List -->
+          <div class="md:col-span-2 flex items-center gap-2 overflow-x-auto pb-1" id="league-recent-matches-list">
+            <span class="text-[11px] text-slate-500 font-mono">Loading recent league matches...</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Match Setup Toolbar -->
       <div class="glass-panel p-4 sm:p-5 rounded-2xl border border-slate-800/80 shadow-lg space-y-4">
         
@@ -890,6 +940,43 @@
 
       </div>
 
+    </div>
+  </div>
+
+  <!-- AI League Insights Modal -->
+  <div id="modal-league-insights" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-panel w-full max-w-2xl p-6 rounded-2xl border border-indigo-500/50 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center text-base">
+            💡
+          </div>
+          <div>
+            <h3 class="text-sm font-black text-white">Third Half United AI League Insights</h3>
+            <span class="text-[10px] text-slate-400 font-mono">Powered by qwen2.5-coder:1.5b</span>
+          </div>
+        </div>
+        <button id="btn-close-league-insights" type="button" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <!-- Loading State -->
+      <div id="league-insights-loading" class="hidden py-8 text-center space-y-2">
+        <div class="inline-block w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-xs text-indigo-300 font-medium">Analyzing historical match data with local AI...</p>
+      </div>
+
+      <!-- Insights Content -->
+      <div id="league-insights-content" class="space-y-3.5 text-xs text-slate-300">
+        <!-- Populated dynamically by JS -->
+      </div>
+
+      <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+        <span class="text-[10px] text-slate-500">Live data from thirdhalfutdleague.lovable.app</span>
+        <button id="btn-refresh-league-insights" type="button" class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 flex items-center gap-1.5">
+          <span>🔄</span>
+          <span>Regenerate Analysis</span>
+        </button>
+      </div>
     </div>
   </div>
 

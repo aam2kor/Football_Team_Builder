@@ -1,7 +1,8 @@
 import { PlayerDatabase, calculateOvr } from "./storage/db.js";
 import { buildBalancedTeams, calculateTeamStats, FORM_MODIFIERS, getEffectivePlayerStats, DEFAULT_SECTOR_WEIGHTS, cloneSectorWeights } from "./engine/balancer.js";
 import { FORMATIONS, getFormationsForSize, assignPlayersToFormation } from "./engine/formations.js";
-import { loadAiConfig, saveAiConfig, testOllamaConnection, queryAiCoach } from "./ai/ollamaClient.js";
+import { loadAiConfig, saveAiConfig, testOllamaConnection, queryAiCoach, queryLeagueInsights } from "./ai/ollamaClient.js";
+import { fetchLeagueMatches, computeHeadToHeadSummary, formatLeagueSummaryForAi } from "./services/leagueService.js";
 
 // Initialize Database instance
 const db = new PlayerDatabase();
@@ -58,6 +59,12 @@ const state = {
   aiConstraints: null,
   isAiLoading: false,
 
+  // Live League History State
+  leagueMatches: [],
+  leagueH2H: null,
+  leagueSummaryText: "",
+  isLeagueLoading: false,
+
   // Swap State
   selectedSwapPlayerId: null,
   selectedSwapTeam: null,
@@ -85,6 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   setupNavigation();
   setupGeneratorEvents();
+  setupLeagueEvents();
   setupAiEvents();
   setupRosterEvents();
   setupBackupEvents();
@@ -257,6 +265,161 @@ function setupGeneratorEvents() {
 }
 
 // ============================================================
+// Third Half United League Service & Live History
+// ============================================================
+function setupLeagueEvents() {
+  loadLeagueData(false);
+
+  // Sync / Refresh API button
+  document.getElementById("btn-refresh-league")?.addEventListener("click", () => {
+    loadLeagueData(true);
+  });
+
+  // Open / Close AI League Insights Modal
+  document.getElementById("btn-open-league-insights")?.addEventListener("click", () => {
+    openLeagueInsightsModal();
+  });
+  document.getElementById("btn-close-league-insights")?.addEventListener("click", () => {
+    document.getElementById("modal-league-insights")?.classList.add("hidden");
+  });
+  document.getElementById("btn-refresh-league-insights")?.addEventListener("click", () => {
+    handleGenerateLeagueInsights();
+  });
+}
+
+async function loadLeagueData(forceRefresh = false) {
+  const refreshIcon = document.getElementById("league-refresh-icon");
+  if (refreshIcon) refreshIcon.classList.add("animate-spin");
+
+  try {
+    const res = await fetchLeagueMatches(forceRefresh);
+    state.leagueMatches = res.matches || [];
+    state.leagueH2H = computeHeadToHeadSummary(state.leagueMatches);
+    state.leagueSummaryText = formatLeagueSummaryForAi(state.leagueMatches);
+
+    renderLeagueHistoryUI();
+    if (forceRefresh) {
+      showToast(`🔄 Synced ${state.leagueMatches.length} matches from Third Half Utd API!`, "success");
+    }
+  } catch (err) {
+    console.warn("Failed to load league data:", err);
+    if (forceRefresh) {
+      showToast("Could not sync with live league API. Using cached match data.", "warning");
+    }
+  } finally {
+    if (refreshIcon) refreshIcon.classList.remove("animate-spin");
+  }
+}
+
+function renderLeagueHistoryUI() {
+  const h2h = state.leagueH2H;
+  if (!h2h) return;
+
+  const voyWinsEl = document.getElementById("h2h-voyagers-wins");
+  const drawsEl = document.getElementById("h2h-draws-count");
+  const bootsWinsEl = document.getElementById("h2h-boots-wins");
+  const listEl = document.getElementById("league-recent-matches-list");
+
+  if (voyWinsEl) voyWinsEl.textContent = `${h2h.voyagersWins}W (${h2h.voyagersGoals}G)`;
+  if (drawsEl) drawsEl.textContent = `${h2h.draws}D`;
+  if (bootsWinsEl) bootsWinsEl.textContent = `${h2h.bootsWins}W (${h2h.bootsGoals}G)`;
+
+  if (listEl) {
+    if (h2h.matchHistory.length === 0) {
+      listEl.innerHTML = `<span class="text-[11px] text-slate-500">No match records found.</span>`;
+      return;
+    }
+
+    listEl.innerHTML = h2h.matchHistory.map(m => {
+      let badgeBg = "bg-slate-800 text-slate-300 border-slate-700";
+      if (m.result === "voyagers_win") badgeBg = "bg-blue-950/70 text-blue-300 border-blue-500/40";
+      else if (m.result === "boots_win") badgeBg = "bg-red-950/70 text-red-300 border-red-500/40";
+      else badgeBg = "bg-amber-950/70 text-amber-300 border-amber-500/40";
+
+      return `
+        <div class="px-2.5 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1.5 whitespace-nowrap ${badgeBg}" title="${m.date} - Voyagers: ${m.voyagersMembers.join(', ')} vs Boots: ${m.bootsMembers.join(', ')}">
+          <span class="text-[10px] text-slate-400 font-mono">${m.date.slice(5)}</span>
+          <span class="font-black text-blue-400">V ${m.voyagersScore}</span>
+          <span class="text-slate-500 font-mono">:</span>
+          <span class="font-black text-red-400">${m.bootsScore} B</span>
+        </div>
+      `;
+    }).join("");
+  }
+}
+
+async function openLeagueInsightsModal() {
+  const modal = document.getElementById("modal-league-insights");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+
+  const contentEl = document.getElementById("league-insights-content");
+  if (!contentEl || contentEl.innerHTML.trim() === "") {
+    handleGenerateLeagueInsights();
+  }
+}
+
+async function handleGenerateLeagueInsights() {
+  const loadingEl = document.getElementById("league-insights-loading");
+  const contentEl = document.getElementById("league-insights-content");
+  const refreshBtn = document.getElementById("btn-refresh-league-insights");
+
+  if (loadingEl) loadingEl.classList.remove("hidden");
+  if (contentEl) contentEl.classList.add("hidden");
+  if (refreshBtn) refreshBtn.disabled = true;
+
+  try {
+    const insights = await queryLeagueInsights(state.leagueMatches, state.aiConfig);
+
+    if (contentEl) {
+      contentEl.innerHTML = `
+        <div class="p-3.5 rounded-xl bg-gradient-to-r from-indigo-950/80 to-purple-950/60 border border-indigo-500/40 space-y-1">
+          <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">🎙️ League Pundit Headline</span>
+          <h4 class="text-sm font-black text-white">${insights.headline}</h4>
+        </div>
+
+        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+          <span class="text-[10px] font-bold text-blue-400 uppercase tracking-wider">📊 Season Momentum & Dominance</span>
+          <p class="text-xs leading-relaxed text-slate-200">${insights.summary}</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+            <span class="text-[10px] font-bold text-amber-400 uppercase tracking-wider">⭐ Standout Performers</span>
+            <p class="text-xs leading-relaxed text-slate-200">${insights.keyPlayers}</p>
+          </div>
+
+          <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+            <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">⚽ Scoring &amp; Tactical Patterns</span>
+            <p class="text-xs leading-relaxed text-slate-200">${insights.tacticalTrends}</p>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-xl bg-gradient-to-r from-purple-950/50 via-slate-900 to-indigo-950/50 border border-purple-500/30 space-y-1">
+          <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider">🔮 Next Matchday Prediction</span>
+          <p class="text-xs leading-relaxed text-slate-200 italic">"${insights.prediction}"</p>
+        </div>
+      `;
+      contentEl.classList.remove("hidden");
+    }
+  } catch (err) {
+    if (contentEl) {
+      contentEl.innerHTML = `
+        <div class="p-4 rounded-xl bg-red-950/60 border border-red-500/50 text-red-300 space-y-2">
+          <p class="font-bold">Could not generate AI insights:</p>
+          <p class="text-xs font-mono">${err.message}</p>
+          <p class="text-[11px] text-slate-400">Make sure Ollama is running and qwen2.5-coder:1.5b is available.</p>
+        </div>
+      `;
+      contentEl.classList.remove("hidden");
+    }
+  } finally {
+    if (loadingEl) loadingEl.classList.add("hidden");
+    if (refreshBtn) refreshBtn.disabled = false;
+  }
+}
+
+// ============================================================
 // AI Coach (Local LLM - qwen2.5-coder:1.5b via Ollama)
 // ============================================================
 function setupAiEvents() {
@@ -394,7 +557,8 @@ async function handleBuildAiTeams() {
     const aiResult = await queryAiCoach(prompt, selected, {
       teamAName: state.teamAName,
       teamBName: state.teamBName,
-      targetTeamSize: state.targetTeamSize
+      targetTeamSize: state.targetTeamSize,
+      leagueSummary: state.leagueSummaryText
     }, state.aiConfig);
 
     state.aiCoachBriefing = aiResult.coachBriefing;

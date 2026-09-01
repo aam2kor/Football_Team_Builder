@@ -104,23 +104,25 @@ export async function queryAiCoach(userPrompt, players, context = {}, aiConfig =
     return `• ${p.name} [${p.position} | OVR:${p.ovr} | PAC:${a.pac || 70} SHO:${a.sho || 70} PAS:${a.pas || 70} DRI:${a.dri || 70} DEF:${a.def || 70} PHY:${a.phy || 70}]`;
   }).join("\n");
 
+  const leagueBlock = context.leagueSummary ? `\nRecent League History & Head-to-Head Record:\n${context.leagueSummary}\n` : "";
+
   const systemPrompt = `You are an expert Football Tactics Coach balancing two teams: Team A ("${teamAName}") and Team B ("${teamBName}").
 Player Roster with Individual FIFA-style Attributes:
 ${detailedRoster}
-
-Based on the user's tactical instructions and individual player stats (Pace, Shooting, Passing, Dribbling, Defending, Physicality, GK), output pure JSON matching this exact schema:
+${leagueBlock}
+Based on the user's tactical instructions, player stats, and historical league record, output pure JSON matching this exact schema:
 {
   "pinnedTeamA": [],
   "pinnedTeamB": [],
   "separatedPairs": [],
   "pairedTogether": [],
-  "coachBriefing": "2-3 sentences of tactical pre-match analysis, playstyle breakdown, and marquee player duels using their stats"
+  "coachBriefing": "2-3 sentences of tactical pre-match analysis, playstyle breakdown, and marquee player duels (optionally referencing recent match history or form)"
 }
 
 Rules:
 1. Only pin or separate players if explicitly or tactically requested in the prompt.
 2. Use exact player names from the roster.
-3. In coachBriefing, highlight key individual strengths and head-to-head battles.`;
+3. In coachBriefing, highlight key individual strengths, head-to-head battles, or historical league trends.`;
 
   const messages = [
     { role: "system", content: systemPrompt },
@@ -247,8 +249,109 @@ Rules:
     clearTimeout(timeoutId);
     let msg = err.message || "Failed to communicate with local AI";
     if (err.name === "AbortError") {
-      msg = "AI Coach request timed out after 15s. Is Ollama running?";
+      msg = "AI Coach request timed out after 60s. Is Ollama running?";
     }
     throw new Error(msg);
+  }
+}
+
+/**
+ * Generates comprehensive tactical and historical league insights from match history.
+ * @param {Array} matches - Array of match objects from Third Half Utd API
+ * @param {Object} aiConfig - { endpoint, model }
+ * @returns {Promise<{ headline: string, summary: string, keyPlayers: string, tacticalTrends: string, prediction: string }>}
+ */
+export async function queryLeagueInsights(matches = [], aiConfig = DEFAULT_AI_CONFIG) {
+  const endpoint = (aiConfig.endpoint || DEFAULT_AI_CONFIG.endpoint).replace(/\/+$/, "");
+  const model = aiConfig.model || DEFAULT_AI_CONFIG.model;
+
+  const matchSummary = matches.map(m => {
+    const voyTeam = (m.teams || []).find(t => t.team?.toLowerCase().includes("voyager"));
+    const bootsTeam = (m.teams || []).find(t => t.team?.toLowerCase().includes("boot"));
+    return `• ${m.match_date} (Season ${m.season}): Voyagers ${voyTeam?.score ?? '?'} - ${bootsTeam?.score ?? '?'} Boots & Beers
+  - Voyagers Lineup: ${(voyTeam?.members || []).join(", ")}
+  - Boots & Beers Lineup: ${(bootsTeam?.members || []).join(", ")}`;
+  }).join("\n");
+
+  const systemPrompt = `You are an expert Football League Analyst and Pundit for Third Half United League (Season 2026).
+Here is the official match history:
+${matchSummary}
+
+Analyze the match results, player lineups, and goal scoring trends.
+Respond with pure JSON matching this exact schema:
+{
+  "headline": "Punchy 1-line headline summarizing the rivalry status",
+  "summary": "2-3 sentences analyzing Voyagers vs Boots & Beers historical dominance, momentum, and goal trends",
+  "keyPlayers": "Highlight 2-3 standout players based on the match records and winning lineups",
+  "tacticalTrends": "Analysis of scoring patterns (e.g. high-scoring shootouts, defensive solidity)",
+  "prediction": "Exciting prediction and tactical key for the next matchday"
+}
+Rules: Keep it engaging, professional, and grounded in the actual match data.`;
+
+  const payload = {
+    model: model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: "Generate in-depth tactical league insights and historical rivalry analysis." }
+    ],
+    stream: false,
+    format: "json",
+    options: {
+      temperature: 0.2,
+      num_predict: 450,
+      num_ctx: 1024
+    }
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+  try {
+    const res = await fetch(`${endpoint}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      throw new Error(`Ollama API error: HTTP ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    const content = (data.message?.content || "").trim();
+
+    // Parse JSON safely
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch (e) {
+      let cleaned = content.replace(/```json/gi, "").replace(/```/g, "").trim();
+      const first = cleaned.indexOf("{");
+      const last = cleaned.lastIndexOf("}");
+      if (first !== -1 && last > first) {
+        parsed = JSON.parse(cleaned.substring(first, last + 1));
+      } else {
+        parsed = {
+          headline: "Third Half United League Analysis",
+          summary: content.replace(/[{}[\]"]/g, ""),
+          keyPlayers: "Multiple matchday contributors across both rosters.",
+          tacticalTrends: "High offensive output and thrilling scorelines.",
+          prediction: "A fierce contest expected in the upcoming clash."
+        };
+      }
+    }
+
+    return {
+      headline: parsed.headline || "Third Half United Derby Dynamics",
+      summary: parsed.summary || "Voyagers and Boots & Beers continue their competitive rivalry.",
+      keyPlayers: parsed.keyPlayers || "Key contributors active across all fixtures.",
+      tacticalTrends: parsed.tacticalTrends || "High goal averages across previous encounters.",
+      prediction: parsed.prediction || "Both teams will aim for tactical balance and quick transitions."
+    };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw new Error(err.message || "Failed to generate league insights from local AI");
   }
 }

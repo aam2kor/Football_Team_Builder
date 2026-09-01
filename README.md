@@ -89,6 +89,18 @@ Expand the **⚙️ Advanced Sector Weights** panel to customize the engine's in
 
 ---
 
+### 8. 🏆 Third Half United League Live API & AI Historical Insights
+- **📡 Live Public API Integration**:
+  - Connects to `https://thirdhalfutdleague.lovable.app/api/public/matches` with automatic `localStorage` caching and offline resilience.
+  - Automatically calculates live **Season 2026 Head-to-Head records** (Voyagers: 2W · 1D · 0L vs Boots & Beers) and goal differentials (16G : 11G).
+  - Displays recent match pill chips with exact scores and participating lineups.
+- **💡 AI Historical League Insights**:
+  - Click **💡 AI League Insights** to have **`qwen2.5-coder:1.5b`** analyze historical scorelines, momentum streaks, player impact (e.g. *Mathai's undefeated 3-game run*), and tactical evolution over the season.
+- **🧠 Historical Match Context in AI Coach**:
+  - The AI Coach automatically receives recent league results and H2H records in its context, allowing it to generate pre-match narratives referencing previous derbies and revenge factors!
+
+---
+
 ## 🚀 How to Run Locally
 
 The application runs directly in any modern web browser using Python's built-in HTTP server (no Node.js build step required):
