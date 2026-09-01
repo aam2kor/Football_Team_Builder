@@ -273,32 +273,30 @@ export async function queryLeagueInsights(matches = [], aiConfig = DEFAULT_AI_CO
   - Boots & Beers Lineup: ${(bootsTeam?.members || []).join(", ")}`;
   }).join("\n");
 
-  const systemPrompt = `You are an expert Football League Analyst and Pundit for Third Half United League (Season 2026).
-Here is the official match history:
+  const systemPrompt = `You are a sharp football analyst for Third Half United League.
+Match History:
 ${matchSummary}
 
-Analyze the match results, player lineups, and goal scoring trends.
+Provide a concise, specific tactical analysis.
 Respond with pure JSON matching this exact schema:
 {
-  "headline": "Punchy 1-line headline summarizing the rivalry status",
-  "summary": "2-3 sentences analyzing Voyagers vs Boots & Beers historical dominance, momentum, and goal trends",
-  "keyPlayers": "Highlight 2-3 standout players based on the match records and winning lineups",
-  "tacticalTrends": "Analysis of scoring patterns (e.g. high-scoring shootouts, defensive solidity)",
-  "prediction": "Exciting prediction and tactical key for the next matchday"
+  "headline": "Punchy 1-line headline summarizing the rivalry",
+  "tacticalTakeaway": "2 concise bullet points explaining why Voyagers/Boots won past games and the tactical key for the next match",
+  "prediction": "1-sentence score prediction"
 }
-Rules: Keep it engaging, professional, and grounded in the actual match data.`;
+Rules: Be extremely concise, specific to player names/stats, and avoid long generic paragraphs.`;
 
   const payload = {
     model: model,
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Generate in-depth tactical league insights and historical rivalry analysis." }
+      { role: "user", content: "Generate concise tactical league takeaways." }
     ],
     stream: false,
     format: "json",
     options: {
-      temperature: 0.2,
-      num_predict: 450,
+      temperature: 0.1,
+      num_predict: 250,
       num_ctx: 1024
     }
   };
@@ -335,19 +333,15 @@ Rules: Keep it engaging, professional, and grounded in the actual match data.`;
       } else {
         parsed = {
           headline: "Third Half United League Analysis",
-          summary: content.replace(/[{}[\]"]/g, ""),
-          keyPlayers: "Multiple matchday contributors across both rosters.",
-          tacticalTrends: "High offensive output and thrilling scorelines.",
-          prediction: "A fierce contest expected in the upcoming clash."
+          tacticalTakeaway: content.replace(/[{}[\]"]/g, "").trim(),
+          prediction: "A close tactical battle expected in the next encounter."
         };
       }
     }
 
     return {
-      headline: parsed.headline || "Third Half United Derby Dynamics",
-      summary: parsed.summary || "Voyagers and Boots & Beers continue their competitive rivalry.",
-      keyPlayers: parsed.keyPlayers || "Key contributors active across all fixtures.",
-      tacticalTrends: parsed.tacticalTrends || "High goal averages across previous encounters.",
+      headline: parsed.headline || "Third Half United Derby Analysis",
+      tacticalTakeaway: parsed.tacticalTakeaway || "Voyagers have shown strong tactical cohesion in recent fixtures, while Boots & Beers will look to exploit counter-attacking spaces.",
       prediction: parsed.prediction || "Both teams will aim for tactical balance and quick transitions."
     };
   } catch (err) {

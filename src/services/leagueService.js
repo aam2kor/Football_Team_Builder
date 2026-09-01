@@ -214,6 +214,68 @@ export function computePlayerLeagueStats(matches = []) {
 }
 
 /**
+ * Computes Top Winning Chemistries (duos with most joint wins when playing on the same side).
+ * @param {Array} matches
+ * @returns {Array<{ p1: string, p2: string, wins: number, team: string }>}
+ */
+export function computeTopWinningChemistries(matches = []) {
+  const duoMap = {};
+
+  matches.forEach(m => {
+    (m.teams || []).forEach(t => {
+      const otherTeam = (m.teams || []).find(ot => ot !== t);
+      const isWinner = otherTeam && Number(t.score) > Number(otherTeam.score);
+      if (!isWinner) return;
+
+      const members = (t.members || []).map(n => n.trim()).sort();
+      for (let i = 0; i < members.length; i++) {
+        for (let j = i + 1; j < members.length; j++) {
+          const key = `${members[i]} & ${members[j]}`;
+          if (!duoMap[key]) {
+            duoMap[key] = { label: key, p1: members[i], p2: members[j], wins: 0, lastTeam: t.team };
+          }
+          duoMap[key].wins++;
+        }
+      }
+    });
+  });
+
+  return Object.values(duoMap)
+    .sort((a, b) => b.wins - a.wins)
+    .slice(0, 3);
+}
+
+/**
+ * Computes Top Win Rate Players.
+ * @param {Array} matches
+ * @param {number} topN
+ * @returns {Array}
+ */
+export function computeTopWinRatePlayers(matches = [], topN = 3) {
+  const stats = computePlayerLeagueStats(matches);
+  return Object.values(stats)
+    .sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+      return b.matches - a.matches;
+    })
+    .slice(0, topN);
+}
+
+/**
+ * Computes Top Goal Impact Players (Team goals scored when playing).
+ * @param {Array} matches
+ * @param {number} topN
+ * @returns {Array}
+ */
+export function computeTopGoalImpactPlayers(matches = [], topN = 3) {
+  const stats = computePlayerLeagueStats(matches);
+  return Object.values(stats)
+    .sort((a, b) => b.goalsFor - a.goalsFor)
+    .slice(0, topN);
+}
+
+/**
  * Formats a compact league summary string suitable for passing to the local LLM.
  * @param {Array} matches
  * @returns {string}
