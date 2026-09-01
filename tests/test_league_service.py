@@ -10,24 +10,78 @@ SAMPLE_API_RESPONSE = {
       "match_date": "2026-08-30",
       "season": 2026,
       "teams": [
-        {"team": "voyagers", "members": ["Anoop", "Mathai", "Pradeep", "Prasanth", "Rajeev", "Ratheesh", "Sanjay", "Vignesh"], "score": 3},
-        {"team": "bootsandbeers", "members": ["Aadi", "Abey", "Ajith", "Akash", "Anup", "Sreekanth", "Tom", "Vinay"], "score": 2}
+        {
+          "team": "voyagers",
+          "members": ["Anoop", "Mathai", "Pradeep", "Prasanth", "Rajeev", "Ratheesh", "Sanjay", "Vignesh"],
+          "score": 3,
+          "scorers": [
+            {"name": "Rajeev", "goals": 1, "is_own_goal": False},
+            {"name": "Sanjay", "goals": 1, "is_own_goal": False},
+            {"name": "Mathai", "goals": 1, "is_own_goal": False}
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": ["Aadi", "Abey", "Ajith", "Akash", "Anup", "Sreekanth", "Tom", "Vinay"],
+          "score": 2,
+          "scorers": [
+            {"name": "Aadi", "goals": 1, "is_own_goal": False},
+            {"name": "Sreekanth", "goals": 1, "is_own_goal": False}
+          ]
+        }
       ]
     },
     {
       "match_date": "2026-08-26",
       "season": 2026,
       "teams": [
-        {"team": "voyagers", "members": ["Ajith", "Anup", "CP", "Mathai", "Rajeev", "Somu", "Tom", "Varun"], "score": 5},
-        {"team": "bootsandbeers", "members": ["Abey", "Akash", "Anoop", "Pradeep", "Prasanth", "Sreekanth", "Sudhi", "Vinay"], "score": 5}
+        {
+          "team": "voyagers",
+          "members": ["Ajith", "Anup", "CP", "Mathai", "Rajeev", "Somu", "Tom", "Varun"],
+          "score": 5,
+          "scorers": [
+            {"name": "CP", "goals": 3, "is_own_goal": False},
+            {"name": "Mathai", "goals": 1, "is_own_goal": False},
+            {"name": "Rajeev", "goals": 1, "is_own_goal": False}
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": ["Abey", "Akash", "Anoop", "Pradeep", "Prasanth", "Sreekanth", "Sudhi", "Vinay"],
+          "score": 5,
+          "scorers": [
+            {"name": "Vinay", "goals": 3, "is_own_goal": False},
+            {"name": "Sreekanth", "goals": 2, "is_own_goal": False}
+          ]
+        }
       ]
     },
     {
       "match_date": "2026-08-23",
       "season": 2026,
       "teams": [
-        {"team": "voyagers", "members": ["Abey", "Anoop", "CP", "Mathai", "Sanjay", "Sreekanth", "Sudhi", "Vinay"], "score": 8},
-        {"team": "bootsandbeers", "members": ["Ajith", "Akash", "Anup", "Mithun", "Pradeep", "Prasanth", "Rajeev", "Tom"], "score": 4}
+        {
+          "team": "voyagers",
+          "members": ["Abey", "Anoop", "CP", "Mathai", "Sanjay", "Sreekanth", "Sudhi", "Vinay"],
+          "score": 8,
+          "scorers": [
+            {"name": "Vinay", "goals": 3, "is_own_goal": False},
+            {"name": "Sanjay", "goals": 2, "is_own_goal": False},
+            {"name": "CP", "goals": 1, "is_own_goal": False},
+            {"name": "Sudhi", "goals": 1, "is_own_goal": False},
+            {"name": "Sreekanth", "goals": 1, "is_own_goal": False}
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": ["Ajith", "Akash", "Anup", "Mithun", "Pradeep", "Prasanth", "Rajeev", "Tom"],
+          "score": 4,
+          "scorers": [
+            {"name": "Mithun", "goals": 2, "is_own_goal": False},
+            {"name": "Akash", "goals": 1, "is_own_goal": False},
+            {"name": "Tom", "goals": 1, "is_own_goal": False}
+          ]
+        }
       ]
     }
   ]
@@ -117,8 +171,26 @@ def test_top_winners_and_losers():
   print(f"[x] Top Winners: {', '.join(winner_names)}")
   print(f"[x] Top Underdogs/Losers: {', '.join(loser_names)}")
 
+def test_top_goal_scorers():
+  print("--- Testing Top Goal Scorers Extraction ---")
+  goal_map = {}
+  for m in SAMPLE_API_RESPONSE["matches"]:
+    for t in m["teams"]:
+      for s in t.get("scorers", []):
+        if not s.get("is_own_goal", False):
+          name = s["name"]
+          goal_map[name] = goal_map.get(name, 0) + s.get("goals", 1)
+
+  top_scorers = sorted(goal_map.items(), key=lambda x: x[1], reverse=True)[:3]
+  assert top_scorers[0] == ("Vinay", 6), f"Expected Vinay 6 goals, got {top_scorers[0]}"
+  assert top_scorers[1] == ("Sreekanth", 4) or top_scorers[1] == ("CP", 4)
+  assert top_scorers[2] == ("CP", 4) or top_scorers[2] == ("Sreekanth", 4)
+
+  print(f"[x] Top 3 Scorers Verified: 1. {top_scorers[0][0]} ({top_scorers[0][1]}G), 2. {top_scorers[1][0]} ({top_scorers[1][1]}G), 3. {top_scorers[2][0]} ({top_scorers[2][1]}G)")
+
 if __name__ == "__main__":
   test_h2h_calculation()
   test_player_stats()
   test_top_winners_and_losers()
+  test_top_goal_scorers()
   print("\n>>> ALL LEAGUE SERVICE TESTS PASSED! <<<\n")

@@ -462,22 +462,30 @@ async function handleGenerateLeagueInsights() {
           </div>
         </div>
 
-        <!-- 4. AI Tactical Takeaways (Winners & Losers) -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <!-- 4. AI Tactical Takeaways (Top Scorers, Winners & Losers) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="p-3 rounded-xl bg-slate-900 border border-blue-500/20 space-y-1">
+            <span class="text-[10px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1">
+              <span>⚽</span>
+              <span>Top Scorers Impact</span>
+            </span>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.scorersTakeaway}</p>
+          </div>
+
           <div class="p-3 rounded-xl bg-slate-900 border border-emerald-500/20 space-y-1">
             <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
               <span>🌟</span>
               <span>Why Top Winners Dominate</span>
             </span>
-            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.winnersAnalysis}</p>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.winnersTakeaway}</p>
           </div>
 
           <div class="p-3 rounded-xl bg-slate-900 border border-red-500/20 space-y-1">
             <span class="text-[10px] font-bold text-red-400 uppercase tracking-wider flex items-center gap-1">
               <span>🛡️</span>
-              <span>Tactical Advice for Underdogs</span>
+              <span>Advice for Underdogs</span>
             </span>
-            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.losersAdvice}</p>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.losersTakeaway}</p>
           </div>
         </div>
 

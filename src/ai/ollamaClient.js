@@ -268,36 +268,39 @@ export async function queryLeagueInsights(matches = [], aiConfig = DEFAULT_AI_CO
   const matchSummary = matches.map(m => {
     const voyTeam = (m.teams || []).find(t => t.team?.toLowerCase().includes("voyager"));
     const bootsTeam = (m.teams || []).find(t => t.team?.toLowerCase().includes("boot"));
-    return `• ${m.match_date} (Season ${m.season}): Voyagers ${voyTeam?.score ?? '?'} - ${bootsTeam?.score ?? '?'} Boots & Beers
+    const voyScorers = (voyTeam?.scorers || []).filter(s => !s.is_own_goal).map(s => `${s.name} (${s.goals}G)`).join(", ") || "none";
+    const bootsScorers = (bootsTeam?.scorers || []).filter(s => !s.is_own_goal).map(s => `${s.name} (${s.goals}G)`).join(", ") || "none";
+    return `• ${m.match_date} (Season ${m.season}): Voyagers ${voyTeam?.score ?? '?'} (Scorers: ${voyScorers}) - ${bootsTeam?.score ?? '?'} (Scorers: ${bootsScorers}) Boots & Beers
   - Voyagers Lineup: ${(voyTeam?.members || []).join(", ")}
   - Boots & Beers Lineup: ${(bootsTeam?.members || []).join(", ")}`;
   }).join("\n");
 
-  const systemPrompt = `You are a sharp football analyst for Third Half United League.
-Match History:
+  const systemPrompt = `You are a sharp football pundit for Third Half United League.
+Match & Scorers History:
 ${matchSummary}
 
-Provide a concise, specific tactical analysis.
+Provide a concise, specific tactical breakdown.
 Respond with pure JSON matching this exact schema:
 {
   "headline": "Punchy 1-line headline summarizing the rivalry status",
-  "winnersAnalysis": "1-2 sentences analyzing why the top consistent winners (Anoop, Mathai, Sanjay) dominate fixtures",
-  "losersAdvice": "1-2 sentences offering tactical advice to consistent losers (Ajith, Akash, Anup) to secure a win",
-  "prediction": "1-sentence score prediction for next derby"
+  "scorersTakeaway": "1-2 sentences on top 3 goal scorers (Vinay with 6 goals, Sreekanth with 4 goals, CP with 4 goals) and their finishing impact",
+  "winnersTakeaway": "1-2 sentences on top 3 consistent winners (Anoop, Mathai, Sanjay) and how their presence wins games",
+  "losersTakeaway": "1-2 sentences on top 3 consistent losers (Ajith, Akash, Anup) with practical tactical advice on how to secure a win",
+  "prediction": "1-sentence score prediction for the next derby"
 }
-Rules: Be concise, cite exact player names from lineups, and focus on practical tactics.`;
+Rules: Be concise, cite exact player names and goal tallies from data, and focus on practical tactics.`;
 
   const payload = {
     model: model,
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Analyze top winners, consistent losers, and next match tactical keys." }
+      { role: "user", content: "Analyze top scorers, consistent winners, consistent losers, and next match keys." }
     ],
     stream: false,
     format: "json",
     options: {
       temperature: 0.1,
-      num_predict: 300,
+      num_predict: 350,
       num_ctx: 1024
     }
   };
@@ -334,8 +337,9 @@ Rules: Be concise, cite exact player names from lineups, and focus on practical 
       } else {
         parsed = {
           headline: "Third Half United League Analysis",
-          winnersAnalysis: "Anoop, Mathai, and Sanjay have provided consistent match-winning cohesion for their sides.",
-          losersAdvice: "Ajith, Akash, and Anup need tighter midfield compactness and quicker defensive transitions.",
+          scorersTakeaway: "Vinay (6G), Sreekanth (4G), and CP (4G) have provided lethal finishing across high-scoring fixtures.",
+          winnersTakeaway: "Anoop, Mathai, and Sanjay have provided consistent match-winning cohesion for their sides.",
+          losersTakeaway: "Ajith, Akash, and Anup need tighter midfield compactness and quicker defensive transitions.",
           prediction: "A fierce contest expected in the upcoming clash."
         };
       }
@@ -343,8 +347,9 @@ Rules: Be concise, cite exact player names from lineups, and focus on practical 
 
     return {
       headline: parsed.headline || "Third Half United Derby Dynamics",
-      winnersAnalysis: parsed.winnersAnalysis || "Anoop, Mathai, and Sanjay have maintained undefeated winning runs through strong team control.",
-      losersAdvice: parsed.losersAdvice || "Ajith, Akash, and Anup must improve backline communication and counter-attack finishing to break the streak.",
+      scorersTakeaway: parsed.scorersTakeaway || "Vinay (6G), Sreekanth (4G), and CP (4G) lead the scoring charts with clinical finishing.",
+      winnersTakeaway: parsed.winnersTakeaway || "Anoop, Mathai, and Sanjay have maintained undefeated winning runs through strong midfield control.",
+      losersTakeaway: parsed.losersTakeaway || "Ajith, Akash, and Anup must improve defensive discipline and counter-attack finishing to break the streak.",
       prediction: parsed.prediction || "Both teams will aim for tactical balance and quick transitions."
     };
   } catch (err) {

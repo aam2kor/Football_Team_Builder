@@ -71,30 +71,84 @@ async function fetchFromApiAndCache() {
       }
     } catch (e) {}
 
-    // Hardcoded fallback data from API
+    // Hardcoded fallback data matching the live API format
     const fallbackMatches = [
       {
         match_date: "2026-08-30",
         season: 2026,
         teams: [
-          { team: "voyagers", members: ["Anoop", "Mathai", "Pradeep", "Prasanth", "Rajeev", "Ratheesh", "Sanjay", "Vignesh"], score: 3 },
-          { team: "bootsandbeers", members: ["Aadi", "Abey", "Ajith", "Akash", "Anup", "Sreekanth", "Tom", "Vinay"], score: 2 }
+          {
+            team: "voyagers",
+            members: ["Anoop", "Mathai", "Pradeep", "Prasanth", "Rajeev", "Ratheesh", "Sanjay", "Vignesh"],
+            score: 3,
+            scorers: [
+              { name: "Rajeev", goals: 1, is_own_goal: false },
+              { name: "Sanjay", goals: 1, is_own_goal: false },
+              { name: "Mathai", goals: 1, is_own_goal: false }
+            ]
+          },
+          {
+            team: "bootsandbeers",
+            members: ["Aadi", "Abey", "Ajith", "Akash", "Anup", "Sreekanth", "Tom", "Vinay"],
+            score: 2,
+            scorers: [
+              { name: "Aadi", goals: 1, is_own_goal: false },
+              { name: "Sreekanth", goals: 1, is_own_goal: false }
+            ]
+          }
         ]
       },
       {
         match_date: "2026-08-26",
         season: 2026,
         teams: [
-          { team: "voyagers", members: ["Ajith", "Anup", "CP", "Mathai", "Rajeev", "Somu", "Tom", "Varun"], score: 5 },
-          { team: "bootsandbeers", members: ["Abey", "Akash", "Anoop", "Pradeep", "Prasanth", "Sreekanth", "Sudhi", "Vinay"], score: 5 }
+          {
+            team: "voyagers",
+            members: ["Ajith", "Anup", "CP", "Mathai", "Rajeev", "Somu", "Tom", "Varun"],
+            score: 5,
+            scorers: [
+              { name: "CP", goals: 3, is_own_goal: false },
+              { name: "Mathai", goals: 1, is_own_goal: false },
+              { name: "Rajeev", goals: 1, is_own_goal: false }
+            ]
+          },
+          {
+            team: "bootsandbeers",
+            members: ["Abey", "Akash", "Anoop", "Pradeep", "Prasanth", "Sreekanth", "Sudhi", "Vinay"],
+            score: 5,
+            scorers: [
+              { name: "Vinay", goals: 3, is_own_goal: false },
+              { name: "Sreekanth", goals: 2, is_own_goal: false }
+            ]
+          }
         ]
       },
       {
         match_date: "2026-08-23",
         season: 2026,
         teams: [
-          { team: "voyagers", members: ["Abey", "Anoop", "CP", "Mathai", "Sanjay", "Sreekanth", "Sudhi", "Vinay"], score: 8 },
-          { team: "bootsandbeers", members: ["Ajith", "Akash", "Anup", "Mithun", "Pradeep", "Prasanth", "Rajeev", "Tom"], score: 4 }
+          {
+            team: "voyagers",
+            members: ["Abey", "Anoop", "CP", "Mathai", "Sanjay", "Sreekanth", "Sudhi", "Vinay"],
+            score: 8,
+            scorers: [
+              { name: "Vinay", goals: 3, is_own_goal: false },
+              { name: "Sanjay", goals: 2, is_own_goal: false },
+              { name: "CP", goals: 1, is_own_goal: false },
+              { name: "Sudhi", goals: 1, is_own_goal: false },
+              { name: "Sreekanth", goals: 1, is_own_goal: false }
+            ]
+          },
+          {
+            team: "bootsandbeers",
+            members: ["Ajith", "Akash", "Anup", "Mithun", "Pradeep", "Prasanth", "Rajeev", "Tom"],
+            score: 4,
+            scorers: [
+              { name: "Mithun", goals: 2, is_own_goal: false },
+              { name: "Akash", goals: 1, is_own_goal: false },
+              { name: "Tom", goals: 1, is_own_goal: false }
+            ]
+          }
         ]
       }
     ];
@@ -146,7 +200,9 @@ export function computeHeadToHeadSummary(matches = []) {
         bootsScore: bScore,
         result,
         voyagersMembers: voyTeam.members || [],
-        bootsMembers: bootsTeam.members || []
+        bootsMembers: bootsTeam.members || [],
+        voyagersScorers: voyTeam.scorers || [],
+        bootsScorers: bootsTeam.scorers || []
       });
     }
   });
@@ -338,12 +394,21 @@ export function formatLeagueSummaryForAi(matches = []) {
   const h2h = computeHeadToHeadSummary(matches);
   if (h2h.totalMatches === 0) return "";
 
-  const recentList = h2h.matchHistory.slice(0, 3).map(m => 
-    `• ${m.date}: Voyagers ${m.voyagersScore} - ${m.bootsScore} Boots & Beers`
-  ).join("\n");
+  const recentList = h2h.matchHistory.slice(0, 3).map(m => {
+    const voyScorers = (m.voyagersScorers || []).filter(s => !s.is_own_goal).map(s => `${s.name}${s.goals > 1 ? `(${s.goals})` : ''}`).join(", ");
+    const bootsScorers = (m.bootsScorers || []).filter(s => !s.is_own_goal).map(s => `${s.name}${s.goals > 1 ? `(${s.goals})` : ''}`).join(", ");
+    return `• ${m.date}: Voyagers ${m.voyagersScore} [${voyScorers || 'no scorers'}] - ${m.bootsScore} [${bootsScorers || 'no scorers'}] Boots & Beers`;
+  }).join("\n");
+
+  const topScorers = computeTopGoalScorers(matches, 3).map(s => `${s.name} (${s.goals}G)`).join(", ");
+  const topWinners = computeTopWinRatePlayers(matches, 3).map(w => `${w.name} (${w.wins}W)`).join(", ");
+  const topLosers = computeTopConsistentLosers(matches, 3).map(l => `${l.name} (${l.losses}L)`).join(", ");
 
   return `Third Half United League History (Season 2026):
 Head-to-Head: Voyagers (${h2h.voyagersWins}W - ${h2h.draws}D - ${h2h.bootsWins}L), Boots & Beers (${h2h.bootsWins}W - ${h2h.draws}D - ${h2h.voyagersWins}L)
-Recent Results:
+Top Goal Scorers: ${topScorers}
+Top Winners: ${topWinners}
+Top Underdogs (Seeking Win): ${topLosers}
+Recent Matches & Scorers:
 ${recentList}`;
 }
