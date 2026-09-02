@@ -1493,8 +1493,8 @@ function createPlayerToken(player, team, posX, posY, slotLabel) {
   token.dataset.playerId = player.id;
   token.dataset.team     = team;
 
-  // Abbreviated name: first name only (max 9 chars)
-  const displayName = player.name.split(" ")[0].substring(0, 9);
+  // First name display (up to 11 chars)
+  const displayName = player.name.split(" ")[0].substring(0, 11);
 
   // Build jersey div with explicit team color class and inline style fallback
   const jersey = document.createElement("div");
