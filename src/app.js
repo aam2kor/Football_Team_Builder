@@ -660,11 +660,12 @@ async function handleBuildAiTeams() {
   showToast(`🤖 Consulting AI Coach (${state.aiConfig.model})...`, "info");
 
   try {
+    const activeLeagueSummary = formatLeagueSummaryForAi(state.leagueMatches, selected);
     const aiResult = await queryAiCoach(prompt, selected, {
       teamAName: state.teamAName,
       teamBName: state.teamBName,
       targetTeamSize: state.targetTeamSize,
-      leagueSummary: state.leagueSummaryText
+      leagueSummary: activeLeagueSummary
     }, state.aiConfig);
 
     state.aiCoachBriefing = aiResult.coachBriefing;
@@ -755,15 +756,18 @@ async function handleRefineDraftWithAi() {
   showToast(`🔍 AI Coach reviewing mathematical draft (${state.aiConfig.model})...`, "info");
 
   try {
-    const statsA = calculateTeamStats(state.activeTeamA, state.matchdaySettings, state.sectorWeights);
-    const statsB = calculateTeamStats(state.activeTeamB, state.matchdaySettings, state.sectorWeights);
+    const statsA = calculateTeamStats(state.activeTeamA, state.matchdaySettings, state.sectorWeights, true);
+    const statsB = calculateTeamStats(state.activeTeamB, state.matchdaySettings, state.sectorWeights, true);
+
+    const activeSquad = [...state.activeTeamA, ...state.activeTeamB];
+    const activeLeagueSummary = formatLeagueSummaryForAi(state.leagueMatches, activeSquad);
 
     const aiResult = await refineDraftWithAi(prompt, state.activeTeamA, state.activeTeamB, {
       teamAName: state.teamAName,
       teamBName: state.teamBName,
       statsA,
       statsB,
-      leagueSummary: state.leagueSummaryText
+      leagueSummary: activeLeagueSummary
     }, state.aiConfig);
 
     const appliedSwaps = [];

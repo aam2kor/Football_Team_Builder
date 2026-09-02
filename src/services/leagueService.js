@@ -390,25 +390,40 @@ export function computeTopGoalImpactPlayers(matches = [], topN = 3) {
  * @param {Array} matches
  * @returns {string}
  */
-export function formatLeagueSummaryForAi(matches = []) {
+export function formatLeagueSummaryForAi(matches = [], filterPlayers = null) {
   const h2h = computeHeadToHeadSummary(matches);
   if (h2h.totalMatches === 0) return "";
 
+  const allowedNames = filterPlayers && filterPlayers.length > 0
+    ? new Set(filterPlayers.map(p => (typeof p === "string" ? p : p.name).toLowerCase().trim()))
+    : null;
+
   const recentList = h2h.matchHistory.slice(0, 3).map(m => {
-    const voyScorers = (m.voyagersScorers || []).filter(s => !s.is_own_goal).map(s => `${s.name}${s.goals > 1 ? `(${s.goals})` : ''}`).join(", ");
-    const bootsScorers = (m.bootsScorers || []).filter(s => !s.is_own_goal).map(s => `${s.name}${s.goals > 1 ? `(${s.goals})` : ''}`).join(", ");
-    return `• ${m.date}: Voyagers ${m.voyagersScore} [${voyScorers || 'no scorers'}] - ${m.bootsScore} [${bootsScorers || 'no scorers'}] Boots & Beers`;
+    const voyScorers = (m.voyagersScorers || [])
+      .filter(s => !s.is_own_goal && (!allowedNames || allowedNames.has(s.name.toLowerCase().trim())))
+      .map(s => `${s.name}${s.goals > 1 ? `(${s.goals})` : ''}`)
+      .join(", ");
+    const bootsScorers = (m.bootsScorers || [])
+      .filter(s => !s.is_own_goal && (!allowedNames || allowedNames.has(s.name.toLowerCase().trim())))
+      .map(s => `${s.name}${s.goals > 1 ? `(${s.goals})` : ''}`)
+      .join(", ");
+    return `• ${m.date}: Voyagers ${m.voyagersScore} [${voyScorers || 'no active scorers'}] - ${m.bootsScore} [${bootsScorers || 'no active scorers'}] Boots & Beers`;
   }).join("\n");
 
-  const topScorers = computeTopGoalScorers(matches, 3).map(s => `${s.name} (${s.goals}G)`).join(", ");
-  const topWinners = computeTopWinRatePlayers(matches, 3).map(w => `${w.name} (${w.wins}W)`).join(", ");
-  const topLosers = computeTopConsistentLosers(matches, 3).map(l => `${l.name} (${l.losses}L)`).join(", ");
+  const allScorers = computeTopGoalScorers(matches, 30);
+  const activeScorers = (allowedNames ? allScorers.filter(s => allowedNames.has(s.name.toLowerCase().trim())) : allScorers).slice(0, 3);
 
-  return `Third Half United League History (Season 2026):
-Head-to-Head: Voyagers (${h2h.voyagersWins}W - ${h2h.draws}D - ${h2h.bootsWins}L), Boots & Beers (${h2h.bootsWins}W - ${h2h.draws}D - ${h2h.voyagersWins}L)
-Top Goal Scorers: ${topScorers}
-Top Winners: ${topWinners}
-Top Underdogs (Seeking Win): ${topLosers}
-Recent Matches & Scorers:
-${recentList}`;
+  const allWinners = computeTopWinRatePlayers(matches, 30);
+  const activeWinners = (allowedNames ? allWinners.filter(w => allowedNames.has(w.name.toLowerCase().trim())) : allWinners).slice(0, 3);
+
+  const allLosers = computeTopConsistentLosers(matches, 30);
+  const activeLosers = (allowedNames ? allLosers.filter(l => allowedNames.has(l.name.toLowerCase().trim())) : allLosers).slice(0, 3);
+
+  let out = `Third Half United League History (Season 2026):\nHead-to-Head: Voyagers (${h2h.voyagersWins}W - ${h2h.draws}D - ${h2h.bootsWins}L), Boots & Beers (${h2h.bootsWins}W - ${h2h.draws}D - ${h2h.voyagersWins}L)\n`;
+  if (activeScorers.length > 0) out += `Top Scorers in Squad: ${activeScorers.map(s => `${s.name} (${s.goals}G)`).join(", ")}\n`;
+  if (activeWinners.length > 0) out += `Top Winners in Squad: ${activeWinners.map(w => `${w.name} (${w.wins}W)`).join(", ")}\n`;
+  if (activeLosers.length > 0) out += `Top Underdogs in Squad: ${activeLosers.map(l => `${l.name} (${l.losses}L)`).join(", ")}\n`;
+  out += `Recent Match Scorers:\n${recentList}`;
+
+  return out;
 }

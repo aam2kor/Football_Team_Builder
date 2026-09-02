@@ -375,38 +375,44 @@ export async function refineDraftWithAi(userPrompt, teamA = [], teamB = [], cont
   const statsA = context.statsA || {};
   const statsB = context.statsB || {};
 
-  const formatRoster = (players, teamLabel) => players.map(p => {
+  const formatRoster = (players) => players.map(p => {
     const a = p.effectiveAttributes || p.attributes || {};
-    return `  • [${teamLabel}] ${p.name} (${p.position}, OVR: ${p.effectiveOvr || p.ovr}, PAC: ${a.pac ?? 75}, SHO: ${a.sho ?? 70}, PAS: ${a.pas ?? 75}, DRI: ${a.dri ?? 75}, DEF: ${a.def ?? 70}, PHY: ${a.phy ?? 75})`;
+    return `  - ${p.name} (${p.position}, OVR: ${p.effectiveOvr || p.ovr}, SHO: ${a.sho ?? 70}, DEF: ${a.def ?? 70}, PAS: ${a.pas ?? 75}, PAC: ${a.pac ?? 75})`;
   }).join("\n");
 
-  const systemPrompt = `You are an elite football tactical coach. Your task is to refine a 1st mathematical draft for an 8v8 match by executing tactical player swaps between two teams.
+  const systemPrompt = `You are an elite football tactical coach refining an active 8v8 match draft.
 
-Current Draft Rosters:
-[${teamAName} Players]:
-${formatRoster(teamA, teamAName)}
+ABSOLUTE STRICT RESTRICTION:
+- There are ONLY ${teamA.length + teamB.length} players available today: exactly ${teamA.length} on ${teamAName} and ${teamB.length} on ${teamBName} as listed below.
+- NO OTHER PLAYERS EXIST. You are STRICTLY FORBIDDEN from bringing in, naming, or recommending ANY player who is not in the rosters below.
+- Every swap MUST be 1 player currently on ${teamAName} exchanged with 1 player currently on ${teamBName}.
 
-[${teamBName} Players]:
-${formatRoster(teamB, teamBName)}
-${context.leagueSummary ? `\nLeague History:\n${context.leagueSummary}\n` : ""}
+CURRENT DRAFT ROSTERS:
+[${teamAName} Active Squad]:
+${formatRoster(teamA)}
+
+[${teamBName} Active Squad]:
+${formatRoster(teamB)}
+${context.leagueSummary ? `\nActive Squad Form Context:\n${context.leagueSummary}\n` : ""}
 USER TACTICAL DIRECTIVE: "${userPrompt}"
 
 YOUR MISSION:
-Actively implement the user's tactical directive by proposing 1 or 2 player swaps between ${teamAName} and ${teamBName}.
-Do NOT say "no swaps needed" or "already balanced". You must execute concrete player swaps that fulfill the user's tactical instructions while keeping the overall match competitive and balanced.
+Propose 1 or 2 player swaps between the active squad of ${teamAName} and active squad of ${teamBName} to satisfy: "${userPrompt}".
+In your reviewCommentary, ONLY discuss players from the active squads above.
+Do NOT say "no swaps needed". You must execute concrete player swaps that fulfill the user's tactical instructions while keeping the overall match competitive and balanced.
 
 SWAP RULES:
 1. In each swap, one player MUST be from ${teamAName} and the other player MUST be from ${teamBName}.
-2. Use EXACT player names as listed above.
+2. Use EXACT player names as listed in the active squads above.
 3. Swapping players of comparable roles (e.g. FWD for FWD, or MID for MID) preserves overall team balance.
 
 Respond with pure JSON matching this exact schema:
 {
-  "reviewCommentary": "Tactical explanation of the changes made and how they satisfy the user's directive",
+  "reviewCommentary": "Tactical explanation of the swaps between the active players to satisfy the directive",
   "swaps": [
     {
-      "playerFromTeamA": "Player name from ${teamAName}",
-      "playerFromTeamB": "Player name from ${teamBName}",
+      "playerFromTeamA": "Player name from ${teamAName} Active Squad",
+      "playerFromTeamB": "Player name from ${teamBName} Active Squad",
       "rationale": "Tactical reason for this swap"
     }
   ]
@@ -416,7 +422,7 @@ Respond with pure JSON matching this exact schema:
     model: model,
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: `Execute tactical player swaps to fulfill: "${userPrompt}"` }
+      { role: "user", content: `Execute tactical player swaps between the two active squads to fulfill: "${userPrompt}"` }
     ],
     stream: false,
     format: "json",
