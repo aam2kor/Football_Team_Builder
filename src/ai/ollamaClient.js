@@ -80,6 +80,46 @@ export async function testOllamaConnection(endpoint = DEFAULT_AI_CONFIG.endpoint
 }
 
 /**
+ * Robust JSON extractor that handles markdown blocks, trailing tokens, or truncated outputs
+ */
+export function extractJsonObject(rawText) {
+  if (!rawText) return {};
+  // 1. Direct parse attempt
+  try { return JSON.parse(rawText); } catch (e) {}
+
+  // 2. Remove markdown code fences
+  let cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+  try { return JSON.parse(cleaned); } catch (e) {}
+
+  // 3. Extract substring between first '{' and last '}'
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const sub = cleaned.substring(firstBrace, lastBrace + 1);
+    try { return JSON.parse(sub); } catch (e) {}
+  }
+
+  // 4. Attempt to repair truncated JSON (e.g. missing closing quotes or brackets)
+  if (firstBrace !== -1) {
+    let partial = cleaned.substring(firstBrace);
+    // Count open brackets
+    const openBraces = (partial.match(/{/g) || []).length;
+    const closeBraces = (partial.match(/}/g) || []).length;
+    const openBrackets = (partial.match(/\[/g) || []).length;
+    const closeBrackets = (partial.match(/\]/g) || []).length;
+    
+    if (openBrackets > closeBrackets) partial += "]".repeat(openBrackets - closeBrackets);
+    if (openBraces > closeBraces) partial += "}".repeat(openBraces - closeBraces);
+    try { return JSON.parse(partial); } catch (e) {}
+  }
+
+  // 5. Fallback: return raw text as coachBriefing without crashing
+  return {
+    coachBriefing: rawText.replace(/[{}[\]"]/g, "").trim() || "Tactically balanced lineup created."
+  };
+}
+
+/**
  * Sends natural language coach instructions to Ollama qwen2.5-coder:1.5b
  * and returns structured constraints & tactical briefing.
  * 
@@ -104,45 +144,43 @@ export async function queryAiCoach(userPrompt, players, context = {}, aiConfig =
     return `• ${p.name} [${p.position} | OVR:${p.ovr} | PAC:${a.pac || 70} SHO:${a.sho || 70} PAS:${a.pas || 70} DRI:${a.dri || 70} DEF:${a.def || 70} PHY:${a.phy || 70}]`;
   }).join("\n");
 
-  const leagueBlock = context.leagueSummary ? `\nRecent League History & Head-to-Head Record:\n${context.leagueSummary}\n` : "";
-
-  const systemPrompt = `You are an expert Football Tactics Coach balancing two teams: Team A ("${teamAName}") and Team B ("${teamBName}").
-Player Roster with Individual FIFA-style Attributes:
+  const systemPrompt = `You are an elite football tactical coach. Analyze the user's instructions and player pool for an 8v8 match between ${teamAName} and ${teamBName}.
+Available Players:
 ${detailedRoster}
-${leagueBlock}
-Based on the user's tactical instructions, player stats, and historical league record, output pure JSON matching this exact schema:
-{
-  "pinnedTeamA": [],
-  "pinnedTeamB": [],
-  "separatedPairs": [],
-  "pairedTogether": [],
-  "coachBriefing": "2-3 sentences of tactical pre-match analysis, playstyle breakdown, and marquee player duels (optionally referencing recent match history or form)"
-}
 
 Rules:
-1. Only pin or separate players if explicitly or tactically requested in the prompt.
-2. Use exact player names from the roster.
-3. In coachBriefing, highlight key individual strengths, head-to-head battles, or historical league trends.`;
+1. Pinned players: assign specific players to "${teamAName}" or "${teamBName}" ONLY if the user explicitly requested it or implied it strongly.
+2. Separated players: if user wants players on opposite teams (e.g. "separate strikers", "put X against Y"), pair them in separatedPairs.
+3. Paired players: if user wants players together, pair them in pairedTogether.
+4. If the user mentions tactical style (e.g. "counter-attack", "possession", "high pace"), pick key players fitting that profile and pin or pair them accordingly.
+5. Provide a 2-sentence pre-match tactical briefing explaining your strategy and highlighting a key player matchup.
 
-  const messages = [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: userPrompt }
-  ];
+CRITICAL: You MUST respond ONLY with a valid JSON object matching this schema. No intro, no markdown explanation, no other text:
+{
+  "pinnedTeamA": ["PlayerName1", "PlayerName2"],
+  "pinnedTeamB": ["PlayerName3"],
+  "separatedPairs": [["PlayerNameA", "PlayerNameB"]],
+  "pairedTogether": [["PlayerNameC", "PlayerNameD"]],
+  "coachBriefing": "Two-sentence tactical briefing and matchup preview."
+}`;
 
   const payload = {
     model: model,
-    messages: messages,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ],
     stream: false,
     format: "json",
     options: {
       temperature: 0.1,
-      num_predict: 400,
-      num_ctx: 1024
+      num_predict: 350,
+      num_ctx: 1536
     }
   };
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for model load/CPU
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   try {
     const res = await fetch(`${endpoint}/api/chat`, {
@@ -159,45 +197,6 @@ Rules:
 
     const data = await res.json();
     const content = (data.message?.content || "").trim();
-    
-    // Robust JSON extractor that handles markdown blocks, trailing tokens, or truncated outputs
-    const extractJsonObject = (rawText) => {
-      if (!rawText) return {};
-      // 1. Direct parse attempt
-      try { return JSON.parse(rawText); } catch (e) {}
-
-      // 2. Remove markdown code fences
-      let cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-      try { return JSON.parse(cleaned); } catch (e) {}
-
-      // 3. Extract substring between first '{' and last '}'
-      const firstBrace = cleaned.indexOf("{");
-      const lastBrace = cleaned.lastIndexOf("}");
-      if (firstBrace !== -1 && lastBrace > firstBrace) {
-        const sub = cleaned.substring(firstBrace, lastBrace + 1);
-        try { return JSON.parse(sub); } catch (e) {}
-      }
-
-      // 4. Attempt to repair truncated JSON (e.g. missing closing quotes or brackets)
-      if (firstBrace !== -1) {
-        let partial = cleaned.substring(firstBrace);
-        // Count open brackets
-        const openBraces = (partial.match(/{/g) || []).length;
-        const closeBraces = (partial.match(/}/g) || []).length;
-        const openBrackets = (partial.match(/\[/g) || []).length;
-        const closeBrackets = (partial.match(/\]/g) || []).length;
-        
-        if (openBrackets > closeBrackets) partial += "]".repeat(openBrackets - closeBrackets);
-        if (openBraces > closeBraces) partial += "}".repeat(openBraces - closeBraces);
-        try { return JSON.parse(partial); } catch (e) {}
-      }
-
-      // 5. Fallback: return raw text as coachBriefing without crashing
-      return {
-        coachBriefing: rawText.replace(/[{}[\]"]/g, "").trim() || "Tactically balanced lineup created."
-      };
-    };
-
     const parsed = extractJsonObject(content);
 
     const findIdByName = (nameOrId) => {

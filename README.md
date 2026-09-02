@@ -76,24 +76,15 @@ Expand the **⚙️ Advanced Sector Weights** panel to customize the engine's in
 - **🔍 Two Distinct AI Workflows**:
   - **Option 1: 🔍 Review & Refine Draft with AI (Math Draft ➔ AI Tactical Review & Adjustments)**:
     - The mathematical balancer first creates an optimal baseline draft.
-    - The local LLM reviews the draft whiteboard, acts as a tactical head coach, performs targeted player swaps (e.g., `Swap Vinay ⇄ CP`) to satisfy your prompt, and logs the tactical rationale for every adjustment made.
-  - **Option 2: 🧠 Build with AI Rules (Constraint-First)**:
-    - The local LLM translates coaching intent into hard constraints (`pinnedTeamA`, `pinnedTeamB`, `separatedPairs`, `pairedTogether`), and the combinatorial math engine solves for the fairest split.
-- **🔒 Local & Private via Ollama**:
-  - Connects directly to your local Ollama server running **`qwen2.5-coder:1.5b`** (or any model).
-  - Uses native Ollama structured JSON mode (`format: "json"`) with $0.1$ temperature for 100% deterministic JSON extraction.
   - Interactive Connection Status indicator (`🟢 Online` / `🔴 Offline`) and built-in **⚙️ AI Model Settings Modal** with live connection testing.
 - **🎙️ Pre-Match AI Tactical Briefing & Swaps Changelog**:
   - Displays a pre-match scout report, tactical commentary, and a dedicated changelog of any adjustments made to the draft.
-  - Automatically included in the one-click **WhatsApp export** message.
 
 ---
 
 ### 8. 🏆 Third Half United League Live API & AI Historical Insights
 - **📡 Live Public API Integration**:
   - Connects to `https://thirdhalfutdleague.lovable.app/api/public/matches` with automatic `localStorage` caching and offline resilience.
-  - Automatically calculates live **Season 2026 Head-to-Head records** (Voyagers: 2W · 1D · 0L vs Boots & Beers) and goal differentials (16G : 11G).
-  - Displays recent match pill chips with exact scores and participating lineups.
 - **💡 AI Historical League Insights**:
   - Click **💡 AI League Insights** to have **`qwen2.5-coder:1.5b`** analyze historical scorelines, momentum streaks, player impact (e.g. *Mathai's undefeated 3-game run*), and tactical evolution over the season.
 - **🧠 Historical Match Context in AI Coach**:
