@@ -375,49 +375,53 @@ export async function refineDraftWithAi(userPrompt, teamA = [], teamB = [], cont
   const statsA = context.statsA || {};
   const statsB = context.statsB || {};
 
-  const formatRoster = (players) => players.map(p => {
+  const formatRoster = (players, teamLabel) => players.map(p => {
     const a = p.effectiveAttributes || p.attributes || {};
-    return `• ${p.name} (${p.position}, OVR: ${p.effectiveOvr || p.ovr}, PAC: ${a.pac ?? 75}, SHO: ${a.sho ?? 70}, PAS: ${a.pas ?? 75}, DRI: ${a.dri ?? 75}, DEF: ${a.def ?? 70}, PHY: ${a.phy ?? 75}, GK: ${a.gk ?? 15})`;
+    return `  • [${teamLabel}] ${p.name} (${p.position}, OVR: ${p.effectiveOvr || p.ovr}, PAC: ${a.pac ?? 75}, SHO: ${a.sho ?? 70}, PAS: ${a.pas ?? 75}, DRI: ${a.dri ?? 75}, DEF: ${a.def ?? 70}, PHY: ${a.phy ?? 75})`;
   }).join("\n");
 
-  const systemPrompt = `You are an elite football tactical coach reviewing the FIRST MATHEMATICAL DRAFT for an 8v8 match.
-Draft Lineups:
-${teamAName} (Avg OVR: ${statsA.effectiveAvgOvr ?? 83}, ATT: ${statsA.attack ?? 78}, MID: ${statsA.midfield ?? 78}, DEF: ${statsA.defense ?? 79}):
-${formatRoster(teamA)}
+  const systemPrompt = `You are an elite football tactical coach. Your task is to refine a 1st mathematical draft for an 8v8 match by executing tactical player swaps between two teams.
 
-${teamBName} (Avg OVR: ${statsB.effectiveAvgOvr ?? 83}, ATT: ${statsB.attack ?? 78}, MID: ${statsB.midfield ?? 78}, DEF: ${statsB.defense ?? 79}):
-${formatRoster(teamB)}
-${context.leagueSummary ? `\nLeague History Context:\n${context.leagueSummary}\n` : ""}
-Task:
-1. Carefully review the user's tactical instructions: "${userPrompt}".
-2. Evaluate if swapping 1 or 2 players between ${teamAName} and ${teamBName} fulfills the user's instructions while keeping the match competitive and exciting.
-3. If the draft already satisfies the instructions, you can propose 0 swaps.
-4. If swaps are needed, specify the exact player name from ${teamAName} and the player name from ${teamBName}.
-5. Give a concise coaching assessment explaining the adjustments made.
+Current Draft Rosters:
+[${teamAName} Players]:
+${formatRoster(teamA, teamAName)}
+
+[${teamBName} Players]:
+${formatRoster(teamB, teamBName)}
+${context.leagueSummary ? `\nLeague History:\n${context.leagueSummary}\n` : ""}
+USER TACTICAL DIRECTIVE: "${userPrompt}"
+
+YOUR MISSION:
+Actively implement the user's tactical directive by proposing 1 or 2 player swaps between ${teamAName} and ${teamBName}.
+Do NOT say "no swaps needed" or "already balanced". You must execute concrete player swaps that fulfill the user's tactical instructions while keeping the overall match competitive and balanced.
+
+SWAP RULES:
+1. In each swap, one player MUST be from ${teamAName} and the other player MUST be from ${teamBName}.
+2. Use EXACT player names as listed above.
+3. Swapping players of comparable roles (e.g. FWD for FWD, or MID for MID) preserves overall team balance.
 
 Respond with pure JSON matching this exact schema:
 {
-  "reviewCommentary": "Concise coaching assessment of the draft and how your tactical adjustments satisfy the user prompt",
+  "reviewCommentary": "Tactical explanation of the changes made and how they satisfy the user's directive",
   "swaps": [
     {
-      "playerFromTeamA": "Exact Name from ${teamAName}",
-      "playerFromTeamB": "Exact Name from ${teamBName}",
+      "playerFromTeamA": "Player name from ${teamAName}",
+      "playerFromTeamB": "Player name from ${teamBName}",
       "rationale": "Tactical reason for this swap"
     }
   ]
-}
-Rules: Only swap players between the two teams. Do not invent player names. Keep commentary concise and punchy.`;
+}`;
 
   const payload = {
     model: model,
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: `Review the mathematical draft and apply tactical adjustments for: "${userPrompt}"` }
+      { role: "user", content: `Execute tactical player swaps to fulfill: "${userPrompt}"` }
     ],
     stream: false,
     format: "json",
     options: {
-      temperature: 0.1,
+      temperature: 0.25,
       num_predict: 350,
       num_ctx: 1536
     }
@@ -450,12 +454,39 @@ Rules: Only swap players between the two teams. Do not invent player names. Keep
       };
     }
 
-    const validSwaps = (parsed.swaps || []).filter(s => {
-      const nameA = (s.playerFromTeamA || "").toLowerCase().trim();
-      const nameB = (s.playerFromTeamB || "").toLowerCase().trim();
-      const existsA = teamA.some(p => p.name.toLowerCase().trim() === nameA);
-      const existsB = teamB.some(p => p.name.toLowerCase().trim() === nameB);
-      return existsA && existsB;
+    const matchPlayer = (team, nameStr) => {
+      if (!nameStr) return null;
+      const clean = nameStr.toLowerCase().replace(/\s*\([^)]*\)/g, "").trim();
+      let found = team.find(p => p.name.toLowerCase().trim() === clean);
+      if (found) return found;
+      found = team.find(p => p.name.toLowerCase().includes(clean) || clean.includes(p.name.toLowerCase()));
+      if (found) return found;
+      const first = clean.split(" ")[0];
+      return team.find(p => p.name.toLowerCase().split(" ")[0] === first) || null;
+    };
+
+    const validSwaps = [];
+    (parsed.swaps || []).forEach(s => {
+      let pA = matchPlayer(teamA, s.playerFromTeamA);
+      let pB = matchPlayer(teamB, s.playerFromTeamB);
+
+      // Check if LLM reversed Team A and Team B keys
+      if (!pA || !pB) {
+        const revA = matchPlayer(teamA, s.playerFromTeamB);
+        const revB = matchPlayer(teamB, s.playerFromTeamA);
+        if (revA && revB) {
+          pA = revA;
+          pB = revB;
+        }
+      }
+
+      if (pA && pB && pA.id !== pB.id) {
+        validSwaps.push({
+          playerFromTeamA: pA.name,
+          playerFromTeamB: pB.name,
+          rationale: s.rationale || "Tactical adjustment"
+        });
+      }
     });
 
     return {

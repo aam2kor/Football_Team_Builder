@@ -768,13 +768,31 @@ async function handleRefineDraftWithAi() {
 
     const appliedSwaps = [];
 
-    // Step 2: Apply valid tactical swaps proposed by AI
-    (aiResult.swaps || []).forEach(swap => {
-      const nameA = (swap.playerFromTeamA || "").toLowerCase().trim();
-      const nameB = (swap.playerFromTeamB || "").toLowerCase().trim();
+    // Step 2: Apply valid tactical swaps proposed by AI with smart name matching
+    const matchIndex = (team, nameStr) => {
+      if (!nameStr) return -1;
+      const clean = nameStr.toLowerCase().replace(/\s*\([^)]*\)/g, "").trim();
+      let idx = team.findIndex(p => p.name.toLowerCase().trim() === clean);
+      if (idx !== -1) return idx;
+      idx = team.findIndex(p => p.name.toLowerCase().includes(clean) || clean.includes(p.name.toLowerCase()));
+      if (idx !== -1) return idx;
+      const first = clean.split(" ")[0];
+      return team.findIndex(p => p.name.toLowerCase().split(" ")[0] === first);
+    };
 
-      const idxA = state.activeTeamA.findIndex(p => p.name.toLowerCase().trim() === nameA);
-      const idxB = state.activeTeamB.findIndex(p => p.name.toLowerCase().trim() === nameB);
+    (aiResult.swaps || []).forEach(swap => {
+      let idxA = matchIndex(state.activeTeamA, swap.playerFromTeamA);
+      let idxB = matchIndex(state.activeTeamB, swap.playerFromTeamB);
+
+      // Check if LLM flipped Team A and Team B keys
+      if (idxA === -1 || idxB === -1) {
+        const revA = matchIndex(state.activeTeamA, swap.playerFromTeamB);
+        const revB = matchIndex(state.activeTeamB, swap.playerFromTeamA);
+        if (revA !== -1 && revB !== -1) {
+          idxA = revA;
+          idxB = revB;
+        }
+      }
 
       if (idxA !== -1 && idxB !== -1) {
         const playerA = state.activeTeamA[idxA];
@@ -792,9 +810,15 @@ async function handleRefineDraftWithAi() {
       }
     });
 
-    // Step 3: Reassign formations and recalculate
-    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, state.formationTeamA);
-    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, state.formationTeamB);
+    // Step 3: Reassign formations and recalculate on-pitch positions
+    const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
+    const formations = getFormationsForSize(sizeKey);
+    const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
+    const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
+
+    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA);
+    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
+    syncMatchdayPositions();
 
     state.aiCoachBriefing = aiResult.reviewCommentary;
     state.aiRefineSwaps = appliedSwaps;
