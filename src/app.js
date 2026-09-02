@@ -218,7 +218,9 @@ function setupGeneratorEvents() {
     const formations = getFormationsForSize(sizeKey);
     const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
     state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA);
+    syncMatchdayPositions();
     renderPitch();
+    renderTeamComparison();
   });
 
   document.getElementById("formation-team-b")?.addEventListener("change", (e) => {
@@ -227,7 +229,9 @@ function setupGeneratorEvents() {
     const formations = getFormationsForSize(sizeKey);
     const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
     state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
+    syncMatchdayPositions();
     renderPitch();
+    renderTeamComparison();
   });
 
   // Team Names
@@ -937,6 +941,9 @@ function initSectorWeightsPanel() {
     if (readout) readout.textContent = val.toFixed(2);
 
     saveSectorWeights(state.sectorWeights);
+    if (state.activeTeamA && state.activeTeamA.length > 0) {
+      renderTeamComparison();
+    }
   });
 
   // Per-sector reset buttons
@@ -947,6 +954,9 @@ function initSectorWeightsPanel() {
     state.sectorWeights[sector] = cloneSectorWeights(DEFAULT_SECTOR_WEIGHTS)[sector];
     saveSectorWeights(state.sectorWeights);
     populateSectorSliders();
+    if (state.activeTeamA && state.activeTeamA.length > 0) {
+      renderTeamComparison();
+    }
     showToast(`↺ ${sector.charAt(0).toUpperCase() + sector.slice(1)} weights reset to defaults`, "info");
   });
 
@@ -955,6 +965,9 @@ function initSectorWeightsPanel() {
     state.sectorWeights = cloneSectorWeights(DEFAULT_SECTOR_WEIGHTS);
     saveSectorWeights(state.sectorWeights);
     populateSectorSliders();
+    if (state.activeTeamA && state.activeTeamA.length > 0) {
+      renderTeamComparison();
+    }
     showToast("↺ All sector weights reset to defaults", "info");
   });
 }
@@ -1042,6 +1055,31 @@ function handleBuildTeams() {
   }
 }
 
+/**
+ * Synchronizes active players' on-pitch matchday positions and tactical roles
+ * from their currently assigned formation slots.
+ */
+function syncMatchdayPositions() {
+  if (state.assignedSlotsA && state.assignedSlotsA.length > 0) {
+    state.assignedSlotsA.forEach(({ slot, player }) => {
+      if (player && slot) {
+        player.matchdayPosition = slot.pos;
+        player.matchdayRole = slot.role || slot.label;
+      }
+    });
+    state.activeTeamA = state.assignedSlotsA.map(s => s.player);
+  }
+  if (state.assignedSlotsB && state.assignedSlotsB.length > 0) {
+    state.assignedSlotsB.forEach(({ slot, player }) => {
+      if (player && slot) {
+        player.matchdayPosition = slot.pos;
+        player.matchdayRole = slot.role || slot.label;
+      }
+    });
+    state.activeTeamB = state.assignedSlotsB.map(s => s.player);
+  }
+}
+
 function applySolution(solution) {
   state.activeTeamA = [...solution.teamA];
   state.activeTeamB = [...solution.teamB];
@@ -1055,6 +1093,7 @@ function applySolution(solution) {
 
   state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA);
   state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
+  syncMatchdayPositions();
 
   renderPitch();
   renderTeamComparison();
@@ -1523,7 +1562,7 @@ function handlePlayerSwapClick(player, team) {
       const p1 = state.assignedSlotsA[idx1].player;
       state.assignedSlotsA[idx1].player = state.assignedSlotsA[idx2].player;
       state.assignedSlotsA[idx2].player = p1;
-      state.activeTeamA = state.assignedSlotsA.map(s => s.player);
+      syncMatchdayPositions();
       showToast(`↕️ Position swap: ${state.assignedSlotsA[idx2].player.name} ↔ ${state.assignedSlotsA[idx1].player.name} (${state.teamAName})`, "success");
     }
   } else if (firstTeam === "B" && team === "B") {
@@ -1535,7 +1574,7 @@ function handlePlayerSwapClick(player, team) {
       const p1 = state.assignedSlotsB[idx1].player;
       state.assignedSlotsB[idx1].player = state.assignedSlotsB[idx2].player;
       state.assignedSlotsB[idx2].player = p1;
-      state.activeTeamB = state.assignedSlotsB.map(s => s.player);
+      syncMatchdayPositions();
       showToast(`↕️ Position swap: ${state.assignedSlotsB[idx2].player.name} ↔ ${state.assignedSlotsB[idx1].player.name} (${state.teamBName})`, "success");
     }
   } else {
@@ -1547,8 +1586,7 @@ function handlePlayerSwapClick(player, team) {
       const pA = state.assignedSlotsA[idxA].player;
       state.assignedSlotsA[idxA].player = state.assignedSlotsB[idxB].player;
       state.assignedSlotsB[idxB].player = pA;
-      state.activeTeamA = state.assignedSlotsA.map(s => s.player);
-      state.activeTeamB = state.assignedSlotsB.map(s => s.player);
+      syncMatchdayPositions();
       showToast(`🔄 Swapped ${state.assignedSlotsA[idxA].player.name} (${state.teamAName}) ↔ ${state.assignedSlotsB[idxB].player.name} (${state.teamBName})`, "success");
     }
   }
@@ -1564,8 +1602,8 @@ function handlePlayerSwapClick(player, team) {
 // Side-by-Side FIFA Team Comparison Dashboard
 // ============================================================
 function renderTeamComparison() {
-  const statsA = calculateTeamStats(state.activeTeamA, state.matchdaySettings);
-  const statsB = calculateTeamStats(state.activeTeamB, state.matchdaySettings);
+  const statsA = calculateTeamStats(state.activeTeamA, state.matchdaySettings, state.sectorWeights);
+  const statsB = calculateTeamStats(state.activeTeamB, state.matchdaySettings, state.sectorWeights);
 
   // Team A Overviews
   document.getElementById("team-a-ovr-display").textContent = statsA.effectiveAvgOvr.toFixed(1);
@@ -1618,14 +1656,14 @@ function renderTeamComparison() {
     const isHighlight = m.highlight;
     const isExpanded = state.expandedMetrics.has(m.key);
 
-    // Compute player contributions for Team A
+    // Compute player contributions for Team A (using matchdayPosition and sectorWeights)
     const contribsA = state.activeTeamA.map(p => {
       const setting = state.matchdaySettings[p.id] || { fitness: 100, form: "neutral" };
       const score = getPlayerMetricScore(p, setting, m.key, state.sectorWeights);
       return { player: p, score };
     }).sort((x, y) => y.score - x.score);
 
-    // Compute player contributions for Team B
+    // Compute player contributions for Team B (using matchdayPosition and sectorWeights)
     const contribsB = state.activeTeamB.map(p => {
       const setting = state.matchdaySettings[p.id] || { fitness: 100, form: "neutral" };
       const score = getPlayerMetricScore(p, setting, m.key, state.sectorWeights);
@@ -1671,38 +1709,44 @@ function renderTeamComparison() {
           <div class="grid grid-cols-2 gap-3 text-[11px]">
             <!-- Team A Contributors -->
             <div class="space-y-1">
-              ${contribsA.map(item => `
-                <div class="flex items-center justify-between py-0.5 px-1 rounded hover:bg-slate-900/80">
-                  <div class="flex items-center gap-1.5 truncate pr-1">
-                    <span class="px-1 py-0.2 rounded text-[9px] font-bold ${getPositionBadgeClass(item.player.position)}">${item.player.position}</span>
-                    <span class="font-medium text-slate-200 truncate">${item.player.name}</span>
-                  </div>
-                  <div class="flex items-center gap-1.5 flex-shrink-0 font-mono">
-                    <div class="w-8 bg-slate-800 h-1.5 rounded-full overflow-hidden hidden sm:block">
-                      <div class="bg-blue-400 h-full rounded-full" style="width: ${Math.min(100, Math.round((item.score/99)*100))}%"></div>
+              ${contribsA.map(item => {
+                const activePos = item.player.matchdayPosition || item.player.position;
+                return `
+                  <div class="flex items-center justify-between py-0.5 px-1 rounded hover:bg-slate-900/80">
+                    <div class="flex items-center gap-1.5 truncate pr-1">
+                      <span class="px-1 py-0.2 rounded text-[9px] font-bold ${getPositionBadgeClass(activePos)}" title="On-pitch role: ${activePos}">${activePos}</span>
+                      <span class="font-medium text-slate-200 truncate">${item.player.name}</span>
                     </div>
-                    <span class="font-bold text-blue-300 text-[11px] w-6 text-right">${item.score}</span>
+                    <div class="flex items-center gap-1.5 flex-shrink-0 font-mono">
+                      <div class="w-8 bg-slate-800 h-1.5 rounded-full overflow-hidden hidden sm:block">
+                        <div class="bg-blue-400 h-full rounded-full" style="width: ${Math.min(100, Math.round((item.score/99)*100))}%"></div>
+                      </div>
+                      <span class="font-bold text-blue-300 text-[11px] w-6 text-right">${item.score}</span>
+                    </div>
                   </div>
-                </div>
-              `).join("")}
+                `;
+              }).join("")}
             </div>
 
             <!-- Team B Contributors -->
             <div class="space-y-1">
-              ${contribsB.map(item => `
-                <div class="flex items-center justify-between py-0.5 px-1 rounded hover:bg-slate-900/80">
-                  <div class="flex items-center gap-1.5 truncate pr-1">
-                    <span class="px-1 py-0.2 rounded text-[9px] font-bold ${getPositionBadgeClass(item.player.position)}">${item.player.position}</span>
-                    <span class="font-medium text-slate-200 truncate">${item.player.name}</span>
-                  </div>
-                  <div class="flex items-center gap-1.5 flex-shrink-0 font-mono">
-                    <div class="w-8 bg-slate-800 h-1.5 rounded-full overflow-hidden hidden sm:block">
-                      <div class="bg-red-400 h-full rounded-full" style="width: ${Math.min(100, Math.round((item.score/99)*100))}%"></div>
+              ${contribsB.map(item => {
+                const activePos = item.player.matchdayPosition || item.player.position;
+                return `
+                  <div class="flex items-center justify-between py-0.5 px-1 rounded hover:bg-slate-900/80">
+                    <div class="flex items-center gap-1.5 truncate pr-1">
+                      <span class="px-1 py-0.2 rounded text-[9px] font-bold ${getPositionBadgeClass(activePos)}" title="On-pitch role: ${activePos}">${activePos}</span>
+                      <span class="font-medium text-slate-200 truncate">${item.player.name}</span>
                     </div>
-                    <span class="font-bold text-red-300 text-[11px] w-6 text-right">${item.score}</span>
+                    <div class="flex items-center gap-1.5 flex-shrink-0 font-mono">
+                      <div class="w-8 bg-slate-800 h-1.5 rounded-full overflow-hidden hidden sm:block">
+                        <div class="bg-red-400 h-full rounded-full" style="width: ${Math.min(100, Math.round((item.score/99)*100))}%"></div>
+                      </div>
+                      <span class="font-bold text-red-300 text-[11px] w-6 text-right">${item.score}</span>
+                    </div>
                   </div>
-                </div>
-              `).join("")}
+                `;
+              }).join("")}
             </div>
           </div>
         </div>
@@ -1733,20 +1777,25 @@ function renderTeamRosterList(elementId, players, teamTag) {
 
   const sorted = [...players].sort((a, b) => {
     const posOrder = { GK: 1, DEF: 2, MID: 3, FWD: 4 };
-    return (posOrder[a.position] || 5) - (posOrder[b.position] || 5) || b.ovr - a.ovr;
+    const posA = a.matchdayPosition || a.position;
+    const posB = b.matchdayPosition || b.position;
+    return (posOrder[posA] || 5) - (posOrder[posB] || 5) || b.ovr - a.ovr;
   });
 
   container.innerHTML = sorted.map(p => {
     const mSetting = state.matchdaySettings[p.id] || { fitness: 100, form: "neutral" };
     const eff = getEffectivePlayerStats(p, mSetting);
+    const activePos = p.matchdayPosition || p.position;
+    const roleTag = p.matchdayRole ? `<span class="text-[9px] font-mono text-slate-400">(${p.matchdayRole})</span>` : "";
 
     return `
       <div class="flex items-center justify-between p-2 rounded-lg glass-card border border-slate-800 text-xs">
         <div class="flex items-center gap-2 min-w-0">
-          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${getPositionBadgeClass(p.position)}">
-            ${p.position}
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${getPositionBadgeClass(activePos)}" title="On-pitch active position: ${activePos} (Natural: ${p.position})">
+            ${activePos}
           </span>
           <span class="font-bold text-white truncate">${p.name}</span>
+          ${roleTag}
           <span class="text-[10px]">${eff.formMod.icon}</span>
         </div>
         <div class="flex items-center gap-1.5 flex-shrink-0">

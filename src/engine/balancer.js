@@ -144,7 +144,7 @@ function computeSectorScore(effectivePlayerList, attrWeights, posWeights) {
 
   effectivePlayerList.forEach(eff => {
     const a = eff.effectiveAttributes;
-    const pos = eff.position || "MID";
+    const pos = eff.matchdayPosition || eff.position || "MID";
 
     // Dot-product of attribute values × weights
     const rawScore =
@@ -176,7 +176,7 @@ function computeSectorScore(effectivePlayerList, attrWeights, posWeights) {
 export function getPlayerMetricScore(player, setting = {}, metricKey, sectorWeights = DEFAULT_SECTOR_WEIGHTS) {
   const eff = getEffectivePlayerStats(player, setting);
   const a = eff.effectiveAttributes;
-  const pos = player.position || "MID";
+  const pos = player.matchdayPosition || player.position || "MID";
   const sw = sectorWeights || DEFAULT_SECTOR_WEIGHTS;
 
   switch (metricKey) {
@@ -260,9 +260,12 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeig
     totalGk  += a.gk;
     if (a.gk > maxGk) maxGk = a.gk;
 
-    const pos = p.position || "MID";
+    const pos = p.matchdayPosition || p.position || "MID";
     if (positions[pos] !== undefined) positions[pos]++;
     else positions.MID++;
+
+    eff.position = pos;
+    eff.matchdayPosition = pos;
 
     return eff;
   });
