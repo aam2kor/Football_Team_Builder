@@ -1,5 +1,5 @@
 import { PlayerDatabase, calculateOvr } from "./storage/db.js";
-import { buildBalancedTeams, calculateTeamStats, FORM_MODIFIERS, getEffectivePlayerStats, DEFAULT_SECTOR_WEIGHTS, cloneSectorWeights } from "./engine/balancer.js";
+import { buildBalancedTeams, calculateTeamStats, FORM_MODIFIERS, getEffectivePlayerStats, DEFAULT_SECTOR_WEIGHTS, cloneSectorWeights, getPlayerMetricScore } from "./engine/balancer.js";
 import { FORMATIONS, getFormationsForSize, assignPlayersToFormation } from "./engine/formations.js";
 import { loadAiConfig, saveAiConfig, testOllamaConnection, queryAiCoach, queryLeagueInsights } from "./ai/ollamaClient.js";
 import { fetchLeagueMatches, computeHeadToHeadSummary, formatLeagueSummaryForAi, computeTopWinRatePlayers, computeTopWinningChemistries, computeTopGoalScorers, computeTopConsistentLosers } from "./services/leagueService.js";
@@ -70,7 +70,10 @@ const state = {
   selectedSwapTeam: null,
 
   // Modal State
-  editingPlayerId: null
+  editingPlayerId: null,
+
+  // Stat Breakdown Accordion State
+  expandedMetrics: new Set()
 };
 
 
@@ -1450,13 +1453,13 @@ function renderTeamComparison() {
 
   // Stat comparison metrics (Primary Tactical Sectors First)
   const metrics = [
-    { label: "⚔️ Attack (ATT)", a: statsA.attack, b: statsB.attack, highlight: true },
-    { label: "⚙️ Midfield (MID)", a: statsA.midfield, b: statsB.midfield, highlight: true },
-    { label: "🛡️ Defense & GK (DEF)", a: statsA.defense, b: statsB.defense, highlight: true },
-    { label: "Pace / Speed (PAC)", a: statsA.pace, b: statsB.pace },
-    { label: "Physical / Stamina (PHY)", a: statsA.physical, b: statsB.physical },
-    { label: "Passing & Vision (PAS)", a: statsA.passing, b: statsB.passing },
-    { label: "🧤 GK Shot-Stopping", a: statsA.goalkeeping, b: statsB.goalkeeping }
+    { key: "attack", label: "⚔️ Attack (ATT)", a: statsA.attack, b: statsB.attack, highlight: true },
+    { key: "midfield", label: "⚙️ Midfield (MID)", a: statsA.midfield, b: statsB.midfield, highlight: true },
+    { key: "defense", label: "🛡️ Defense & GK (DEF)", a: statsA.defense, b: statsB.defense, highlight: true },
+    { key: "pace", label: "Pace / Speed (PAC)", a: statsA.pace, b: statsB.pace },
+    { key: "physical", label: "Physical / Stamina (PHY)", a: statsA.physical, b: statsB.physical },
+    { key: "passing", label: "Passing & Vision (PAS)", a: statsA.passing, b: statsB.passing },
+    { key: "goalkeeping", label: "🧤 GK Shot-Stopping", a: statsA.goalkeeping, b: statsB.goalkeeping }
   ];
 
   const statContainer = document.getElementById("team-comparison-bars");
@@ -1471,25 +1474,112 @@ function renderTeamComparison() {
     const widthA = Math.round((m.a / maxVal) * 100);
     const widthB = Math.round((m.b / maxVal) * 100);
     const isHighlight = m.highlight;
+    const isExpanded = state.expandedMetrics.has(m.key);
+
+    // Compute player contributions for Team A
+    const contribsA = state.activeTeamA.map(p => {
+      const setting = state.matchdaySettings[p.id] || { fitness: 100, form: "neutral" };
+      const score = getPlayerMetricScore(p, setting, m.key, state.sectorWeights);
+      return { player: p, score };
+    }).sort((x, y) => y.score - x.score);
+
+    // Compute player contributions for Team B
+    const contribsB = state.activeTeamB.map(p => {
+      const setting = state.matchdaySettings[p.id] || { fitness: 100, form: "neutral" };
+      const score = getPlayerMetricScore(p, setting, m.key, state.sectorWeights);
+      return { player: p, score };
+    }).sort((x, y) => y.score - x.score);
 
     return `
-      <div class="space-y-1 ${isHighlight ? 'p-1.5 rounded-xl bg-slate-900/60 border border-slate-700/60 shadow-sm' : ''}">
-        <div class="flex justify-between items-center text-xs font-semibold">
-          <span class="${winnerClassA} text-sm">${m.a}</span>
-          <span class="${isHighlight ? 'text-amber-300 font-bold' : 'text-slate-400 font-mono'} uppercase tracking-wider text-[11px]">${m.label}</span>
-          <span class="${winnerClassB} text-sm">${m.b}</span>
-        </div>
-        <div class="grid grid-cols-2 gap-1.5 h-2.5 bg-slate-950 rounded-full p-0.5 border border-slate-800">
-          <div class="flex justify-end bg-slate-900 rounded-l-full overflow-hidden">
-            <div class="h-full bg-blue-500 rounded-full stat-bar-fill" style="width: ${widthA}%"></div>
+      <div class="rounded-xl transition-all duration-150 ${isHighlight ? 'bg-slate-900/60 border border-slate-700/60 shadow-sm' : 'border border-slate-800/40 hover:bg-slate-900/30'}">
+        <!-- Clickable Bar Row -->
+        <div class="p-2 cursor-pointer select-none group" data-metric="${m.key}" title="Click to inspect each player's contribution">
+          <div class="flex justify-between items-center text-xs font-semibold">
+            <span class="${winnerClassA} text-sm font-mono">${m.a}</span>
+            <div class="flex items-center gap-1.5">
+              <span class="${isHighlight ? 'text-amber-300 font-bold' : 'text-slate-300 font-mono'} uppercase tracking-wider text-[11px] group-hover:text-white transition-colors">
+                ${m.label}
+              </span>
+              <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-400 group-hover:bg-slate-700 group-hover:text-amber-300 transition-all font-mono flex items-center gap-0.5">
+                <span>${isExpanded ? '▴' : '▾'}</span>
+                <span>${isExpanded ? 'Hide' : 'Inspect'}</span>
+              </span>
+            </div>
+            <span class="${winnerClassB} text-sm font-mono">${m.b}</span>
           </div>
-          <div class="flex justify-start bg-slate-900 rounded-r-full overflow-hidden">
-            <div class="h-full bg-red-500 rounded-full stat-bar-fill" style="width: ${widthB}%"></div>
+
+          <div class="grid grid-cols-2 gap-1.5 h-2.5 bg-slate-950 rounded-full p-0.5 border border-slate-800 mt-1.5">
+            <div class="flex justify-end bg-slate-900 rounded-l-full overflow-hidden">
+              <div class="h-full bg-blue-500 rounded-full stat-bar-fill" style="width: ${widthA}%"></div>
+            </div>
+            <div class="flex justify-start bg-slate-900 rounded-r-full overflow-hidden">
+              <div class="h-full bg-red-500 rounded-full stat-bar-fill" style="width: ${widthB}%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Expandable Player Breakdown Drawer -->
+        <div class="${isExpanded ? '' : 'hidden'} px-3 pb-3 pt-1 border-t border-slate-800/60 bg-slate-950/80 rounded-b-xl space-y-2">
+          <div class="flex items-center justify-between text-[10px] font-mono border-b border-slate-800/80 pb-1 pt-1">
+            <span class="text-blue-400 font-bold flex items-center gap-1">🔵 ${state.teamAName}</span>
+            <span class="text-[9px] text-slate-500 uppercase tracking-widest font-sans">Individual Contributions</span>
+            <span class="text-red-400 font-bold flex items-center gap-1">${state.teamBName} 🔴</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 text-[11px]">
+            <!-- Team A Contributors -->
+            <div class="space-y-1">
+              ${contribsA.map(item => `
+                <div class="flex items-center justify-between py-0.5 px-1 rounded hover:bg-slate-900/80">
+                  <div class="flex items-center gap-1.5 truncate pr-1">
+                    <span class="px-1 py-0.2 rounded text-[9px] font-bold ${getPositionBadgeClass(item.player.position)}">${item.player.position}</span>
+                    <span class="font-medium text-slate-200 truncate">${item.player.name}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 flex-shrink-0 font-mono">
+                    <div class="w-8 bg-slate-800 h-1.5 rounded-full overflow-hidden hidden sm:block">
+                      <div class="bg-blue-400 h-full rounded-full" style="width: ${Math.min(100, Math.round((item.score/99)*100))}%"></div>
+                    </div>
+                    <span class="font-bold text-blue-300 text-[11px] w-6 text-right">${item.score}</span>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+
+            <!-- Team B Contributors -->
+            <div class="space-y-1">
+              ${contribsB.map(item => `
+                <div class="flex items-center justify-between py-0.5 px-1 rounded hover:bg-slate-900/80">
+                  <div class="flex items-center gap-1.5 truncate pr-1">
+                    <span class="px-1 py-0.2 rounded text-[9px] font-bold ${getPositionBadgeClass(item.player.position)}">${item.player.position}</span>
+                    <span class="font-medium text-slate-200 truncate">${item.player.name}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 flex-shrink-0 font-mono">
+                    <div class="w-8 bg-slate-800 h-1.5 rounded-full overflow-hidden hidden sm:block">
+                      <div class="bg-red-400 h-full rounded-full" style="width: ${Math.min(100, Math.round((item.score/99)*100))}%"></div>
+                    </div>
+                    <span class="font-bold text-red-300 text-[11px] w-6 text-right">${item.score}</span>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
           </div>
         </div>
       </div>
     `;
   }).join("");
+
+  // Attach click events for accordions
+  statContainer.querySelectorAll("[data-metric]").forEach(el => {
+    el.addEventListener("click", () => {
+      const key = el.getAttribute("data-metric");
+      if (state.expandedMetrics.has(key)) {
+        state.expandedMetrics.delete(key);
+      } else {
+        state.expandedMetrics.add(key);
+      }
+      renderTeamComparison();
+    });
+  });
 
   renderTeamRosterList("team-a-roster-list", state.activeTeamA, "A");
   renderTeamRosterList("team-b-roster-list", state.activeTeamB, "B");

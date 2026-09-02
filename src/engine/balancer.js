@@ -166,6 +166,62 @@ function computeSectorScore(effectivePlayerList, attrWeights, posWeights) {
 }
 
 /**
+ * Calculates a player's individual score for a specific metric key.
+ * @param {Object} player
+ * @param {Object} setting - { fitness, form }
+ * @param {string} metricKey - "attack" | "midfield" | "defense" | "pace" | "physical" | "passing" | "goalkeeping"
+ * @param {Object} sectorWeights - custom or DEFAULT_SECTOR_WEIGHTS
+ * @returns {number}
+ */
+export function getPlayerMetricScore(player, setting = {}, metricKey, sectorWeights = DEFAULT_SECTOR_WEIGHTS) {
+  const eff = getEffectivePlayerStats(player, setting);
+  const a = eff.effectiveAttributes;
+  const pos = player.position || "MID";
+  const sw = sectorWeights || DEFAULT_SECTOR_WEIGHTS;
+
+  switch (metricKey) {
+    case "attack": {
+      const aw = sw.attack.attributes;
+      const pw = sw.attack.positions;
+      const raw = (a.pac || 0) * (aw.pac || 0) + (a.sho || 0) * (aw.sho || 0) + (a.pas || 0) * (aw.pas || 0) +
+                  (a.dri || 0) * (aw.dri || 0) + (a.def || 0) * (aw.def || 0) + (a.phy || 0) * (aw.phy || 0);
+      const roleWeight = pw[pos] !== undefined ? pw[pos] : 1.0;
+      return Math.round(raw * roleWeight);
+    }
+    case "midfield": {
+      const aw = sw.midfield.attributes;
+      const pw = sw.midfield.positions;
+      const raw = (a.pac || 0) * (aw.pac || 0) + (a.sho || 0) * (aw.sho || 0) + (a.pas || 0) * (aw.pas || 0) +
+                  (a.dri || 0) * (aw.dri || 0) + (a.def || 0) * (aw.def || 0) + (a.phy || 0) * (aw.phy || 0);
+      const roleWeight = pw[pos] !== undefined ? pw[pos] : 1.0;
+      return Math.round(raw * roleWeight);
+    }
+    case "defense": {
+      const aw = sw.defense.attributes;
+      const pw = sw.defense.positions;
+      const outfield = (a.pac || 0) * (aw.pac || 0) + (a.sho || 0) * (aw.sho || 0) + (a.pas || 0) * (aw.pas || 0) +
+                       (a.dri || 0) * (aw.dri || 0) + (a.def || 0) * (aw.def || 0) + (a.phy || 0) * (aw.phy || 0);
+      const roleWeight = pw[pos] !== undefined ? pw[pos] : 1.0;
+      if (pos === "GK") {
+        const gkBlend = sw.defense.gkBlend ?? 0.35;
+        return Math.round((outfield * roleWeight) * (1 - gkBlend) + a.gk * gkBlend);
+      }
+      return Math.round(outfield * roleWeight);
+    }
+    case "pace":
+      return Math.round(a.pac);
+    case "passing":
+      return Math.round(a.pas);
+    case "physical":
+      return Math.round(a.phy);
+    case "goalkeeping":
+      return Math.round(a.gk);
+    default:
+      return Math.round(eff.effectiveOvr);
+  }
+}
+
+/**
  * Calculates aggregate and sector-specific stats for a team of players.
  * @param {Array}  players
  * @param {Object} matchdaySettingsMap  - { [playerId]: { fitness, form } }
