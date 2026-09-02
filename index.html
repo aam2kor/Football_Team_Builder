@@ -569,11 +569,11 @@
         </div>
 
         <!-- Side-by-Side FIFA Team Comparison Dashboard -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           
           <!-- Team A Overview -->
-          <div class="glass-panel p-5 rounded-2xl border border-blue-500/30 flex flex-col justify-between space-y-4">
-            <div>
+          <div class="glass-panel p-5 rounded-2xl border border-blue-500/30 flex flex-col space-y-3.5">
+            <div class="border-b border-slate-800/80 pb-3">
               <div class="flex items-center justify-between">
                 <h4 class="text-base font-black text-blue-400 team-a-name-label">Voyagers</h4>
                 <div class="text-right">
@@ -587,14 +587,14 @@
             </div>
 
             <!-- Player List A -->
-            <div class="space-y-1.5 max-h-72 overflow-y-auto pr-1" id="team-a-roster-list">
+            <div class="space-y-1.5" id="team-a-roster-list">
               <!-- Populated by JS -->
             </div>
           </div>
 
           <!-- Head-to-Head Stat Comparison Bars -->
           <div class="glass-panel p-5 rounded-2xl border border-slate-800 space-y-4">
-            <div class="text-center">
+            <div class="text-center border-b border-slate-800/80 pb-3">
               <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300">
                 Head-to-Head Matchday Stat Comparison
               </h4>
@@ -607,8 +607,8 @@
           </div>
 
           <!-- Team B Overview -->
-          <div class="glass-panel p-5 rounded-2xl border border-red-500/30 flex flex-col justify-between space-y-4">
-            <div>
+          <div class="glass-panel p-5 rounded-2xl border border-red-500/30 flex flex-col space-y-3.5">
+            <div class="border-b border-slate-800/80 pb-3">
               <div class="flex items-center justify-between">
                 <h4 class="text-base font-black text-red-400 team-b-name-label">Boots & Beers</h4>
                 <div class="text-right">
@@ -622,7 +622,7 @@
             </div>
 
             <!-- Player List B -->
-            <div class="space-y-1.5 max-h-72 overflow-y-auto pr-1" id="team-b-roster-list">
+            <div class="space-y-1.5" id="team-b-roster-list">
               <!-- Populated by JS -->
             </div>
           </div>
