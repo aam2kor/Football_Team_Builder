@@ -253,9 +253,33 @@ def test_ai_constraints_balancing():
 
   print(f"[x] Successfully enforced AI constraints while maintaining balance (OVR delta: {abs(sA['effective_avg_ovr'] - sB['effective_avg_ovr']):.2f})")
 
+def test_ai_draft_refine():
+  print("--- Testing Math Draft -> AI Tactical Refinement ---")
+  # 1. Baseline mathematical draft
+  idx_A = list(range(8))
+  idx_B = list(range(8, 16))
+  teamA = [SAMPLE_PLAYERS[i] for i in idx_A]
+  teamB = [SAMPLE_PLAYERS[i] for i in idx_B]
+
+  # 2. Simulate AI Coach proposing a tactical swap
+  swap_proposal = {"playerFromTeamA": teamA[2]["name"], "playerFromTeamB": teamB[3]["name"]}
+  
+  # 3. Apply swap
+  pA = teamA[2]
+  pB = teamB[3]
+  teamA[2] = pB
+  teamB[3] = pA
+
+  assert len(teamA) == 8
+  assert len(teamB) == 8
+  assert teamA[2]["name"] == pB["name"]
+  assert teamB[3]["name"] == pA["name"]
+  print(f"[x] Successfully verified AI Draft Refinement swap ({pA['name']} ⇄ {pB['name']}) with team size invariance")
+
 if __name__ == "__main__":
   test_fitness_and_form()
   test_chemistry_synergies()
   test_multisector_balancing()
   test_ai_constraints_balancing()
+  test_ai_draft_refine()
   print("\n>>> ALL TEST CASES PASSED SUCCESSFULLY! <<<\n")

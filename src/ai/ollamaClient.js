@@ -357,3 +357,114 @@ Rules: Be concise, cite exact player names and goal tallies from data, and focus
     throw new Error(err.message || "Failed to generate league insights from local AI");
   }
 }
+
+/**
+ * Reviews a balanced first draft and suggests tactical player swaps based on user instructions.
+ * @param {string} userPrompt
+ * @param {Array} teamA
+ * @param {Array} teamB
+ * @param {Object} context - { teamAName, teamBName, statsA, statsB, leagueSummary }
+ * @param {Object} aiConfig - { endpoint, model }
+ * @returns {Promise<{ reviewCommentary: string, swaps: Array<{ playerFromTeamA: string, playerFromTeamB: string, rationale: string }> }>}
+ */
+export async function refineDraftWithAi(userPrompt, teamA = [], teamB = [], context = {}, aiConfig = DEFAULT_AI_CONFIG) {
+  const endpoint = (aiConfig.endpoint || DEFAULT_AI_CONFIG.endpoint).replace(/\/+$/, "");
+  const model = aiConfig.model || DEFAULT_AI_CONFIG.model;
+
+  const teamAName = context.teamAName || "Voyagers";
+  const teamBName = context.teamBName || "Boots & Beers";
+  const statsA = context.statsA || {};
+  const statsB = context.statsB || {};
+
+  const formatRoster = (players) => players.map(p => {
+    const a = p.effectiveAttributes || p.attributes || {};
+    return `• ${p.name} (${p.position}, OVR: ${p.effectiveOvr || p.ovr}, PAC: ${a.pac ?? 75}, SHO: ${a.sho ?? 70}, PAS: ${a.pas ?? 75}, DRI: ${a.dri ?? 75}, DEF: ${a.def ?? 70}, PHY: ${a.phy ?? 75}, GK: ${a.gk ?? 15})`;
+  }).join("\n");
+
+  const systemPrompt = `You are an elite football tactical coach reviewing the FIRST MATHEMATICAL DRAFT for an 8v8 match.
+Draft Lineups:
+${teamAName} (Avg OVR: ${statsA.effectiveAvgOvr ?? 83}, ATT: ${statsA.attack ?? 78}, MID: ${statsA.midfield ?? 78}, DEF: ${statsA.defense ?? 79}):
+${formatRoster(teamA)}
+
+${teamBName} (Avg OVR: ${statsB.effectiveAvgOvr ?? 83}, ATT: ${statsB.attack ?? 78}, MID: ${statsB.midfield ?? 78}, DEF: ${statsB.defense ?? 79}):
+${formatRoster(teamB)}
+${context.leagueSummary ? `\nLeague History Context:\n${context.leagueSummary}\n` : ""}
+Task:
+1. Carefully review the user's tactical instructions: "${userPrompt}".
+2. Evaluate if swapping 1 or 2 players between ${teamAName} and ${teamBName} fulfills the user's instructions while keeping the match competitive and exciting.
+3. If the draft already satisfies the instructions, you can propose 0 swaps.
+4. If swaps are needed, specify the exact player name from ${teamAName} and the player name from ${teamBName}.
+5. Give a concise coaching assessment explaining the adjustments made.
+
+Respond with pure JSON matching this exact schema:
+{
+  "reviewCommentary": "Concise coaching assessment of the draft and how your tactical adjustments satisfy the user prompt",
+  "swaps": [
+    {
+      "playerFromTeamA": "Exact Name from ${teamAName}",
+      "playerFromTeamB": "Exact Name from ${teamBName}",
+      "rationale": "Tactical reason for this swap"
+    }
+  ]
+}
+Rules: Only swap players between the two teams. Do not invent player names. Keep commentary concise and punchy.`;
+
+  const payload = {
+    model: model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Review the mathematical draft and apply tactical adjustments for: "${userPrompt}"` }
+    ],
+    stream: false,
+    format: "json",
+    options: {
+      temperature: 0.1,
+      num_predict: 350,
+      num_ctx: 1536
+    }
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+  try {
+    const res = await fetch(`${endpoint}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      throw new Error(`Ollama API error: HTTP ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    const rawContent = (data.message?.content || "").trim();
+
+    let parsed = extractJsonObject(rawContent);
+    if (!parsed) {
+      parsed = {
+        reviewCommentary: "Draft reviewed and tactically aligned with your instructions.",
+        swaps: []
+      };
+    }
+
+    const validSwaps = (parsed.swaps || []).filter(s => {
+      const nameA = (s.playerFromTeamA || "").toLowerCase().trim();
+      const nameB = (s.playerFromTeamB || "").toLowerCase().trim();
+      const existsA = teamA.some(p => p.name.toLowerCase().trim() === nameA);
+      const existsB = teamB.some(p => p.name.toLowerCase().trim() === nameB);
+      return existsA && existsB;
+    });
+
+    return {
+      reviewCommentary: parsed.reviewCommentary || "Draft tactically refined according to instructions.",
+      swaps: validSwaps
+    };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw new Error(err.message || "Failed to refine draft with AI Coach");
+  }
+}

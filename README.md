@@ -73,18 +73,18 @@ Expand the **⚙️ Advanced Sector Weights** panel to customize the engine's in
 ---
 
 ### 7. 🤖 AI Coach Prompt & Local LLM Integration (`qwen2.5-coder:1.5b`)
-- **🧠 Natural Language Tactical Prompting**:
-  - Type plain English coaching instructions (e.g. *"Put Abey in Boots & Beers, make Voyagers strong on counter-attacks, and separate our two best strikers"*).
-  - Quick prompt suggestion chips for instant tactical presets (⚔️ Strikers on Opposite Teams, ⚡ High Pace Matchup, 🛡️ Sturdy Defenses).
+- **🔍 Two Distinct AI Workflows**:
+  - **Option 1: 🔍 Review & Refine Draft with AI (Math Draft ➔ AI Tactical Review & Adjustments)**:
+    - The mathematical balancer first creates an optimal baseline draft.
+    - The local LLM reviews the draft whiteboard, acts as a tactical head coach, performs targeted player swaps (e.g., `Swap Vinay ⇄ CP`) to satisfy your prompt, and logs the tactical rationale for every adjustment made.
+  - **Option 2: 🧠 Build with AI Rules (Constraint-First)**:
+    - The local LLM translates coaching intent into hard constraints (`pinnedTeamA`, `pinnedTeamB`, `separatedPairs`, `pairedTogether`), and the combinatorial math engine solves for the fairest split.
 - **🔒 Local & Private via Ollama**:
   - Connects directly to your local Ollama server running **`qwen2.5-coder:1.5b`** (or any model).
-  - Uses native Ollama structured JSON mode (`format: "json"`) with $0.2$ temperature for 100% deterministic constraint extraction.
+  - Uses native Ollama structured JSON mode (`format: "json"`) with $0.1$ temperature for 100% deterministic JSON extraction.
   - Interactive Connection Status indicator (`🟢 Online` / `🔴 Offline`) and built-in **⚙️ AI Model Settings Modal** with live connection testing.
-- **🛡️ Hybrid Mathematical Safeguard**:
-  - The local LLM translates coaching intent into constraints (`pinnedTeamA`, `pinnedTeamB`, `separatedPairs`, `pairedTogether`).
-  - The combinatorial engine enforces these constraints while maintaining 100% mathematical fairness and zero arithmetic errors.
-- **🎙️ Pre-Match AI Tactical Briefing**:
-  - Displays a pre-match scout report, key marquee player duel, and tactical advice on screen.
+- **🎙️ Pre-Match AI Tactical Briefing & Swaps Changelog**:
+  - Displays a pre-match scout report, tactical commentary, and a dedicated changelog of any adjustments made to the draft.
   - Automatically included in the one-click **WhatsApp export** message.
 
 ---

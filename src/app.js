@@ -1,7 +1,7 @@
 import { PlayerDatabase, calculateOvr } from "./storage/db.js";
 import { buildBalancedTeams, calculateTeamStats, FORM_MODIFIERS, getEffectivePlayerStats, DEFAULT_SECTOR_WEIGHTS, cloneSectorWeights, getPlayerMetricScore } from "./engine/balancer.js";
 import { FORMATIONS, getFormationsForSize, assignPlayersToFormation } from "./engine/formations.js";
-import { loadAiConfig, saveAiConfig, testOllamaConnection, queryAiCoach, queryLeagueInsights } from "./ai/ollamaClient.js";
+import { loadAiConfig, saveAiConfig, testOllamaConnection, queryAiCoach, queryLeagueInsights, refineDraftWithAi } from "./ai/ollamaClient.js";
 import { fetchLeagueMatches, computeHeadToHeadSummary, formatLeagueSummaryForAi, computeTopWinRatePlayers, computeTopWinningChemistries, computeTopGoalScorers, computeTopConsistentLosers } from "./services/leagueService.js";
 
 // Initialize Database instance
@@ -57,6 +57,7 @@ const state = {
   aiConfig: loadAiConfig(),
   aiCoachBriefing: null,
   aiConstraints: null,
+  aiRefineSwaps: [],
   isAiLoading: false,
 
   // Live League History State
@@ -524,8 +525,11 @@ function setupAiEvents() {
   // Check connection on load
   checkAiConnection(false);
 
-  // Build with AI Coach button
+  // Build with AI Coach button (Constraint-first)
   document.getElementById("btn-build-ai-teams")?.addEventListener("click", handleBuildAiTeams);
+
+  // Review & Refine Draft with AI button (Draft-first)
+  document.getElementById("btn-refine-ai-draft")?.addEventListener("click", handleRefineDraftWithAi);
 
   // Clear prompt button
   const promptInput = document.getElementById("ai-coach-prompt-input");
@@ -681,6 +685,7 @@ async function handleBuildAiTeams() {
     state.currentSolutionIndex = 0;
     applySolution(solutions[0]);
 
+    state.aiRefineSwaps = []; // Clear refine swaps if any
     renderAiCoachBriefing();
 
     // Scroll to pitch section smoothly
@@ -694,7 +699,123 @@ async function handleBuildAiTeams() {
     state.isAiLoading = false;
     if (btn) btn.disabled = false;
     if (btnIcon) btnIcon.textContent = "🧠";
-    if (btnText) btnText.textContent = "Build with AI Coach";
+    if (btnText) btnText.textContent = "Build with AI Rules";
+  }
+}
+
+async function handleRefineDraftWithAi() {
+  const promptInput = document.getElementById("ai-coach-prompt-input");
+  const prompt = promptInput?.value?.trim() || "";
+
+  const requiredCount = state.targetTeamSize * 2;
+  const selected = db.getAll().filter(p => state.selectedPlayerIds.has(p.id));
+
+  if (selected.length !== requiredCount) {
+    showToast(`⚠️ Please select exactly ${requiredCount} players (currently ${selected.length} selected).`, "warning");
+    return;
+  }
+
+  if (!prompt) {
+    showToast("ℹ️ Please enter tactical instructions for refining the draft!", "info");
+    promptInput?.focus();
+    return;
+  }
+
+  // Step 1: Ensure we have a balanced first draft baseline
+  if (!state.activeTeamA || state.activeTeamA.length === 0 || !state.activeTeamB || state.activeTeamB.length === 0) {
+    const initialSolutions = buildBalancedTeams(selected, {
+      mode: state.balanceMode,
+      gkMode: state.gkMode,
+      matchdaySettingsMap: state.matchdaySettings,
+      sectorWeights: state.sectorWeights,
+      topK: 1
+    });
+    if (!initialSolutions || initialSolutions.length === 0) {
+      showToast("Could not generate initial mathematical draft.", "error");
+      return;
+    }
+    state.generatedSolutions = initialSolutions;
+    state.currentSolutionIndex = 0;
+    applySolution(initialSolutions[0]);
+  }
+
+  const btn = document.getElementById("btn-refine-ai-draft");
+  const btnIcon = document.getElementById("ai-refine-btn-icon");
+  const btnText = document.getElementById("ai-refine-btn-text");
+
+  state.isAiLoading = true;
+  if (btn) btn.disabled = true;
+  if (btnIcon) btnIcon.textContent = "⏳";
+  if (btnText) btnText.textContent = "AI Reviewing Draft...";
+
+  showToast(`🔍 AI Coach reviewing mathematical draft (${state.aiConfig.model})...`, "info");
+
+  try {
+    const statsA = calculateTeamStats(state.activeTeamA, state.matchdaySettings, state.sectorWeights);
+    const statsB = calculateTeamStats(state.activeTeamB, state.matchdaySettings, state.sectorWeights);
+
+    const aiResult = await refineDraftWithAi(prompt, state.activeTeamA, state.activeTeamB, {
+      teamAName: state.teamAName,
+      teamBName: state.teamBName,
+      statsA,
+      statsB,
+      leagueSummary: state.leagueSummaryText
+    }, state.aiConfig);
+
+    const appliedSwaps = [];
+
+    // Step 2: Apply valid tactical swaps proposed by AI
+    (aiResult.swaps || []).forEach(swap => {
+      const nameA = (swap.playerFromTeamA || "").toLowerCase().trim();
+      const nameB = (swap.playerFromTeamB || "").toLowerCase().trim();
+
+      const idxA = state.activeTeamA.findIndex(p => p.name.toLowerCase().trim() === nameA);
+      const idxB = state.activeTeamB.findIndex(p => p.name.toLowerCase().trim() === nameB);
+
+      if (idxA !== -1 && idxB !== -1) {
+        const playerA = state.activeTeamA[idxA];
+        const playerB = state.activeTeamB[idxB];
+
+        // Swap players
+        state.activeTeamA[idxA] = playerB;
+        state.activeTeamB[idxB] = playerA;
+
+        appliedSwaps.push({
+          playerA: playerA.name,
+          playerB: playerB.name,
+          rationale: swap.rationale || "Tactical balance adjustment"
+        });
+      }
+    });
+
+    // Step 3: Reassign formations and recalculate
+    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, state.formationTeamA);
+    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, state.formationTeamB);
+
+    state.aiCoachBriefing = aiResult.reviewCommentary;
+    state.aiRefineSwaps = appliedSwaps;
+
+    // Render results
+    renderPitch();
+    renderTeamComparison();
+    renderAiCoachBriefing();
+
+    document.getElementById("match-results-section")?.classList.remove("hidden");
+    document.getElementById("match-results-section")?.scrollIntoView({ behavior: "smooth" });
+
+    if (appliedSwaps.length > 0) {
+      showToast(`🎯 AI Coach refined draft with ${appliedSwaps.length} tactical swap(s)!`, "success");
+    } else {
+      showToast("🎯 AI Coach reviewed draft: teams are already tactically optimal!", "info");
+    }
+  } catch (err) {
+    showToast(`AI Refine Error: ${err.message}`, "error");
+    console.error("AI Refine Error:", err);
+  } finally {
+    state.isAiLoading = false;
+    if (btn) btn.disabled = false;
+    if (btnIcon) btnIcon.textContent = "🔍";
+    if (btnText) btnText.textContent = "Review & Refine Draft with AI";
   }
 }
 
@@ -702,12 +823,33 @@ function renderAiCoachBriefing() {
   const card = document.getElementById("ai-coach-briefing-card");
   const textEl = document.getElementById("ai-coach-briefing-text");
   const labelEl = document.getElementById("ai-briefing-model-label");
+  const swapsContainer = document.getElementById("ai-refine-swaps-container");
+  const swapsList = document.getElementById("ai-refine-swaps-list");
 
   if (!card || !textEl) return;
 
   if (state.aiCoachBriefing) {
     textEl.textContent = `"${state.aiCoachBriefing}"`;
     if (labelEl) labelEl.textContent = `Model: ${state.aiConfig.model}`;
+
+    if (swapsContainer && swapsList) {
+      if (state.aiRefineSwaps && state.aiRefineSwaps.length > 0) {
+        swapsList.innerHTML = state.aiRefineSwaps.map(s => `
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between p-2 rounded-lg bg-slate-950/70 border border-amber-500/30 gap-1">
+            <div class="flex items-center gap-2 font-bold">
+              <span class="text-blue-400 font-mono">${s.playerA} (${state.teamAName})</span>
+              <span class="text-amber-400">⇄</span>
+              <span class="text-red-400 font-mono">${s.playerB} (${state.teamBName})</span>
+            </div>
+            <span class="text-[11px] text-slate-300 italic">${s.rationale}</span>
+          </div>
+        `).join("");
+        swapsContainer.classList.remove("hidden");
+      } else {
+        swapsContainer.classList.add("hidden");
+      }
+    }
+
     card.classList.remove("hidden");
   } else {
     card.classList.add("hidden");
