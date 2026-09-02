@@ -171,12 +171,13 @@ function computeSectorScore(effectivePlayerList, attrWeights, posWeights) {
  * @param {Object} setting - { fitness, form }
  * @param {string} metricKey - "attack" | "midfield" | "defense" | "pace" | "physical" | "passing" | "goalkeeping"
  * @param {Object} sectorWeights - custom or DEFAULT_SECTOR_WEIGHTS
+ * @param {boolean} useMatchdayPosition - if true, evaluates using on-pitch matchdayPosition; if false, always uses database position
  * @returns {number}
  */
-export function getPlayerMetricScore(player, setting = {}, metricKey, sectorWeights = DEFAULT_SECTOR_WEIGHTS) {
+export function getPlayerMetricScore(player, setting = {}, metricKey, sectorWeights = DEFAULT_SECTOR_WEIGHTS, useMatchdayPosition = false) {
   const eff = getEffectivePlayerStats(player, setting);
   const a = eff.effectiveAttributes;
-  const pos = player.matchdayPosition || player.position || "MID";
+  const pos = (useMatchdayPosition && player.matchdayPosition) ? player.matchdayPosition : (player.position || "MID");
   const sw = sectorWeights || DEFAULT_SECTOR_WEIGHTS;
 
   switch (metricKey) {
@@ -226,8 +227,9 @@ export function getPlayerMetricScore(player, setting = {}, metricKey, sectorWeig
  * @param {Array}  players
  * @param {Object} matchdaySettingsMap  - { [playerId]: { fitness, form } }
  * @param {Object} sectorWeights        - custom or DEFAULT_SECTOR_WEIGHTS
+ * @param {boolean} useMatchdayPositions - if true, evaluates on-pitch matchdayPosition; if false, always uses database position
  */
-export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeights = DEFAULT_SECTOR_WEIGHTS) {
+export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeights = DEFAULT_SECTOR_WEIGHTS, useMatchdayPositions = false) {
   const sw = sectorWeights || DEFAULT_SECTOR_WEIGHTS;
 
   if (!players || players.length === 0) {
@@ -260,12 +262,12 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeig
     totalGk  += a.gk;
     if (a.gk > maxGk) maxGk = a.gk;
 
-    const pos = p.matchdayPosition || p.position || "MID";
+    const pos = (useMatchdayPositions && p.matchdayPosition) ? p.matchdayPosition : (p.position || "MID");
     if (positions[pos] !== undefined) positions[pos]++;
     else positions.MID++;
 
     eff.position = pos;
-    eff.matchdayPosition = pos;
+    eff.matchdayPosition = (useMatchdayPositions && p.matchdayPosition) ? p.matchdayPosition : null;
 
     return eff;
   });
@@ -480,7 +482,15 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
     topK = 5
   } = options;
 
-  const n = selectedPlayers.length;
+  // Always sanitize players so balancing evaluates strictly by true database positions
+  const cleanPlayers = selectedPlayers.map(p => {
+    const cp = { ...p };
+    delete cp.matchdayPosition;
+    delete cp.matchdayRole;
+    return cp;
+  });
+
+  const n = cleanPlayers.length;
   if (n < 2 || n % 2 !== 0) {
     throw new Error(`Please select an even number of players (currently ${n} selected).`);
   }
@@ -490,14 +500,14 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
   const fallbackSolutions = [];
 
   if (n <= 18) {
-    const firstPlayer = selectedPlayers[0];
-    const restPlayers = selectedPlayers.slice(1);
+    const firstPlayer = cleanPlayers[0];
+    const restPlayers = cleanPlayers.slice(1);
     const combos = getCombinations(restPlayers, teamSize - 1);
 
     combos.forEach(combo => {
       const teamA = [firstPlayer, ...combo];
       const teamAIds = new Set(teamA.map(p => p.id));
-      const teamB = selectedPlayers.filter(p => !teamAIds.has(p.id));
+      const teamB = cleanPlayers.filter(p => !teamAIds.has(p.id));
 
       const evaluation = scoreTeamBalance(teamA, teamB, { mode, gkMode, matchdaySettingsMap, sectorWeights });
       const sol = { teamA, teamB, ...evaluation };
@@ -511,7 +521,7 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
   } else {
     const seenCombos = new Set();
     for (let i = 0; i < 5000; i++) {
-      const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5);
+      const shuffled = [...cleanPlayers].sort(() => Math.random() - 0.5);
       const teamA = shuffled.slice(0, teamSize);
       const teamB = shuffled.slice(teamSize);
       const hash = teamA.map(p => p.id).sort().join(",");

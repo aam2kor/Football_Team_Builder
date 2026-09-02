@@ -69,17 +69,33 @@ export class PlayerDatabase {
   }
 
   getAll() {
-    return [...this.players];
+    return this.players.map(p => ({
+      ...p,
+      attributes: { ...(p.attributes || {}) },
+      chemistryPartners: [...(p.chemistryPartners || [])]
+    }));
   }
 
   getById(id) {
-    return this.players.find(p => p.id === id) || null;
+    const p = this.players.find(p => p.id === id);
+    if (!p) return null;
+    return {
+      ...p,
+      attributes: { ...(p.attributes || {}) },
+      chemistryPartners: [...(p.chemistryPartners || [])]
+    };
   }
 
   getByName(name) {
     if (!name) return null;
     const lower = name.toLowerCase().trim();
-    return this.players.find(p => p.name.toLowerCase().trim() === lower) || null;
+    const p = this.players.find(p => p.name.toLowerCase().trim() === lower);
+    if (!p) return null;
+    return {
+      ...p,
+      attributes: { ...(p.attributes || {}) },
+      chemistryPartners: [...(p.chemistryPartners || [])]
+    };
   }
 
   savePlayer(playerData) {

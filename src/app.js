@@ -1602,8 +1602,8 @@ function handlePlayerSwapClick(player, team) {
 // Side-by-Side FIFA Team Comparison Dashboard
 // ============================================================
 function renderTeamComparison() {
-  const statsA = calculateTeamStats(state.activeTeamA, state.matchdaySettings, state.sectorWeights);
-  const statsB = calculateTeamStats(state.activeTeamB, state.matchdaySettings, state.sectorWeights);
+  const statsA = calculateTeamStats(state.activeTeamA, state.matchdaySettings, state.sectorWeights, true);
+  const statsB = calculateTeamStats(state.activeTeamB, state.matchdaySettings, state.sectorWeights, true);
 
   // Team A Overviews
   document.getElementById("team-a-ovr-display").textContent = statsA.effectiveAvgOvr.toFixed(1);
@@ -1659,14 +1659,14 @@ function renderTeamComparison() {
     // Compute player contributions for Team A (using matchdayPosition and sectorWeights)
     const contribsA = state.activeTeamA.map(p => {
       const setting = state.matchdaySettings[p.id] || { fitness: 100, form: "neutral" };
-      const score = getPlayerMetricScore(p, setting, m.key, state.sectorWeights);
+      const score = getPlayerMetricScore(p, setting, m.key, state.sectorWeights, true);
       return { player: p, score };
     }).sort((x, y) => y.score - x.score);
 
     // Compute player contributions for Team B (using matchdayPosition and sectorWeights)
     const contribsB = state.activeTeamB.map(p => {
       const setting = state.matchdaySettings[p.id] || { fitness: 100, form: "neutral" };
-      const score = getPlayerMetricScore(p, setting, m.key, state.sectorWeights);
+      const score = getPlayerMetricScore(p, setting, m.key, state.sectorWeights, true);
       return { player: p, score };
     }).sort((x, y) => y.score - x.score);
 
