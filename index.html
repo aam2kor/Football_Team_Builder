@@ -1002,37 +1002,85 @@
 
   <!-- AI Model Settings Modal -->
   <div id="modal-ai-settings" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="glass-panel w-full max-w-md p-6 rounded-2xl border border-indigo-500/40 shadow-2xl space-y-4">
+    <div class="glass-panel w-full max-w-lg p-6 rounded-2xl border border-indigo-500/40 shadow-2xl space-y-4">
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <div class="flex items-center gap-2">
-          <span class="text-lg">🤖</span>
-          <h3 class="text-sm font-black text-white">Local AI Model Configuration</h3>
+          <span class="text-xl">🤖</span>
+          <div>
+            <h3 class="text-sm font-black text-white">AI Engine Configuration</h3>
+            <p class="text-[11px] text-slate-400">Choose between Local Ollama or Google Gemini Cloud AI</p>
+          </div>
         </div>
-        <button id="btn-close-ai-settings" type="button" class="text-slate-400 hover:text-white">✕</button>
+        <button id="btn-close-ai-settings" type="button" class="text-slate-400 hover:text-white text-lg">✕</button>
       </div>
 
-      <div class="space-y-3 text-xs">
+      <!-- Provider Selector Tabs -->
+      <div>
+        <label class="block font-bold text-slate-300 text-xs mb-1.5">AI Provider</label>
+        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-900/90 rounded-xl border border-slate-800">
+          <button id="btn-provider-ollama" type="button" class="py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 bg-indigo-600 text-white shadow-md">
+            <span>🖥️</span>
+            <span>Local Ollama</span>
+          </button>
+          <button id="btn-provider-gemini" type="button" class="py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 bg-transparent text-slate-400 hover:text-white">
+            <span>✨</span>
+            <span>Google Gemini</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Local Ollama Configuration Section -->
+      <div id="ai-section-ollama" class="space-y-3 text-xs">
         <div>
           <label class="block font-bold text-slate-300 mb-1">Ollama API Endpoint URL</label>
           <input id="ai-settings-endpoint" type="text" value="http://localhost:11434" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-          <span class="text-[10px] text-slate-500 mt-1 block">Default: http://localhost:11434 (Must allow CORS with OLLAMA_ORIGINS="*")</span>
+          <span class="text-[10px] text-slate-500 mt-1 block">Default: http://localhost:11434 (Proxied automatically via server.py)</span>
         </div>
 
         <div>
-          <label class="block font-bold text-slate-300 mb-1">Model Name</label>
+          <label class="block font-bold text-slate-300 mb-1">Local Model Name</label>
           <input id="ai-settings-model" type="text" value="qwen2.5-coder:1.5b" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-          <span class="text-[10px] text-slate-500 mt-1 block">Your local model tag in Ollama (e.g. qwen2.5-coder:1.5b)</span>
+          <span class="text-[10px] text-slate-500 mt-1 block">Installed model tag in Ollama (e.g. qwen2.5-coder:1.5b, llama3, mistral)</span>
         </div>
-
-        <div id="ai-test-connection-result" class="hidden p-2.5 rounded-xl text-[11px] font-mono"></div>
       </div>
 
+      <!-- Google Gemini Configuration Section -->
+      <div id="ai-section-gemini" class="hidden space-y-3 text-xs">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="font-bold text-slate-300">Gemini API Key</label>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-[10px] text-indigo-400 hover:text-indigo-300 underline flex items-center gap-0.5">
+              <span>Get Free Key</span>
+              <span>↗</span>
+            </a>
+          </div>
+          <div class="relative">
+            <input id="ai-settings-gemini-key" type="password" placeholder="AIzaSy..." class="w-full px-3 py-2 pr-10 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <button id="btn-toggle-gemini-key" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white" title="Show/Hide Key">👁️</button>
+          </div>
+          <span class="text-[10px] text-slate-500 mt-1 block">Stored securely in your browser's localStorage</span>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Gemini Model</label>
+          <select id="ai-settings-gemini-model" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <option value="gemini-2.5-flash" selected>gemini-2.5-flash (Recommended: Ultra-fast & Intelligent)</option>
+            <option value="gemini-2.5-pro">gemini-2.5-pro (Deep reasoning & complex prompts)</option>
+            <option value="gemini-1.5-flash">gemini-1.5-flash (Fast & lightweight)</option>
+            <option value="gemini-1.5-pro">gemini-1.5-pro (Stable pro tier)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Connection Test Result Box -->
+      <div id="ai-test-connection-result" class="hidden p-2.5 rounded-xl text-[11px] font-mono"></div>
+
       <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
-        <button id="btn-test-ai-connection" type="button" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+        <button id="btn-test-ai-connection" type="button" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-indigo-300 flex items-center gap-1.5 transition-colors">
           <span>🔌</span>
           <span>Test Connection</span>
         </button>
-        <button id="btn-save-ai-settings" type="button" class="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30">
+        <button id="btn-save-ai-settings" type="button" class="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all">
           Save Settings
         </button>
       </div>

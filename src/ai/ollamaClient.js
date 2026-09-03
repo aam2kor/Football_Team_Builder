@@ -1,12 +1,11 @@
-/**
- * Ollama Client for Football Team Builder
- * Connects to local LLM (qwen2.5-coder:1.5b or any Ollama model)
- * using structured JSON schema.
- */
+import { testGeminiConnection, queryGeminiCoach, queryGeminiLeagueInsights, refineDraftWithGemini, GEMINI_DEFAULT_MODEL } from "./geminiClient.js";
 
 export const DEFAULT_AI_CONFIG = {
+  provider: "ollama", // "ollama" | "gemini"
   endpoint: "http://localhost:11434",
   model: "qwen2.5-coder:1.5b",
+  geminiApiKey: "",
+  geminiModel: GEMINI_DEFAULT_MODEL,
   enabled: true
 };
 
@@ -35,6 +34,8 @@ export function saveAiConfig(config) {
     console.warn("Failed to save AI config to storage:", e);
   }
 }
+
+export { testGeminiConnection };
 
 /**
  * Shared helper to call Ollama API with automatic CORS proxy fallback
@@ -105,6 +106,16 @@ export async function testOllamaConnection(endpoint = DEFAULT_AI_CONFIG.endpoint
 }
 
 /**
+ * Unified test connection function supporting both Ollama and Gemini
+ */
+export async function testAiConnection(aiConfig = DEFAULT_AI_CONFIG) {
+  if (aiConfig.provider === "gemini") {
+    return testGeminiConnection(aiConfig.geminiApiKey, aiConfig.geminiModel);
+  }
+  return testOllamaConnection(aiConfig.endpoint, aiConfig.model);
+}
+
+/**
  * Robust JSON extractor that handles markdown blocks, trailing tokens, or truncated outputs
  */
 export function extractJsonObject(rawText) {
@@ -145,16 +156,20 @@ export function extractJsonObject(rawText) {
 }
 
 /**
- * Sends natural language coach instructions to Ollama qwen2.5-coder:1.5b
- * and returns structured constraints & tactical briefing.
- * 
- * @param {string} userPrompt - e.g. "Put Abey on Boots & Beers, make Voyagers pacy"
- * @param {Array}  players - Selected players for the match
- * @param {Object} context - { teamAName, teamBName, targetTeamSize }
- * @param {Object} aiConfig - { endpoint, model }
- * @returns {Promise<{ constraints: Object, coachBriefing: string, raw: Object }>}
+ * Sends natural language coach instructions to Ollama or Gemini
  */
 export async function queryAiCoach(userPrompt, players, context = {}, aiConfig = DEFAULT_AI_CONFIG) {
+  if (aiConfig.provider === "gemini") {
+    return queryGeminiCoach(userPrompt, players, context, aiConfig);
+  }
+  return queryOllamaCoach(userPrompt, players, context, aiConfig);
+}
+
+/**
+ * Sends natural language coach instructions to Ollama qwen2.5-coder:1.5b
+ * and returns structured constraints & tactical briefing.
+ */
+async function queryOllamaCoach(userPrompt, players, context = {}, aiConfig = DEFAULT_AI_CONFIG) {
   const endpoint = (aiConfig.endpoint || DEFAULT_AI_CONFIG.endpoint).replace(/\/+$/, "");
   const model = aiConfig.model || DEFAULT_AI_CONFIG.model;
   const teamAName = context.teamAName || "Voyagers";
@@ -277,11 +292,15 @@ CRITICAL: You MUST respond ONLY with a valid JSON object matching this schema. N
 
 /**
  * Generates comprehensive tactical and historical league insights from match history.
- * @param {Array} matches - Array of match objects from Third Half Utd API
- * @param {Object} aiConfig - { endpoint, model }
- * @returns {Promise<{ headline: string, summary: string, keyPlayers: string, tacticalTrends: string, prediction: string }>}
  */
 export async function queryLeagueInsights(matches = [], aiConfig = DEFAULT_AI_CONFIG) {
+  if (aiConfig.provider === "gemini") {
+    return queryGeminiLeagueInsights(matches, {}, aiConfig);
+  }
+  return queryOllamaLeagueInsights(matches, aiConfig);
+}
+
+async function queryOllamaLeagueInsights(matches = [], aiConfig = DEFAULT_AI_CONFIG) {
   const endpoint = (aiConfig.endpoint || DEFAULT_AI_CONFIG.endpoint).replace(/\/+$/, "");
   const model = aiConfig.model || DEFAULT_AI_CONFIG.model;
 
@@ -376,14 +395,15 @@ Rules: Be concise, cite exact player names and goal tallies from data, and focus
 
 /**
  * Reviews a balanced first draft and suggests tactical player swaps based on user instructions.
- * @param {string} userPrompt
- * @param {Array} teamA
- * @param {Array} teamB
- * @param {Object} context - { teamAName, teamBName, statsA, statsB, leagueSummary }
- * @param {Object} aiConfig - { endpoint, model }
- * @returns {Promise<{ reviewCommentary: string, swaps: Array<{ playerFromTeamA: string, playerFromTeamB: string, rationale: string }> }>}
  */
 export async function refineDraftWithAi(userPrompt, teamA = [], teamB = [], context = {}, aiConfig = DEFAULT_AI_CONFIG) {
+  if (aiConfig.provider === "gemini") {
+    return refineDraftWithGemini(userPrompt, teamA, teamB, context, aiConfig);
+  }
+  return refineDraftWithOllama(userPrompt, teamA, teamB, context, aiConfig);
+}
+
+async function refineDraftWithOllama(userPrompt, teamA = [], teamB = [], context = {}, aiConfig = DEFAULT_AI_CONFIG) {
   const endpoint = (aiConfig.endpoint || DEFAULT_AI_CONFIG.endpoint).replace(/\/+$/, "");
   const model = aiConfig.model || DEFAULT_AI_CONFIG.model;
 

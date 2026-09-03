@@ -111,6 +111,10 @@ class FastProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             target_url = f"{OLLAMA_TARGET_BASE}{subpath}"
             return self._proxy_ollama_request(target_url, method="GET")
 
+        # 3. Gemini Proxy (GET)
+        if self.path.startswith("/api/gemini"):
+            return self._proxy_gemini_request(method="GET")
+
         return super().do_GET()
 
     def do_POST(self):
@@ -120,6 +124,10 @@ class FastProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             if not subpath.startswith("/"): subpath = "/" + subpath
             target_url = f"{OLLAMA_TARGET_BASE}{subpath}"
             return self._proxy_ollama_request(target_url, method="POST")
+
+        # 3. Gemini Proxy (POST, e.g. /api/gemini/gemini-2.5-flash:generateContent)
+        if self.path.startswith("/api/gemini"):
+            return self._proxy_gemini_request(method="POST")
 
         self.send_response(404)
         self._send_cors_headers()
@@ -159,6 +167,54 @@ class FastProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._send_cors_headers()
             self.end_headers()
             self.wfile.write(json.dumps({"error": f"Failed to connect to Ollama at {OLLAMA_TARGET_BASE}: {e}"}).encode("utf-8"))
+
+    def _proxy_gemini_request(self, method="POST"):
+        try:
+            subpath = self.path[len("/api/gemini"):]
+            if not subpath.startswith("/"): subpath = "/" + subpath
+            
+            # Extract query param or environment variable for API key
+            env_key = os.environ.get("GEMINI_API_KEY", "")
+            has_key_param = "key=" in subpath
+
+            if not has_key_param and env_key:
+                sep = "&" if "?" in subpath else "?"
+                subpath = f"{subpath}{sep}key={env_key}"
+
+            target_url = f"https://generativelanguage.googleapis.com/v1beta/models{subpath}"
+            
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length) if content_length > 0 else None
+
+            req = urllib.request.Request(
+                target_url,
+                data=body,
+                headers={
+                    "Content-Type": self.headers.get("Content-Type", "application/json"),
+                    "Accept": "application/json"
+                },
+                method=method
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                resp_data = resp.read()
+                self.send_response(resp.status)
+                self.send_header("Content-Type", resp.headers.get("Content-Type", "application/json"))
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(resp_data)
+        except urllib.error.HTTPError as he:
+            self.send_response(he.code)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors_headers()
+            self.end_headers()
+            self.wfile.write(he.read())
+        except Exception as e:
+            print(f"[Gemini Proxy Error] {e}", file=sys.stderr)
+            self.send_response(502)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors_headers()
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": f"Failed to connect to Google Gemini API: {e}"}).encode("utf-8"))
 
 if __name__ == "__main__":
     web_dir = os.path.dirname(os.path.abspath(__file__))

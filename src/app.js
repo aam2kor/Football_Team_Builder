@@ -1,7 +1,7 @@
 import { PlayerDatabase, calculateOvr } from "./storage/db.js";
 import { buildBalancedTeams, calculateTeamStats, FORM_MODIFIERS, getEffectivePlayerStats, DEFAULT_SECTOR_WEIGHTS, cloneSectorWeights, getPlayerMetricScore } from "./engine/balancer.js";
 import { FORMATIONS, getFormationsForSize, assignPlayersToFormation } from "./engine/formations.js";
-import { loadAiConfig, saveAiConfig, testOllamaConnection, queryAiCoach, queryLeagueInsights, refineDraftWithAi } from "./ai/ollamaClient.js";
+import { loadAiConfig, saveAiConfig, testAiConnection, testOllamaConnection, testGeminiConnection, queryAiCoach, queryLeagueInsights, refineDraftWithAi } from "./ai/ollamaClient.js";
 import { fetchLeagueMatches, computeHeadToHeadSummary, formatLeagueSummaryForAi, computeTopWinRatePlayers, computeTopWinningChemistries, computeTopGoalScorers, computeTopConsistentLosers } from "./services/leagueService.js";
 
 // Initialize Database instance
@@ -564,42 +564,99 @@ function setupAiEvents() {
   document.getElementById("btn-open-ai-settings")?.addEventListener("click", openAiSettingsModal);
   document.getElementById("btn-close-ai-settings")?.addEventListener("click", closeAiSettingsModal);
 
+  // Provider Tab Buttons
+  const setModalProvider = (provider) => {
+    const btnOllama = document.getElementById("btn-provider-ollama");
+    const btnGemini = document.getElementById("btn-provider-gemini");
+    const secOllama = document.getElementById("ai-section-ollama");
+    const secGemini = document.getElementById("ai-section-gemini");
+    const resultBox = document.getElementById("ai-test-connection-result");
+    if (resultBox) resultBox.classList.add("hidden");
+
+    if (provider === "gemini") {
+      btnGemini?.classList.replace("bg-transparent", "bg-indigo-600");
+      btnGemini?.classList.replace("text-slate-400", "text-white");
+      btnOllama?.classList.replace("bg-indigo-600", "bg-transparent");
+      btnOllama?.classList.replace("text-white", "text-slate-400");
+      secGemini?.classList.remove("hidden");
+      secOllama?.classList.add("hidden");
+    } else {
+      btnOllama?.classList.replace("bg-transparent", "bg-indigo-600");
+      btnOllama?.classList.replace("text-slate-400", "text-white");
+      btnGemini?.classList.replace("bg-indigo-600", "bg-transparent");
+      btnGemini?.classList.replace("text-white", "text-slate-400");
+      secOllama?.classList.remove("hidden");
+      secGemini?.classList.add("hidden");
+    }
+  };
+
+  document.getElementById("btn-provider-ollama")?.addEventListener("click", () => setModalProvider("ollama"));
+  document.getElementById("btn-provider-gemini")?.addEventListener("click", () => setModalProvider("gemini"));
+
+  // Key Visibility Toggle
+  document.getElementById("btn-toggle-gemini-key")?.addEventListener("click", () => {
+    const input = document.getElementById("ai-settings-gemini-key");
+    if (input) {
+      input.type = input.type === "password" ? "text" : "password";
+    }
+  });
+
   // Test Connection in Modal
   document.getElementById("btn-test-ai-connection")?.addEventListener("click", async () => {
-    const endpoint = document.getElementById("ai-settings-endpoint")?.value?.trim() || "";
-    const model = document.getElementById("ai-settings-model")?.value?.trim() || "";
+    const secGemini = document.getElementById("ai-section-gemini");
+    const isGemini = secGemini && !secGemini.classList.contains("hidden");
     const resultBox = document.getElementById("ai-test-connection-result");
 
     if (resultBox) {
       resultBox.className = "p-2.5 rounded-xl text-[11px] font-mono bg-slate-900 border border-slate-700 text-slate-300";
-      resultBox.textContent = "Connecting to Ollama...";
+      resultBox.textContent = isGemini ? "Connecting to Google Gemini API..." : "Connecting to Ollama...";
       resultBox.classList.remove("hidden");
     }
 
-    const testRes = await testOllamaConnection(endpoint, model);
-    if (resultBox) {
-      if (testRes.ok) {
-        resultBox.className = "p-2.5 rounded-xl text-[11px] font-mono bg-emerald-950/60 border border-emerald-500/50 text-emerald-300";
-        resultBox.innerHTML = `✅ Connected to Ollama!<br>Available models: ${testRes.models.join(", ") || "None"}<br>${testRes.hasTargetModel ? "🎯 Target model '" + model + "' is ready!" : "⚠️ Note: Target model '" + model + "' not found in list."}`;
-      } else {
-        resultBox.className = "p-2.5 rounded-xl text-[11px] font-mono bg-red-950/60 border border-red-500/50 text-red-300";
-        resultBox.innerHTML = `❌ Connection failed: ${testRes.error}`;
+    if (isGemini) {
+      const key = document.getElementById("ai-settings-gemini-key")?.value?.trim() || "";
+      const model = document.getElementById("ai-settings-gemini-model")?.value || "gemini-2.5-flash";
+      const testRes = await testGeminiConnection(key, model);
+      if (resultBox) {
+        if (testRes.ok) {
+          resultBox.className = "p-2.5 rounded-xl text-[11px] font-mono bg-emerald-950/60 border border-emerald-500/50 text-emerald-300";
+          resultBox.innerHTML = `✅ Connected to Google Gemini (${testRes.model})!<br>Ready for AI Coach, Draft Refinement & League Insights.`;
+        } else {
+          resultBox.className = "p-2.5 rounded-xl text-[11px] font-mono bg-red-950/60 border border-red-500/50 text-red-300";
+          resultBox.innerHTML = `❌ Connection failed: ${testRes.error}`;
+        }
+      }
+    } else {
+      const endpoint = document.getElementById("ai-settings-endpoint")?.value?.trim() || "";
+      const model = document.getElementById("ai-settings-model")?.value?.trim() || "";
+      const testRes = await testOllamaConnection(endpoint, model);
+      if (resultBox) {
+        if (testRes.ok) {
+          resultBox.className = "p-2.5 rounded-xl text-[11px] font-mono bg-emerald-950/60 border border-emerald-500/50 text-emerald-300";
+          resultBox.innerHTML = `✅ Connected to Ollama!<br>Available models: ${testRes.models.join(", ") || "None"}<br>${testRes.hasTargetModel ? "🎯 Target model '" + model + "' is ready!" : "⚠️ Note: Target model '" + model + "' not found in list."}`;
+        } else {
+          resultBox.className = "p-2.5 rounded-xl text-[11px] font-mono bg-red-950/60 border border-red-500/50 text-red-300";
+          resultBox.innerHTML = `❌ Connection failed: ${testRes.error}`;
+        }
       }
     }
   });
 
   // Save AI Settings
   document.getElementById("btn-save-ai-settings")?.addEventListener("click", () => {
-    const endpoint = document.getElementById("ai-settings-endpoint")?.value?.trim() || "http://localhost:11434";
-    const model = document.getElementById("ai-settings-model")?.value?.trim() || "qwen2.5-coder:1.5b";
+    const secGemini = document.getElementById("ai-section-gemini");
+    const isGemini = secGemini && !secGemini.classList.contains("hidden");
 
-    state.aiConfig.endpoint = endpoint;
-    state.aiConfig.model = model;
+    state.aiConfig.provider = isGemini ? "gemini" : "ollama";
+    state.aiConfig.endpoint = document.getElementById("ai-settings-endpoint")?.value?.trim() || "http://localhost:11434";
+    state.aiConfig.model = document.getElementById("ai-settings-model")?.value?.trim() || "qwen2.5-coder:1.5b";
+    state.aiConfig.geminiApiKey = document.getElementById("ai-settings-gemini-key")?.value?.trim() || "";
+    state.aiConfig.geminiModel = document.getElementById("ai-settings-gemini-model")?.value || "gemini-2.5-flash";
+
     saveAiConfig(state.aiConfig);
-
     closeAiSettingsModal();
     checkAiConnection(true);
-    showToast("⚙️ AI Configuration saved!", "success");
+    showToast(`⚙️ AI Provider set to ${isGemini ? 'Google Gemini' : 'Local Ollama'}!`, "success");
   });
 
   // Dismiss AI Briefing Card
@@ -615,16 +672,18 @@ async function checkAiConnection(notifyIfOnline = false) {
 
   if (!badge) return;
 
-  const result = await testOllamaConnection(state.aiConfig.endpoint, state.aiConfig.model);
+  const isGemini = state.aiConfig.provider === "gemini";
+  const result = await testAiConnection(state.aiConfig);
+
   if (result.ok) {
     if (dot) dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse";
-    if (text) text.textContent = `${state.aiConfig.model} (Online)`;
+    if (text) text.textContent = isGemini ? `Gemini ${state.aiConfig.geminiModel} (Online)` : `${state.aiConfig.model} (Online)`;
     badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 cursor-pointer";
     badge.onclick = () => openAiSettingsModal();
-    if (notifyIfOnline) showToast(`🟢 Connected to Ollama (${state.aiConfig.model})`, "success");
+    if (notifyIfOnline) showToast(`🟢 Connected to ${isGemini ? 'Google Gemini' : 'Ollama'}`, "success");
   } else {
     if (dot) dot.className = "w-1.5 h-1.5 rounded-full bg-slate-500";
-    if (text) text.textContent = "Ollama Offline (Click ⚙️)";
+    if (text) text.textContent = isGemini ? "Gemini Offline (Click ⚙️)" : "Ollama Offline (Click ⚙️)";
     badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5 cursor-pointer";
     badge.onclick = () => openAiSettingsModal();
   }
@@ -862,7 +921,8 @@ function renderAiCoachBriefing() {
 
   if (state.aiCoachBriefing) {
     textEl.textContent = `"${state.aiCoachBriefing}"`;
-    if (labelEl) labelEl.textContent = `Model: ${state.aiConfig.model}`;
+    const modelLabel = state.aiConfig.provider === "gemini" ? `Google Gemini (${state.aiConfig.geminiModel || 'gemini-2.5-flash'})` : `Ollama (${state.aiConfig.model})`;
+    if (labelEl) labelEl.textContent = `Model: ${modelLabel}`;
 
     if (swapsContainer && swapsList) {
       if (state.aiRefineSwaps && state.aiRefineSwaps.length > 0) {
@@ -892,11 +952,38 @@ function openAiSettingsModal() {
   const modal = document.getElementById("modal-ai-settings");
   const endpointInput = document.getElementById("ai-settings-endpoint");
   const modelInput = document.getElementById("ai-settings-model");
+  const geminiKeyInput = document.getElementById("ai-settings-gemini-key");
+  const geminiModelSelect = document.getElementById("ai-settings-gemini-model");
   const resultBox = document.getElementById("ai-test-connection-result");
 
-  if (endpointInput) endpointInput.value = state.aiConfig.endpoint;
-  if (modelInput) modelInput.value = state.aiConfig.model;
+  if (endpointInput) endpointInput.value = state.aiConfig.endpoint || "http://localhost:11434";
+  if (modelInput) modelInput.value = state.aiConfig.model || "qwen2.5-coder:1.5b";
+  if (geminiKeyInput) geminiKeyInput.value = state.aiConfig.geminiApiKey || "";
+  if (geminiModelSelect) geminiModelSelect.value = state.aiConfig.geminiModel || "gemini-2.5-flash";
   if (resultBox) resultBox.classList.add("hidden");
+
+  // Set active provider tab
+  const isGemini = state.aiConfig.provider === "gemini";
+  const btnOllama = document.getElementById("btn-provider-ollama");
+  const btnGemini = document.getElementById("btn-provider-gemini");
+  const secOllama = document.getElementById("ai-section-ollama");
+  const secGemini = document.getElementById("ai-section-gemini");
+
+  if (isGemini) {
+    btnGemini?.classList.replace("bg-transparent", "bg-indigo-600");
+    btnGemini?.classList.replace("text-slate-400", "text-white");
+    btnOllama?.classList.replace("bg-indigo-600", "bg-transparent");
+    btnOllama?.classList.replace("text-white", "text-slate-400");
+    secGemini?.classList.remove("hidden");
+    secOllama?.classList.add("hidden");
+  } else {
+    btnOllama?.classList.replace("bg-transparent", "bg-indigo-600");
+    btnOllama?.classList.replace("text-slate-400", "text-white");
+    btnGemini?.classList.replace("bg-indigo-600", "bg-transparent");
+    btnGemini?.classList.replace("text-white", "text-slate-400");
+    secOllama?.classList.remove("hidden");
+    secGemini?.classList.add("hidden");
+  }
 
   modal?.classList.remove("hidden");
 }

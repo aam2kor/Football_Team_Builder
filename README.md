@@ -59,8 +59,12 @@ Expand the **⚙️ Advanced Sector Weights** panel to customize the engine's in
 
 ---
 
-### 5. 🤖 AI Coach & Local LLM Integration (`qwen2.5-coder:1.5b` via Ollama)
-- **⚡ Built-in Zero-Config Proxy**: `server.py` provides a built-in proxy route (`/api/ollama/*`) that eliminates browser CORS restrictions out-of-the-box.
+### 5. 🤖 Dual AI Engine: Google Gemini & Local Ollama (`qwen2.5-coder:1.5b`)
+- **🔄 Seamless Provider Toggle**: Switch instantly between **✨ Google Gemini** (e.g. `gemini-2.5-flash`, `gemini-2.5-pro`) and **🖥️ Local Ollama** (`qwen2.5-coder:1.5b`) directly in the in-app AI settings.
+- **✨ Google Gemini Integration**:
+  - Uses native structured JSON schema (`responseSchema` & `responseMimeType: "application/json"`) for 100% deterministic outputs.
+  - Securely saved API key in browser `localStorage` or optional `GEMINI_API_KEY` environment variable in `server.py`.
+- **⚡ Built-in Zero-Config Proxies**: `server.py` provides built-in proxy routes for both Ollama (`/api/ollama/*`) and Google Gemini (`/api/gemini/*`), eliminating CORS barriers.
 - **🔍 Two Distinct AI Workflows**:
   - **1. Review & Refine Draft with AI (Draft-First)**:
     - The mathematical balancer first creates an optimal baseline draft.
@@ -71,7 +75,7 @@ Expand the **⚙️ Advanced Sector Weights** panel to customize the engine's in
 - **🎙️ Pre-Match AI Tactical Briefing & Swaps Changelog**:
   - Displays a pre-match scout report, tactical commentary, and a dedicated visual changelog of player swaps.
 - **⚙️ Interactive Model Settings Modal**:
-  - Live status indicator (`🟢 Online` / `🔴 Offline`) with live connection testing and customizable model tags.
+  - Live status indicator (`🟢 Online` / `🔴 Offline`) with live connection testing, provider tabs, and customizable model tags.
 
 ---
 
