@@ -19,7 +19,7 @@ export async function fetchLeagueMatches(forceRefresh = false) {
         const parsed = JSON.parse(cached);
         if (parsed && Array.isArray(parsed.matches) && parsed.matches.length > 0) {
           // Fetch fresh in background
-          fetchFromApiAndCache().catch(e => console.warn("Background match refresh failed:", e));
+          fetchFromApiAndCache(false).catch(e => console.warn("Background match refresh failed:", e));
           return { matches: parsed.matches, source: "cache" };
         }
       }
@@ -28,13 +28,13 @@ export async function fetchLeagueMatches(forceRefresh = false) {
     }
   }
 
-  return await fetchFromApiAndCache();
+  return await fetchFromApiAndCache(forceRefresh);
 }
 
-async function fetchFromApiAndCache() {
+async function fetchFromApiAndCache(forceRefresh = false) {
+  const queryParam = forceRefresh ? "?force=true" : "";
   const endpointsToTry = [
-    "/api/matches",
-    "/api/public/matches",
+    `/api/matches${queryParam}`,
     LEAGUE_API_URL
   ];
 
@@ -43,7 +43,7 @@ async function fetchFromApiAndCache() {
   for (const endpoint of endpointsToTry) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
 
       const res = await fetch(endpoint, {
         method: "GET",
