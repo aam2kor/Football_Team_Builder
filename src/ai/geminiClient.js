@@ -131,11 +131,17 @@ ${detailedRoster}
 ${context.leagueSummary ? `\nRecent League & Derby Context:\n${context.leagueSummary}\n` : ""}
 Teams Playing: Team A ("${teamAName}") vs Team B ("${teamBName}")
 
+SECTOR POTENTIAL CALCULATION ENGINE:
+- Attack Potential: 45% SHO + 30% DRI + 25% PAC (FWD: 1.4x, MID: 1.0x, DEF/GK: 0.5x).
+- Midfield Potential: 40% PAS + 30% DRI + 15% DEF + 15% PAC (MID: 1.4x, FWD: 1.0x, DEF/GK: 0.7x).
+- Defense Potential (incl GK): 65% Outfield (55% DEF + 30% PHY + 15% PAC, DEF 1.4x) + 35% Top GK reflex/handling.
+- Overall OVR: Mean effective rating + Chemistry Synergy (+1.5 OVR per verified chemistry duo link).
+
 Output Rules:
 1. Extract pinned players for Team A ("${teamAName}") and Team B ("${teamBName}").
 2. Extract separated pairs (rivals who must be on opposite teams).
 3. Extract paired players (duos who must be on the same team).
-4. Provide a passionate, insightful 2-sentence pre-match tactical briefing referencing the match dynamics and strategy.`;
+4. Provide a passionate, insightful 2-sentence pre-match tactical briefing referencing the match dynamics and strategy based on your sector analysis.`;
 
   const promptText = `User Instruction: "${userPrompt || "Generate tactically balanced lineups with even attacking and defensive strength"}"`;
 
@@ -327,10 +333,33 @@ export async function refineDraftWithGemini(userPrompt, teamA = [], teamB = [], 
   const teamAName = context.teamAName || "Voyagers";
   const teamBName = context.teamBName || "Boots & Beers";
 
-  const formatRoster = (players) => players.map(p => {
-    const a = p.effectiveAttributes || p.attributes || {};
-    return `  - ${p.name} (${p.position}, OVR: ${p.effectiveOvr || p.ovr}, SHO: ${a.sho ?? 70}, DEF: ${a.def ?? 70}, PAS: ${a.pas ?? 75}, PAC: ${a.pac ?? 75})`;
-  }).join("\n");
+  const statsSummary = (context.statsA && context.statsB) ? `
+CURRENT CALCULATED TEAM POTENTIALS & BALANCE:
+- [${teamAName}]: Effective OVR: ${context.statsA.avgOvr} | ⚔️ Attack: ${context.statsA.attack} | ⚙️ Midfield: ${context.statsA.midfield} | 🛡️ Defense (incl GK): ${context.statsA.defense} (Best GK: ${context.statsA.goalkeeping}, Chemistry Boost: +${context.statsA.synergyBoost || 0} OVR)
+- [${teamBName}]: Effective OVR: ${context.statsB.avgOvr} | ⚔️ Attack: ${context.statsB.attack} | ⚙️ Midfield: ${context.statsB.midfield} | 🛡️ Defense (incl GK): ${context.statsB.defense} (Best GK: ${context.statsB.goalkeeping}, Chemistry Boost: +${context.statsB.synergyBoost || 0} OVR)
+- Sector Deltas: OVR Δ ${Math.abs(context.statsA.avgOvr - context.statsB.avgOvr).toFixed(1)} | ATT Δ ${Math.abs(context.statsA.attack - context.statsB.attack)} | MID Δ ${Math.abs(context.statsA.midfield - context.statsB.midfield)} | DEF Δ ${Math.abs(context.statsA.defense - context.statsB.defense)}
+` : "";
+
+  const sectorExplanation = `SECTOR POTENTIAL CALCULATION METHODOLOGY:
+1. ATTACK POTENTIAL (0-99):
+   - Attributes: 45% Shooting (SHO) + 30% Dribbling (DRI) + 25% Pace (PAC), zero weight on DEF/PHY.
+   - Positional Multipliers: Forwards (1.4x), Midfielders (1.0x), Defenders (0.5x), Goalkeepers (0.5x).
+   - Scaled by matchday fitness (0-100%) and form modifiers (🔥 +4 OVR/1.08x to ❄️ -4 OVR/0.92x).
+
+2. MIDFIELD POTENTIAL (0-99):
+   - Attributes: 40% Passing (PAS) + 30% Dribbling (DRI) + 15% Defense (DEF) + 15% Pace (PAC).
+   - Positional Multipliers: Midfielders (1.4x), Forwards (1.0x), Defenders (0.7x), Goalkeepers (0.7x).
+   - Measures ball distribution, possession security, and transition control.
+
+3. DEFENSE POTENTIAL (0-99, including GK):
+   - Outfield Defense: 55% Defense (DEF) + 30% Physicality (PHY) + 15% Pace (PAC) with Defenders (1.4x), Midfielders (0.9x), Forwards (0.5x).
+   - Goalkeeper Integration: Blends 65% Outfield Defense + 35% Top Goalkeeper rating (max GK attribute in squad).
+
+4. OVERALL POTENTIAL (OVR):
+   - Mean effective player rating + Chemistry Synergy (+1.5 OVR per verified chemistry duo link).
+
+TACTICAL DECISION-MAKING:
+Use the sector calculation formulas above to intelligently decide which sector(s) to optimize, balance, or tactically rebalance to fulfill the user's directive.`;
 
   const prompt = `You are an elite football tactical coach refining an active 8v8 match draft.
 
@@ -345,13 +374,15 @@ ${formatRoster(teamA)}
 
 [${teamBName} Active Squad]:
 ${formatRoster(teamB)}
+${statsSummary}
+${sectorExplanation}
 ${context.leagueSummary ? `\nActive Squad Form Context:\n${context.leagueSummary}\n` : ""}
 
 USER TACTICAL DIRECTIVE: "${userPrompt}"
 
 YOUR MISSION:
 Propose 1 or 2 player swaps between the active squad of ${teamAName} and active squad of ${teamBName} to satisfy: "${userPrompt}".
-In your reviewCommentary, ONLY discuss players from the active squads above.
+In your reviewCommentary, cite the sector dynamics (Attack, Midfield, Defense, or OVR) you chose to rebalance and explain the tactical impact of the swaps.
 Do NOT say "no swaps needed". Propose concrete player swaps that fulfill the user's tactical instructions while keeping the match balanced.`;
 
   const payload = {

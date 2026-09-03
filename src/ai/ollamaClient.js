@@ -188,12 +188,18 @@ async function queryOllamaCoach(userPrompt, players, context = {}, aiConfig = DE
 Available Players:
 ${detailedRoster}
 
+SECTOR POTENTIAL CALCULATION ENGINE:
+- Attack: 45% SHO + 30% DRI + 25% PAC (FWD 1.4x, MID 1.0x, DEF/GK 0.5x).
+- Midfield: 40% PAS + 30% DRI + 15% DEF + 15% PAC (MID 1.4x, FWD 1.0x, DEF/GK 0.7x).
+- Defense (incl GK): 65% Outfield (55% DEF + 30% PHY + 15% PAC, DEF 1.4x) + 35% Top GK reflex/handling.
+- Overall OVR: Mean player effective rating + Chemistry Synergy (+1.5 OVR per verified chemistry duo link).
+
 Rules:
 1. Pinned players: assign specific players to "${teamAName}" or "${teamBName}" ONLY if the user explicitly requested it or implied it strongly.
 2. Separated players: if user wants players on opposite teams (e.g. "separate strikers", "put X against Y"), pair them in separatedPairs.
 3. Paired players: if user wants players together, pair them in pairedTogether.
 4. If the user mentions tactical style (e.g. "counter-attack", "possession", "high pace"), pick key players fitting that profile and pin or pair them accordingly.
-5. Provide a 2-sentence pre-match tactical briefing explaining your strategy and highlighting a key player matchup.
+5. Provide a 2-sentence pre-match tactical briefing explaining your strategy and highlighting a key player matchup based on sector potentials.
 
 CRITICAL: You MUST respond ONLY with a valid JSON object matching this schema. No intro, no markdown explanation, no other text:
 {
@@ -417,6 +423,21 @@ async function refineDraftWithOllama(userPrompt, teamA = [], teamB = [], context
     return `  - ${p.name} (${p.position}, OVR: ${p.effectiveOvr || p.ovr}, SHO: ${a.sho ?? 70}, DEF: ${a.def ?? 70}, PAS: ${a.pas ?? 75}, PAC: ${a.pac ?? 75})`;
   }).join("\n");
 
+  const statsSummary = (statsA.avgOvr && statsB.avgOvr) ? `
+CURRENT CALCULATED TEAM POTENTIALS:
+- [${teamAName}]: Effective OVR: ${statsA.avgOvr} | ⚔️ Attack: ${statsA.attack} | ⚙️ Midfield: ${statsA.midfield} | 🛡️ Defense (incl GK): ${statsA.defense} (Best GK: ${statsA.goalkeeping}, Chemistry Boost: +${statsA.synergyBoost || 0} OVR)
+- [${teamBName}]: Effective OVR: ${statsB.avgOvr} | ⚔️ Attack: ${statsB.attack} | ⚙️ Midfield: ${statsB.midfield} | 🛡️ Defense (incl GK): ${statsB.defense} (Best GK: ${statsB.goalkeeping}, Chemistry Boost: +${statsB.synergyBoost || 0} OVR)
+` : "";
+
+  const sectorExplanation = `SECTOR POTENTIAL CALCULATION METHODOLOGY:
+- Attack: 45% SHO + 30% DRI + 25% PAC (FWD 1.4x, MID 1.0x, DEF/GK 0.5x), scaled by matchday fitness & form.
+- Midfield: 40% PAS + 30% DRI + 15% DEF + 15% PAC (MID 1.4x, FWD 1.0x, DEF/GK 0.7x).
+- Defense (incl GK): 65% Outfield (55% DEF + 30% PHY + 15% PAC, DEF 1.4x) + 35% Designated Goalkeeper attribute.
+- Overall (OVR): Mean player effective OVR + Chemistry Synergy (+1.5 OVR per verified chemistry duo link).
+
+TACTICAL AUTONOMY:
+Decide which sector(s) to optimize, balance, or rebalance based on the user's directive using these formulas.`;
+
   const systemPrompt = `You are an elite football tactical coach refining an active 8v8 match draft.
 
 ABSOLUTE STRICT RESTRICTION:
@@ -430,12 +451,14 @@ ${formatRoster(teamA)}
 
 [${teamBName} Active Squad]:
 ${formatRoster(teamB)}
+${statsSummary}
+${sectorExplanation}
 ${context.leagueSummary ? `\nActive Squad Form Context:\n${context.leagueSummary}\n` : ""}
 USER TACTICAL DIRECTIVE: "${userPrompt}"
 
 YOUR MISSION:
 Propose 1 or 2 player swaps between the active squad of ${teamAName} and active squad of ${teamBName} to satisfy: "${userPrompt}".
-In your reviewCommentary, ONLY discuss players from the active squads above.
+In your reviewCommentary, cite the sector dynamics (Attack, Midfield, Defense, or OVR) you chose to rebalance and explain the tactical impact of the swaps.
 Do NOT say "no swaps needed". You must execute concrete player swaps that fulfill the user's tactical instructions while keeping the overall match competitive and balanced.
 
 SWAP RULES:
