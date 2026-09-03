@@ -4,7 +4,7 @@
  * using structured JSON schemas and responseMimeType: "application/json".
  */
 
-export const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash";
+export const GEMINI_DEFAULT_MODEL = "gemini-3.6-flash";
 export const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 /**
@@ -20,6 +20,13 @@ async function callGeminiGenerateContent(model, apiKey, payload) {
   const candidates = apiKey ? [directUrl, proxyUrl] : [proxyUrl, directUrl];
   let lastError = null;
 
+  const headers = {
+    "Content-Type": "application/json"
+  };
+  if (apiKey) {
+    headers["x-goog-api-key"] = apiKey;
+  }
+
   for (const url of candidates) {
     try {
       const controller = new AbortController();
@@ -27,7 +34,7 @@ async function callGeminiGenerateContent(model, apiKey, payload) {
 
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
         signal: controller.signal
       });

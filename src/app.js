@@ -505,7 +505,7 @@ async function handleGenerateLeagueInsights() {
 
         <!-- 6. Provider Model Attribution -->
         <div class="text-right text-[10px] text-slate-500 font-mono">
-          ⚡ Analyzed with ${state.aiConfig.provider === 'gemini' ? `Google Gemini (${state.aiConfig.geminiModel || 'gemini-2.5-flash'})` : `Local Ollama (${state.aiConfig.model})`}
+          ⚡ Analyzed with ${state.aiConfig.provider === 'gemini' ? `Google Gemini (${state.aiConfig.geminiModel || 'gemini-3.6-flash'})` : `Local Ollama (${state.aiConfig.model})`}
         </div>
       `;
       contentEl.classList.remove("hidden");
@@ -620,7 +620,7 @@ function setupAiEvents() {
 
     if (isGemini) {
       const key = document.getElementById("ai-settings-gemini-key")?.value?.trim() || "";
-      const model = document.getElementById("ai-settings-gemini-model")?.value || "gemini-2.5-flash";
+      const model = document.getElementById("ai-settings-gemini-model")?.value || "gemini-3.6-flash";
       const testRes = await testGeminiConnection(key, model);
       if (resultBox) {
         if (testRes.ok) {
@@ -656,7 +656,7 @@ function setupAiEvents() {
     state.aiConfig.endpoint = document.getElementById("ai-settings-endpoint")?.value?.trim() || "http://localhost:11434";
     state.aiConfig.model = document.getElementById("ai-settings-model")?.value?.trim() || "qwen2.5-coder:1.5b";
     state.aiConfig.geminiApiKey = document.getElementById("ai-settings-gemini-key")?.value?.trim() || "";
-    state.aiConfig.geminiModel = document.getElementById("ai-settings-gemini-model")?.value || "gemini-2.5-flash";
+    state.aiConfig.geminiModel = document.getElementById("ai-settings-gemini-model")?.value || "gemini-3.6-flash";
 
     saveAiConfig(state.aiConfig);
     closeAiSettingsModal();
@@ -721,7 +721,7 @@ async function handleBuildAiTeams() {
   if (btnIcon) btnIcon.textContent = "⏳";
   if (btnText) btnText.textContent = "AI Coach Analyzing...";
 
-  const activeModelName = state.aiConfig.provider === "gemini" ? (state.aiConfig.geminiModel || "gemini-2.5-flash") : state.aiConfig.model;
+  const activeModelName = state.aiConfig.provider === "gemini" ? (state.aiConfig.geminiModel || "gemini-3.6-flash") : state.aiConfig.model;
   showToast(`🤖 Consulting AI Coach (${activeModelName})...`, "info");
 
   try {
@@ -818,7 +818,7 @@ async function handleRefineDraftWithAi() {
   if (btnIcon) btnIcon.textContent = "⏳";
   if (btnText) btnText.textContent = "AI Reviewing Draft...";
 
-  const activeModelName = state.aiConfig.provider === "gemini" ? (state.aiConfig.geminiModel || "gemini-2.5-flash") : state.aiConfig.model;
+  const activeModelName = state.aiConfig.provider === "gemini" ? (state.aiConfig.geminiModel || "gemini-3.6-flash") : state.aiConfig.model;
   showToast(`🔍 AI Coach reviewing mathematical draft (${activeModelName})...`, "info");
 
   try {
@@ -928,7 +928,7 @@ function renderAiCoachBriefing() {
 
   if (state.aiCoachBriefing) {
     textEl.textContent = `"${state.aiCoachBriefing}"`;
-    const modelLabel = state.aiConfig.provider === "gemini" ? `Google Gemini (${state.aiConfig.geminiModel || 'gemini-2.5-flash'})` : `Ollama (${state.aiConfig.model})`;
+    const modelLabel = state.aiConfig.provider === "gemini" ? `Google Gemini (${state.aiConfig.geminiModel || 'gemini-3.6-flash'})` : `Ollama (${state.aiConfig.model})`;
     if (labelEl) labelEl.textContent = `Model: ${modelLabel}`;
 
     if (swapsContainer && swapsList) {
@@ -966,7 +966,7 @@ function openAiSettingsModal() {
   if (endpointInput) endpointInput.value = state.aiConfig.endpoint || "http://localhost:11434";
   if (modelInput) modelInput.value = state.aiConfig.model || "qwen2.5-coder:1.5b";
   if (geminiKeyInput) geminiKeyInput.value = state.aiConfig.geminiApiKey || "";
-  if (geminiModelSelect) geminiModelSelect.value = state.aiConfig.geminiModel || "gemini-2.5-flash";
+  if (geminiModelSelect) geminiModelSelect.value = state.aiConfig.geminiModel || "gemini-3.6-flash";
   if (resultBox) resultBox.classList.add("hidden");
 
   // Set active provider tab

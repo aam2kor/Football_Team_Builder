@@ -186,13 +186,19 @@ class FastProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length) if content_length > 0 else None
 
+            headers = {
+                "Content-Type": self.headers.get("Content-Type", "application/json"),
+                "Accept": "application/json"
+            }
+            # Forward x-goog-api-key header if sent by client or from env
+            header_key = self.headers.get("x-goog-api-key") or env_key
+            if header_key:
+                headers["x-goog-api-key"] = header_key
+
             req = urllib.request.Request(
                 target_url,
                 data=body,
-                headers={
-                    "Content-Type": self.headers.get("Content-Type", "application/json"),
-                    "Accept": "application/json"
-                },
+                headers=headers,
                 method=method
             )
             with urllib.request.urlopen(req, timeout=60) as resp:
