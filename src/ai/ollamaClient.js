@@ -37,26 +37,51 @@ export function saveAiConfig(config) {
 }
 
 /**
+ * Shared helper to call Ollama API with automatic CORS proxy fallback
+ */
+async function fetchOllamaApi(subpath, options = {}, preferredEndpoint = DEFAULT_AI_CONFIG.endpoint) {
+  const cleanEndpoint = (preferredEndpoint || DEFAULT_AI_CONFIG.endpoint).replace(/\/+$/, "");
+  const normalizedPath = subpath.startsWith("/") ? subpath : "/" + subpath;
+
+  const candidates = [
+    `/api/ollama${normalizedPath}`,
+    `${cleanEndpoint}${normalizedPath}`
+  ];
+
+  const uniqueCandidates = [...new Set(candidates)];
+  let lastError = null;
+
+  for (const url of uniqueCandidates) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) {
+        return res;
+      }
+      lastError = new Error(`HTTP ${res.status}: ${res.statusText}`);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error("Failed to reach Ollama API");
+}
+
+/**
  * Tests connection to the local Ollama instance
  * @param {string} endpoint - e.g. "http://localhost:11434"
  * @param {string} model - e.g. "qwen2.5-coder:1.5b"
  * @returns {Promise<{ ok: boolean, error?: string, models?: string[] }>}
  */
 export async function testOllamaConnection(endpoint = DEFAULT_AI_CONFIG.endpoint, model = DEFAULT_AI_CONFIG.model) {
-  const cleanEndpoint = (endpoint || DEFAULT_AI_CONFIG.endpoint).replace(/\/+$/, "");
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-    const res = await fetch(`${cleanEndpoint}/api/tags`, {
+    const res = await fetchOllamaApi("/api/tags", {
       method: "GET",
       signal: controller.signal
-    });
+    }, endpoint);
     clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      return { ok: false, error: `Ollama returned status ${res.status} (${res.statusText})` };
-    }
 
     const data = await res.json();
     const modelList = (data.models || []).map(m => m.name);
@@ -73,7 +98,7 @@ export async function testOllamaConnection(endpoint = DEFAULT_AI_CONFIG.endpoint
     if (err.name === "AbortError") {
       errorMsg = "Connection timed out (Ollama not responding on port 11434)";
     } else if (errorMsg.includes("Failed to fetch") || errorMsg.includes("NetworkError")) {
-      errorMsg = "Cannot connect to Ollama. Make sure Ollama is running and CORS is enabled with OLLAMA_ORIGINS=\"*\"";
+      errorMsg = "Cannot connect to Ollama. Make sure Ollama is running (`ollama serve`).";
     }
     return { ok: false, error: errorMsg };
   }
@@ -183,17 +208,13 @@ CRITICAL: You MUST respond ONLY with a valid JSON object matching this schema. N
   const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   try {
-    const res = await fetch(`${endpoint}/api/chat`, {
+    const res = await fetchOllamaApi("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       signal: controller.signal
-    });
+    }, endpoint);
     clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      throw new Error(`Ollama API error: HTTP ${res.status} ${res.statusText}`);
-    }
 
     const data = await res.json();
     const content = (data.message?.content || "").trim();
@@ -308,17 +329,13 @@ Rules: Be concise, cite exact player names and goal tallies from data, and focus
   const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   try {
-    const res = await fetch(`${endpoint}/api/chat`, {
+    const res = await fetchOllamaApi("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       signal: controller.signal
-    });
+    }, endpoint);
     clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      throw new Error(`Ollama API error: HTTP ${res.status} ${res.statusText}`);
-    }
 
     const data = await res.json();
     const content = (data.message?.content || "").trim();
@@ -437,17 +454,13 @@ Respond with pure JSON matching this exact schema:
   const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   try {
-    const res = await fetch(`${endpoint}/api/chat`, {
+    const res = await fetchOllamaApi("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       signal: controller.signal
-    });
+    }, endpoint);
     clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      throw new Error(`Ollama API error: HTTP ${res.status} ${res.statusText}`);
-    }
 
     const data = await res.json();
     const rawContent = (data.message?.content || "").trim();
