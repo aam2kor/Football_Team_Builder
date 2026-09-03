@@ -188,9 +188,8 @@ async function fetchFromApiAndCache(forceRefresh = false) {
       }
     ];
 
-    return { matches: fallbackMatches, source: "fallback", error: err.message };
+    return { matches: fallbackMatches, source: "fallback", error: lastError?.message || "" };
   }
-}
 
 /**
  * Computes Head-to-Head statistical summary between Voyagers and Boots & Beers.

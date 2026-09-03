@@ -50,7 +50,12 @@ export class PlayerDatabase {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        this.players = JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          this.players = parsed;
+        } else {
+          this.resetToDefaults();
+        }
       } else {
         this.resetToDefaults();
       }
