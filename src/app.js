@@ -502,6 +502,11 @@ async function handleGenerateLeagueInsights() {
           <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider">🔮 Next Matchday Prediction</span>
           <p class="text-xs leading-relaxed text-slate-200 italic">"${insights.prediction}"</p>
         </div>
+
+        <!-- 6. Provider Model Attribution -->
+        <div class="text-right text-[10px] text-slate-500 font-mono">
+          ⚡ Analyzed with ${state.aiConfig.provider === 'gemini' ? `Google Gemini (${state.aiConfig.geminiModel || 'gemini-2.5-flash'})` : `Local Ollama (${state.aiConfig.model})`}
+        </div>
       `;
       contentEl.classList.remove("hidden");
     }
@@ -716,7 +721,8 @@ async function handleBuildAiTeams() {
   if (btnIcon) btnIcon.textContent = "⏳";
   if (btnText) btnText.textContent = "AI Coach Analyzing...";
 
-  showToast(`🤖 Consulting AI Coach (${state.aiConfig.model})...`, "info");
+  const activeModelName = state.aiConfig.provider === "gemini" ? (state.aiConfig.geminiModel || "gemini-2.5-flash") : state.aiConfig.model;
+  showToast(`🤖 Consulting AI Coach (${activeModelName})...`, "info");
 
   try {
     const activeLeagueSummary = formatLeagueSummaryForAi(state.leagueMatches, selected);
@@ -812,7 +818,8 @@ async function handleRefineDraftWithAi() {
   if (btnIcon) btnIcon.textContent = "⏳";
   if (btnText) btnText.textContent = "AI Reviewing Draft...";
 
-  showToast(`🔍 AI Coach reviewing mathematical draft (${state.aiConfig.model})...`, "info");
+  const activeModelName = state.aiConfig.provider === "gemini" ? (state.aiConfig.geminiModel || "gemini-2.5-flash") : state.aiConfig.model;
+  showToast(`🔍 AI Coach reviewing mathematical draft (${activeModelName})...`, "info");
 
   try {
     const statsA = calculateTeamStats(state.activeTeamA, state.matchdaySettings, state.sectorWeights, true);
