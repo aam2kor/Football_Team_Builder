@@ -1329,20 +1329,8 @@ function renderGeneratorView() {
               </div>
             </div>
 
-          </div>
-
-          <!-- 6-Attribute Micro Ribbon -->
-          <div class="grid grid-cols-6 gap-1 p-2 bg-slate-950/70 rounded-xl border border-slate-800/80 text-center font-mono">
-            <div><div class="text-[9px] text-slate-400 font-bold">PAC</div><div class="text-[11px] font-black text-slate-200">${a.pac}</div></div>
-            <div><div class="text-[9px] text-slate-400 font-bold">SHO</div><div class="text-[11px] font-black text-slate-200">${a.sho}</div></div>
-            <div><div class="text-[9px] text-slate-400 font-bold">PAS</div><div class="text-[11px] font-black text-slate-200">${a.pas}</div></div>
-            <div><div class="text-[9px] text-slate-400 font-bold">DRI</div><div class="text-[11px] font-black text-slate-200">${a.dri}</div></div>
-            <div><div class="text-[9px] text-slate-400 font-bold">DEF</div><div class="text-[11px] font-black text-slate-200">${a.def}</div></div>
-            <div><div class="text-[9px] text-slate-400 font-bold">PHY</div><div class="text-[11px] font-black text-slate-200">${a.phy}</div></div>
-          </div>
-
           <!-- Bottom: Matchday Fitness Slider -->
-          <div class="pt-2 border-t border-slate-800/70">
+          <div class="pt-2.5 border-t border-slate-800/70">
             <div class="flex items-center justify-between text-[11px] text-slate-400 font-semibold mb-1.5">
               <span class="flex items-center gap-1.5">
                 <span>🔋 Matchday Fitness:</span>
