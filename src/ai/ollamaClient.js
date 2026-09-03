@@ -1,4 +1,4 @@
-import { testGeminiConnection, queryGeminiCoach, queryGeminiLeagueInsights, refineDraftWithGemini, GEMINI_DEFAULT_MODEL } from "./geminiClient.js";
+import { testGeminiConnection, queryGeminiCoach, queryGeminiLeagueInsights, refineDraftWithGemini, formatSectorWeightsExplanation, GEMINI_DEFAULT_MODEL } from "./geminiClient.js";
 
 export const DEFAULT_AI_CONFIG = {
   provider: "ollama", // "ollama" | "gemini"
@@ -184,15 +184,13 @@ async function queryOllamaCoach(userPrompt, players, context = {}, aiConfig = DE
     return `• ${p.name} [${p.position} | OVR:${p.ovr} | PAC:${a.pac || 70} SHO:${a.sho || 70} PAS:${a.pas || 70} DRI:${a.dri || 70} DEF:${a.def || 70} PHY:${a.phy || 70}]`;
   }).join("\n");
 
+  const sectorExplanation = formatSectorWeightsExplanation(context.sectorWeights);
+
   const systemPrompt = `You are an elite football tactical coach. Analyze the user's instructions and player pool for an 8v8 match between ${teamAName} and ${teamBName}.
 Available Players:
 ${detailedRoster}
 
-SECTOR POTENTIAL CALCULATION ENGINE:
-- Attack: 45% SHO + 30% DRI + 25% PAC (FWD 1.4x, MID 1.0x, DEF/GK 0.5x).
-- Midfield: 40% PAS + 30% DRI + 15% DEF + 15% PAC (MID 1.4x, FWD 1.0x, DEF/GK 0.7x).
-- Defense (incl GK): 65% Outfield (55% DEF + 30% PHY + 15% PAC, DEF 1.4x) + 35% Top GK reflex/handling.
-- Overall OVR: Mean player effective rating + Chemistry Synergy (+1.5 OVR per verified chemistry duo link).
+${sectorExplanation}
 
 Rules:
 1. Pinned players: assign specific players to "${teamAName}" or "${teamBName}" ONLY if the user explicitly requested it or implied it strongly.
@@ -429,14 +427,7 @@ CURRENT CALCULATED TEAM POTENTIALS:
 - [${teamBName}]: Effective OVR: ${statsB.avgOvr} | ⚔️ Attack: ${statsB.attack} | ⚙️ Midfield: ${statsB.midfield} | 🛡️ Defense (incl GK): ${statsB.defense} (Best GK: ${statsB.goalkeeping}, Chemistry Boost: +${statsB.synergyBoost || 0} OVR)
 ` : "";
 
-  const sectorExplanation = `SECTOR POTENTIAL CALCULATION METHODOLOGY:
-- Attack: 45% SHO + 30% DRI + 25% PAC (FWD 1.4x, MID 1.0x, DEF/GK 0.5x), scaled by matchday fitness & form.
-- Midfield: 40% PAS + 30% DRI + 15% DEF + 15% PAC (MID 1.4x, FWD 1.0x, DEF/GK 0.7x).
-- Defense (incl GK): 65% Outfield (55% DEF + 30% PHY + 15% PAC, DEF 1.4x) + 35% Designated Goalkeeper attribute.
-- Overall (OVR): Mean player effective OVR + Chemistry Synergy (+1.5 OVR per verified chemistry duo link).
-
-TACTICAL AUTONOMY:
-Decide which sector(s) to optimize, balance, or rebalance based on the user's directive using these formulas.`;
+  const sectorExplanation = formatSectorWeightsExplanation(context.sectorWeights);
 
   const systemPrompt = `You are an elite football tactical coach refining an active 8v8 match draft.
 

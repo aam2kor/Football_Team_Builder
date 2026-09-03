@@ -103,12 +103,42 @@ export async function testGeminiConnection(apiKey = "", model = GEMINI_DEFAULT_M
 }
 
 /**
+ * Generates dynamic text explaining the sector potential calculation rules based on active slider settings
+ */
+export function formatSectorWeightsExplanation(weights) {
+  const sw = weights || {
+    attack: { attributes: { sho: 0.45, dri: 0.30, pac: 0.25 }, positions: { FWD: 1.4, MID: 1.0, DEF: 0.5, GK: 0.5 } },
+    midfield: { attributes: { pas: 0.40, dri: 0.30, def: 0.15, pac: 0.15 }, positions: { MID: 1.4, FWD: 1.0, DEF: 0.7, GK: 0.7 } },
+    defense: { attributes: { def: 0.55, phy: 0.30, pac: 0.15 }, positions: { DEF: 1.4, MID: 0.9, FWD: 0.5, GK: 0.5 }, gkBlend: 0.35 }
+  };
+
+  const formatAttrs = (attrs = {}) => {
+    return Object.entries(attrs)
+      .filter(([_, val]) => val > 0)
+      .map(([k, val]) => `${Math.round(val * 100)}% ${k.toUpperCase()}`)
+      .join(" + ") || "Balanced attributes";
+  };
+
+  const attStr = formatAttrs(sw.attack?.attributes);
+  const midStr = formatAttrs(sw.midfield?.attributes);
+  const defStr = formatAttrs(sw.defense?.attributes);
+  const gkBlendPct = Math.round((sw.defense?.gkBlend ?? 0.35) * 100);
+  const outfieldPct = 100 - gkBlendPct;
+
+  return `ACTIVE SECTOR POTENTIAL CALCULATION RULES (from user's active sliders):
+1. ATTACK POTENTIAL: ${attStr} (Positional multipliers: FWD ${sw.attack?.positions?.FWD || 1.4}x, MID ${sw.attack?.positions?.MID || 1.0}x, DEF ${sw.attack?.positions?.DEF || 0.5}x), scaled by matchday fitness & form.
+2. MIDFIELD POTENTIAL: ${midStr} (Positional multipliers: MID ${sw.midfield?.positions?.MID || 1.4}x, FWD ${sw.midfield?.positions?.FWD || 1.0}x, DEF ${sw.midfield?.positions?.DEF || 0.7}x).
+3. DEFENSE POTENTIAL: ${outfieldPct}% Outfield Defense (${defStr}, DEF ${sw.defense?.positions?.DEF || 1.4}x) + ${gkBlendPct}% Best Goalkeeper (max GK reflex/handling attribute).
+4. OVERALL POTENTIAL (OVR): Mean squad effective OVR (fitness & form scaled) + Chemistry Synergy (+1.5 OVR per verified duo link).`;
+}
+
+/**
  * Sends natural language coach instructions to Google Gemini
  * and returns structured constraints & tactical briefing.
  * 
  * @param {string} userPrompt
  * @param {Array}  players - Selected players for the match
- * @param {Object} context - { teamAName, teamBName, targetTeamSize }
+ * @param {Object} context - { teamAName, teamBName, targetTeamSize, sectorWeights, matchdaySettings }
  * @param {Object} aiConfig - { geminiApiKey, geminiModel }
  * @returns {Promise<{ constraints: Object, coachBriefing: string, raw: Object }>}
  */
@@ -123,6 +153,8 @@ export async function queryGeminiCoach(userPrompt, players, context = {}, aiConf
     return `  - ${p.name} (ID: "${p.id}", Pos: ${p.position}, OVR: ${p.ovr}, PAC: ${a.pac || 70}, SHO: ${a.sho || 70}, PAS: ${a.pas || 70}, DRI: ${a.dri || 70}, DEF: ${a.def || 70}, PHY: ${a.phy || 70}, GK: ${a.gk || 20})`;
   }).join("\n");
 
+  const sectorExplanation = formatSectorWeightsExplanation(context.sectorWeights);
+
   const systemInstruction = `You are an elite football tactical coach and matchmaker.
 Your task is to interpret the user's natural language squad instructions and convert them into structured balancing constraints and a pre-match tactical briefing.
 
@@ -131,11 +163,7 @@ ${detailedRoster}
 ${context.leagueSummary ? `\nRecent League & Derby Context:\n${context.leagueSummary}\n` : ""}
 Teams Playing: Team A ("${teamAName}") vs Team B ("${teamBName}")
 
-SECTOR POTENTIAL CALCULATION ENGINE:
-- Attack Potential: 45% SHO + 30% DRI + 25% PAC (FWD: 1.4x, MID: 1.0x, DEF/GK: 0.5x).
-- Midfield Potential: 40% PAS + 30% DRI + 15% DEF + 15% PAC (MID: 1.4x, FWD: 1.0x, DEF/GK: 0.7x).
-- Defense Potential (incl GK): 65% Outfield (55% DEF + 30% PHY + 15% PAC, DEF 1.4x) + 35% Top GK reflex/handling.
-- Overall OVR: Mean effective rating + Chemistry Synergy (+1.5 OVR per verified chemistry duo link).
+${sectorExplanation}
 
 Output Rules:
 1. Extract pinned players for Team A ("${teamAName}") and Team B ("${teamBName}").
@@ -340,26 +368,7 @@ CURRENT CALCULATED TEAM POTENTIALS & BALANCE:
 - Sector Deltas: OVR Δ ${Math.abs(context.statsA.avgOvr - context.statsB.avgOvr).toFixed(1)} | ATT Δ ${Math.abs(context.statsA.attack - context.statsB.attack)} | MID Δ ${Math.abs(context.statsA.midfield - context.statsB.midfield)} | DEF Δ ${Math.abs(context.statsA.defense - context.statsB.defense)}
 ` : "";
 
-  const sectorExplanation = `SECTOR POTENTIAL CALCULATION METHODOLOGY:
-1. ATTACK POTENTIAL (0-99):
-   - Attributes: 45% Shooting (SHO) + 30% Dribbling (DRI) + 25% Pace (PAC), zero weight on DEF/PHY.
-   - Positional Multipliers: Forwards (1.4x), Midfielders (1.0x), Defenders (0.5x), Goalkeepers (0.5x).
-   - Scaled by matchday fitness (0-100%) and form modifiers (🔥 +4 OVR/1.08x to ❄️ -4 OVR/0.92x).
-
-2. MIDFIELD POTENTIAL (0-99):
-   - Attributes: 40% Passing (PAS) + 30% Dribbling (DRI) + 15% Defense (DEF) + 15% Pace (PAC).
-   - Positional Multipliers: Midfielders (1.4x), Forwards (1.0x), Defenders (0.7x), Goalkeepers (0.7x).
-   - Measures ball distribution, possession security, and transition control.
-
-3. DEFENSE POTENTIAL (0-99, including GK):
-   - Outfield Defense: 55% Defense (DEF) + 30% Physicality (PHY) + 15% Pace (PAC) with Defenders (1.4x), Midfielders (0.9x), Forwards (0.5x).
-   - Goalkeeper Integration: Blends 65% Outfield Defense + 35% Top Goalkeeper rating (max GK attribute in squad).
-
-4. OVERALL POTENTIAL (OVR):
-   - Mean effective player rating + Chemistry Synergy (+1.5 OVR per verified chemistry duo link).
-
-TACTICAL DECISION-MAKING:
-Use the sector calculation formulas above to intelligently decide which sector(s) to optimize, balance, or tactically rebalance to fulfill the user's directive.`;
+  const sectorExplanation = formatSectorWeightsExplanation(context.sectorWeights);
 
   const prompt = `You are an elite football tactical coach refining an active 8v8 match draft.
 

@@ -759,6 +759,8 @@ async function handleBuildAiTeams() {
       teamAName: state.teamAName,
       teamBName: state.teamBName,
       targetTeamSize: state.targetTeamSize,
+      sectorWeights: state.sectorWeights,
+      matchdaySettings: state.matchdaySettings,
       leagueSummary: activeLeagueSummary
     }, state.aiConfig);
 
@@ -862,6 +864,8 @@ async function handleRefineDraftWithAi() {
       teamBName: state.teamBName,
       statsA,
       statsB,
+      sectorWeights: state.sectorWeights,
+      matchdaySettings: state.matchdaySettings,
       leagueSummary: activeLeagueSummary
     }, state.aiConfig);
 
