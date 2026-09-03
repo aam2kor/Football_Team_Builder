@@ -32,72 +32,107 @@ export async function fetchLeagueMatches(forceRefresh = false) {
 }
 
 async function fetchFromApiAndCache() {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+  const endpointsToTry = [
+    "/api/matches",
+    "/api/public/matches",
+    LEAGUE_API_URL
+  ];
 
-    const res = await fetch(LEAGUE_API_URL, {
-      method: "GET",
-      headers: { "Accept": "application/json" },
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
+  let lastError = null;
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    }
-
-    const data = await res.json();
-    const matches = Array.isArray(data.matches) ? data.matches : [];
-
-    if (matches.length > 0) {
-      try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ matches, fetchedAt: Date.now() }));
-      } catch (e) {
-        console.warn("Failed to write matches to localStorage:", e);
-      }
-    }
-
-    return { matches, source: "api" };
-  } catch (err) {
-    console.warn("Failed to fetch matches from live API, trying cache fallback:", err);
+  for (const endpoint of endpointsToTry) {
     try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed?.matches) {
-          return { matches: parsed.matches, source: "cache", error: err.message };
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      const res = await fetch(endpoint, {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        const matches = Array.isArray(data.matches) ? data.matches : [];
+
+        if (matches.length > 0) {
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({ matches, fetchedAt: Date.now() }));
+          } catch (e) {
+            console.warn("Failed to write matches to localStorage:", e);
+          }
+          return { matches, source: endpoint.startsWith("/api") ? "proxy" : "api" };
         }
       }
-    } catch (e) {}
+    } catch (err) {
+      lastError = err;
+    }
+  }
 
-    // Hardcoded fallback data matching the live API format
-    const fallbackMatches = [
-      {
-        match_date: "2026-08-30",
-        season: 2026,
-        teams: [
-          {
-            team: "voyagers",
-            members: ["Anoop", "Mathai", "Pradeep", "Prasanth", "Rajeev", "Ratheesh", "Sanjay", "Vignesh"],
-            score: 3,
-            scorers: [
-              { name: "Rajeev", goals: 1, is_own_goal: false },
-              { name: "Sanjay", goals: 1, is_own_goal: false },
-              { name: "Mathai", goals: 1, is_own_goal: false }
-            ]
-          },
-          {
-            team: "bootsandbeers",
-            members: ["Aadi", "Abey", "Ajith", "Akash", "Anup", "Sreekanth", "Tom", "Vinay"],
-            score: 2,
-            scorers: [
-              { name: "Aadi", goals: 1, is_own_goal: false },
-              { name: "Sreekanth", goals: 1, is_own_goal: false }
-            ]
-          }
-        ]
-      },
+  console.warn("Failed to fetch matches from live API/proxy, trying cache fallback:", lastError);
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed?.matches) {
+        return { matches: parsed.matches, source: "cache", error: lastError?.message };
+      }
+    }
+  } catch (e) {}
+
+  // Hardcoded fallback data matching the live API format (4 matches up to Sept 2026)
+  const fallbackMatches = [
+    {
+      match_date: "2026-09-02",
+      season: 2026,
+      teams: [
+        {
+          team: "voyagers",
+          members: ["Abey", "Arun", "Jibin", "Mathai", "Pradeep", "Ratheesh", "Varun", "Vignesh"],
+          score: 2,
+          scorers: [
+            { name: "Arun", goals: 1, is_own_goal: false },
+            { name: "Varun", goals: 1, is_own_goal: false }
+          ]
+        },
+        {
+          team: "bootsandbeers",
+          members: ["Ajith", "Akash", "Anoop", "Blesson", "Prasanth", "Rajeev", "Sreekanth", "Vinay"],
+          score: 3,
+          scorers: [
+            { name: "Sreekanth", goals: 1, is_own_goal: false },
+            { name: "Vinay", goals: 1, is_own_goal: false },
+            { name: "Akash", goals: 1, is_own_goal: false }
+          ]
+        }
+      ]
+    },
+    {
+      match_date: "2026-08-30",
+      season: 2026,
+      teams: [
+        {
+          team: "voyagers",
+          members: ["Anoop", "Mathai", "Pradeep", "Prasanth", "Rajeev", "Ratheesh", "Sanjay", "Vignesh"],
+          score: 3,
+          scorers: [
+            { name: "Rajeev", goals: 1, is_own_goal: false },
+            { name: "Sanjay", goals: 1, is_own_goal: false },
+            { name: "Mathai", goals: 1, is_own_goal: false }
+          ]
+        },
+        {
+          team: "bootsandbeers",
+          members: ["Aadi", "Abey", "Ajith", "Akash", "Anup", "Sreekanth", "Tom", "Vinay"],
+          score: 2,
+          scorers: [
+            { name: "Aadi", goals: 1, is_own_goal: false },
+            { name: "Sreekanth", goals: 1, is_own_goal: false }
+          ]
+        }
+      ]
+    },
       {
         match_date: "2026-08-26",
         season: 2026,
