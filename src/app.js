@@ -361,6 +361,14 @@ async function openLeagueInsightsModal() {
   if (!modal) return;
   modal.classList.remove("hidden");
 
+  // Update dynamic powered-by header label
+  const isGemini = state.aiConfig.provider === "gemini";
+  const modelName = isGemini ? (state.aiConfig.geminiModel || "gemini-3.6-flash") : state.aiConfig.model;
+  const poweredByEl = document.getElementById("league-insights-powered-by");
+  if (poweredByEl) {
+    poweredByEl.textContent = `Powered by ${isGemini ? 'Google Gemini' : 'Ollama'} (${modelName})`;
+  }
+
   const contentEl = document.getElementById("league-insights-content");
   if (!contentEl || contentEl.innerHTML.trim() === "") {
     handleGenerateLeagueInsights();
@@ -371,6 +379,18 @@ async function handleGenerateLeagueInsights() {
   const loadingEl = document.getElementById("league-insights-loading");
   const contentEl = document.getElementById("league-insights-content");
   const refreshBtn = document.getElementById("btn-refresh-league-insights");
+  const poweredByEl = document.getElementById("league-insights-powered-by");
+  const loadingTextEl = document.getElementById("league-insights-loading-text");
+
+  const isGemini = state.aiConfig.provider === "gemini";
+  const modelName = isGemini ? (state.aiConfig.geminiModel || "gemini-3.6-flash") : state.aiConfig.model;
+
+  if (poweredByEl) {
+    poweredByEl.textContent = `Powered by ${isGemini ? 'Google Gemini' : 'Ollama'} (${modelName})`;
+  }
+  if (loadingTextEl) {
+    loadingTextEl.textContent = `Analyzing historical match data with ${isGemini ? `Google Gemini (${modelName})` : `local Ollama (${modelName})`}...`;
+  }
 
   if (loadingEl) loadingEl.classList.remove("hidden");
   if (contentEl) contentEl.classList.add("hidden");
