@@ -535,11 +535,17 @@ async function handleGenerateLeagueInsights() {
     }
   } catch (err) {
     if (contentEl) {
+      const isGemini = state.aiConfig.provider === "gemini";
+      const modelName = isGemini ? (state.aiConfig.geminiModel || "gemini-3.6-flash") : state.aiConfig.model;
       contentEl.innerHTML = `
         <div class="p-4 rounded-xl bg-red-950/60 border border-red-500/50 text-red-300 space-y-2">
           <p class="font-bold">Could not generate AI insights:</p>
           <p class="text-xs font-mono">${err.message}</p>
-          <p class="text-[11px] text-slate-400">Make sure Ollama is running and qwen2.5-coder:1.5b is available.</p>
+          <p class="text-[11px] text-slate-400">
+            ${isGemini 
+              ? `Check your internet connection and verify that your Gemini API key in ⚙️ AI Settings is valid and has not exceeded quota.`
+              : `Make sure local Ollama is running (\`ollama serve\`) and '${modelName}' is installed.`}
+          </p>
         </div>
       `;
       contentEl.classList.remove("hidden");
