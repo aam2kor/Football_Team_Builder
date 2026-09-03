@@ -336,17 +336,35 @@ export function computeTopWinningChemistries(matches = []) {
 }
 
 /**
- * Computes Top Win Rate Players.
+ * Computes Top Win Rate Players ranked by Bayesian Average (taking into account both win rate and matches played).
+ * Bayesian Rating = (C * globalAveragePoints + playerPoints) / (C + playerMatches)
+ * where points = wins + 0.5 * draws, and C is the prior confidence weight (default 2).
+ *
  * @param {Array} matches
  * @param {number} topN
- * @returns {Array}
+ * @param {number} C
+ * @returns {Array<{ name: string, matches: number, wins: number, draws: number, losses: number, winRate: number, bayesianScore: number }>}
  */
-export function computeTopWinRatePlayers(matches = [], topN = 3) {
+export function computeTopWinRatePlayers(matches = [], topN = 3, C = 2) {
   const stats = computePlayerLeagueStats(matches);
-  return Object.values(stats)
+  const playerList = Object.values(stats);
+  if (playerList.length === 0) return [];
+
+  const totalPoints = playerList.reduce((sum, p) => sum + p.wins + 0.5 * p.draws, 0);
+  const totalMatches = playerList.reduce((sum, p) => sum + p.matches, 0);
+  const globalAvg = totalMatches > 0 ? (totalPoints / totalMatches) : 0.5;
+
+  playerList.forEach(p => {
+    const pts = p.wins + 0.5 * p.draws;
+    p.bayesianScore = (C * globalAvg + pts) / (C + p.matches);
+  });
+
+  return playerList
     .sort((a, b) => {
+      if (Math.abs(b.bayesianScore - a.bayesianScore) > 0.001) {
+        return b.bayesianScore - a.bayesianScore;
+      }
       if (b.wins !== a.wins) return b.wins - a.wins;
-      if (b.winRate !== a.winRate) return b.winRate - a.winRate;
       return b.matches - a.matches;
     })
     .slice(0, topN);

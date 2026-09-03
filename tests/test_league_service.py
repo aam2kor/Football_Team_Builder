@@ -182,15 +182,25 @@ def test_player_stats():
   print(f"[x] Abey record: {p_stats['Abey']['played']} matches played across fixtures.")
 
 def test_top_winners_and_losers():
-  print("--- Testing Top Consistent Winners & Losers ---")
+  print("--- Testing Top Consistent Winners & Losers (Bayesian Average) ---")
   p_stats = compute_player_win_rates(SAMPLE_API_RESPONSE["matches"])
-  winners = sorted(p_stats.items(), key=lambda x: (x[1]["wins"], -x[1]["losses"]), reverse=True)[:3]
-  losers = sorted(p_stats.items(), key=lambda x: (x[1]["losses"], -x[1]["wins"]), reverse=True)[:3]
+  
+  total_pts = sum(p["wins"] + 0.5 * p["draws"] for p in p_stats.values())
+  total_matches = sum(p["played"] for p in p_stats.values())
+  global_avg = total_pts / total_matches
+  C = 2.0
+  for name, p in p_stats.items():
+    pts = p["wins"] + 0.5 * p["draws"]
+    p["bayesianScore"] = (C * global_avg + pts) / (C + p["played"])
 
-  winner_names = [w[0] for w in winners]
-  loser_names = [l[0] for l in losers]
+  ranked_winners = sorted(p_stats.items(), key=lambda x: (x[1]["bayesianScore"], x[1]["wins"], x[1]["played"]), reverse=True)[:3]
+  ranked_losers = sorted(p_stats.items(), key=lambda x: (x[1]["losses"], -x[1]["wins"]), reverse=True)[:3]
 
-  print(f"[x] Top Winners: {', '.join(winner_names)}")
+  winner_names = [w[0] for w in ranked_winners]
+  loser_names = [l[0] for l in ranked_losers]
+
+  winner_strs = [f"{w[0]} ({w[1]['wins']}W/{w[1]['played']}M, {w[1]['bayesianScore']:.2f} Bayes)" for w in ranked_winners]
+  print(f"[x] Top Winners (Bayesian Average): {', '.join(winner_strs)}")
   print(f"[x] Top Underdogs/Losers: {', '.join(loser_names)}")
 
 def test_top_goal_scorers():

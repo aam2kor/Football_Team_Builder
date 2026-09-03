@@ -318,27 +318,27 @@ async function queryOllamaLeagueInsights(matches = [], aiConfig = DEFAULT_AI_CON
 Match & Scorers History:
 ${matchSummary}
 
-Provide a concise, specific tactical breakdown.
+Provide a concise, specific tactical breakdown and fun fact.
 Respond with pure JSON matching this exact schema:
 {
   "headline": "Punchy 1-line headline summarizing the rivalry status",
-  "scorersTakeaway": "1-2 sentences on top 3 goal scorers (Vinay with 6 goals, Sreekanth with 4 goals, CP with 4 goals) and their finishing impact",
+  "scorersTakeaway": "1-2 sentences on top 3 goal scorers (Vinay with 7 goals, Sreekanth with 5 goals, CP with 4 goals) and their finishing impact",
   "winnersTakeaway": "1-2 sentences on top 3 consistent winners (Anoop, Mathai, Sanjay) and how their presence wins games",
   "losersTakeaway": "1-2 sentences on top 3 consistent losers (Ajith, Akash, Anup) with practical tactical advice on how to secure a win",
-  "prediction": "1-sentence score prediction for the next derby"
+  "funFact": "1-2 sentences with an entertaining or surprising fun fact based on the historical match statistics"
 }
-Rules: Be concise, cite exact player names and goal tallies from data, and focus on practical tactics.`;
+Rules: Be concise, cite exact player names and goal tallies from data, and focus on practical tactics and engaging trivia.`;
 
   const payload = {
     model: model,
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Analyze top scorers, consistent winners, consistent losers, and next match keys." }
+      { role: "user", content: "Analyze top scorers, consistent winners, consistent losers, and share an engaging matchday fun fact." }
     ],
     stream: false,
     format: "json",
     options: {
-      temperature: 0.1,
+      temperature: 0.15,
       num_predict: 350,
       num_ctx: 1024
     }
@@ -372,20 +372,20 @@ Rules: Be concise, cite exact player names and goal tallies from data, and focus
       } else {
         parsed = {
           headline: "Third Half United League Analysis",
-          scorersTakeaway: "Vinay (6G), Sreekanth (4G), and CP (4G) have provided lethal finishing across high-scoring fixtures.",
+          scorersTakeaway: "Vinay (7G), Sreekanth (5G), and CP (4G) have provided lethal finishing across high-scoring fixtures.",
           winnersTakeaway: "Anoop, Mathai, and Sanjay have provided consistent match-winning cohesion for their sides.",
           losersTakeaway: "Ajith, Akash, and Anup need tighter midfield compactness and quicker defensive transitions.",
-          prediction: "A fierce contest expected in the upcoming clash."
+          funFact: "Across all 4 fixtures this season, 32 goals have been scored at an average of 8.0 goals per match!"
         };
       }
     }
 
     return {
       headline: parsed.headline || "Third Half United Derby Dynamics",
-      scorersTakeaway: parsed.scorersTakeaway || "Vinay (6G), Sreekanth (4G), and CP (4G) lead the scoring charts with clinical finishing.",
+      scorersTakeaway: parsed.scorersTakeaway || "Vinay (7G), Sreekanth (5G), and CP (4G) lead the scoring charts with clinical finishing.",
       winnersTakeaway: parsed.winnersTakeaway || "Anoop, Mathai, and Sanjay have maintained undefeated winning runs through strong midfield control.",
       losersTakeaway: parsed.losersTakeaway || "Ajith, Akash, and Anup must improve defensive discipline and counter-attack finishing to break the streak.",
-      prediction: parsed.prediction || "Both teams will aim for tactical balance and quick transitions."
+      funFact: parsed.funFact || parsed.prediction || "Across all 4 fixtures this season, 32 goals have been scored at an average of 8.0 goals per match!"
     };
   } catch (err) {
     clearTimeout(timeoutId);

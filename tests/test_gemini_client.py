@@ -47,9 +47,9 @@ class TestGeminiIntegration(unittest.TestCase):
             "scorersTakeaway": "Vinay leads all players with 7 goals across 4 games.",
             "winnersTakeaway": "Mathai and Anoop boast top win rates.",
             "losersTakeaway": "Defensive compactness required on transitional turnovers.",
-            "prediction": "A high scoring thriller with over 5 goals expected."
+            "funFact": "Across all 4 fixtures this season, 32 goals have been scored at an average of 8.0 goals per match!"
         }
-        for key in ["headline", "scorersTakeaway", "winnersTakeaway", "losersTakeaway", "prediction"]:
+        for key in ["headline", "scorersTakeaway", "winnersTakeaway", "losersTakeaway", "funFact"]:
             self.assertIn(key, mock_insights_response)
             self.assertTrue(len(mock_insights_response[key]) > 0)
 

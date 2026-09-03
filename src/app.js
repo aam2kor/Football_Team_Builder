@@ -434,19 +434,19 @@ async function handleGenerateLeagueInsights() {
             </div>
           </div>
 
-          <!-- Top 3 Consistent Winners -->
+          <!-- Top 3 Consistent Winners (Bayesian Average) -->
           <div class="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-2">
             <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
               <span class="text-[11px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                <span>🏆</span>
-                <span>Top 3 Winners</span>
+                <span>👑</span>
+                <span>Top 3 Winners (Bayesian Avg)</span>
               </span>
             </div>
             <div class="space-y-1.5">
               ${topWinners.map((p, idx) => `
                 <div class="flex items-center justify-between text-[11px]">
                   <span class="font-bold text-slate-200">#${idx + 1} ${p.name}</span>
-                  <span class="font-mono text-emerald-300 font-bold">${p.wins}W <span class="text-[10px] text-slate-500">(${p.draws}D-${p.losses}L)</span></span>
+                  <span class="font-mono text-emerald-300 font-bold">${p.wins}W / ${p.matches}M <span class="text-[10px] text-slate-400 font-normal">(${Math.round(p.bayesianScore * 100)}% Bayes)</span></span>
                 </div>
               `).join("") || '<span class="text-slate-500">No data</span>'}
             </div>
@@ -517,10 +517,13 @@ async function handleGenerateLeagueInsights() {
           </div>
         </div>
 
-        <!-- 5. Next Matchday Prediction -->
-        <div class="p-3 rounded-xl bg-gradient-to-r from-purple-950/50 via-slate-900 to-indigo-950/50 border border-purple-500/30 space-y-1">
-          <span class="text-[10px] font-bold text-purple-300 uppercase tracking-wider">🔮 Next Matchday Prediction</span>
-          <p class="text-xs leading-relaxed text-slate-200 italic">"${insights.prediction}"</p>
+        <!-- 5. Matchday Fun Fact -->
+        <div class="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/60 via-slate-900 to-indigo-950/60 border border-amber-500/40 space-y-1">
+          <span class="text-[10px] font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+            <span>🎉</span>
+            <span>Matchday Fun Fact</span>
+          </span>
+          <p class="text-xs leading-relaxed text-slate-200 italic font-medium">"${insights.funFact || insights.prediction}"</p>
         </div>
 
         <!-- 6. Provider Model Attribution -->
