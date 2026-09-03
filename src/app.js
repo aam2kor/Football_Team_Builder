@@ -1260,44 +1260,50 @@ function renderGeneratorView() {
     const effective = getEffectivePlayerStats(player, mSetting);
     const cardClass = getFifaCardTierClass(effective.effectiveOvr);
     const formInfo = effective.formMod;
+    const a = effective.effectiveAttributes || player.attributes || { pac: 70, sho: 70, pas: 70, dri: 70, def: 70, phy: 70 };
 
     // Diff indicator
     const ovrDiff = effective.effectiveOvr - player.ovr;
-    const diffTag = ovrDiff > 0 ? `<span class="text-[10px] text-emerald-400 font-bold ml-1">(+${ovrDiff})</span>`
-      : ovrDiff < 0 ? `<span class="text-[10px] text-red-400 font-bold ml-1">(${ovrDiff})</span>`
+    const diffTag = ovrDiff > 0 ? `<span class="text-xs text-emerald-400 font-black ml-1.5 px-1.5 py-0.2 rounded bg-emerald-500/20 border border-emerald-500/40">(+${ovrDiff})</span>`
+      : ovrDiff < 0 ? `<span class="text-xs text-rose-400 font-black ml-1.5 px-1.5 py-0.2 rounded bg-rose-500/20 border border-rose-500/40">(${ovrDiff})</span>`
       : '';
 
     // Partner chips
     const partnerCount = (player.chemistryPartners || []).length;
 
     return `
-      <div class="relative p-3 rounded-2xl transition-all duration-200 border flex flex-col justify-between ${
+      <div class="relative p-4 sm:p-5 rounded-2xl transition-all duration-300 border flex flex-col justify-between ${
         isSelected
-          ? "bg-blue-950/40 border-blue-500 ring-2 ring-blue-500/40 shadow-lg shadow-blue-500/20"
-          : "glass-card border-slate-800/80 hover:border-slate-700"
+          ? "bg-gradient-to-b from-blue-950/80 via-slate-900/95 to-slate-950 border-blue-500/90 ring-2 ring-blue-500/50 shadow-2xl shadow-blue-500/20 scale-[1.01]"
+          : "glass-panel border-slate-800/90 hover:border-slate-600 hover:shadow-xl hover:shadow-slate-950/60"
       }" data-player-card-id="${player.id}">
         
-        <div>
+        <div class="space-y-3">
           <!-- Top Row: Card header, selection trigger & form -->
-          <div class="flex items-start justify-between gap-2">
+          <div class="flex items-start justify-between gap-3">
             
             <!-- Clickable Player Info to toggle selection -->
-            <div class="flex items-center gap-2.5 flex-1 cursor-pointer select-none" data-player-select-id="${player.id}">
-              <div class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-base ${cardClass} shadow-md flex-shrink-0">
+            <div class="flex items-center gap-3.5 flex-1 cursor-pointer select-none min-w-0" data-player-select-id="${player.id}">
+              <div class="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center font-black text-xl sm:text-2xl ${cardClass} shadow-lg shadow-black/40 flex-shrink-0 ring-2 ring-white/10">
                 ${effective.effectiveOvr}
               </div>
-              <div class="min-w-0">
-                <div class="flex items-center gap-1">
-                  <span class="text-xs font-black text-white truncate">${player.name}</span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-sm sm:text-base font-black text-white truncate tracking-tight hover:text-blue-300 transition-colors">${player.name}</span>
                   ${diffTag}
                 </div>
-                <div class="flex items-center gap-1 mt-0.5">
-                  <span class="px-1.5 py-0.2 rounded text-[9px] font-bold ${getPositionBadgeClass(player.position)}">
+                <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                  <span class="px-2 py-0.5 rounded-lg text-[10px] font-black tracking-wider uppercase shadow-sm ${getPositionBadgeClass(player.position)}">
                     ${player.position}
                   </span>
+                  ${player.secondaryPosition && player.secondaryPosition !== player.position ? `
+                    <span class="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-slate-800/90 text-slate-400 border border-slate-700/60">
+                      ${player.secondaryPosition}
+                    </span>
+                  ` : ''}
                   ${partnerCount > 0 ? `
-                    <span class="px-1 py-0.2 rounded text-[8px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30" title="Has ${partnerCount} chemistry duos">
-                      ⚡ ${partnerCount}
+                    <span class="px-2 py-0.5 rounded-lg text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 shadow-sm" title="Has ${partnerCount} chemistry duos">
+                      <span>⚡</span><span>${partnerCount}</span>
                     </span>
                   ` : ''}
                 </div>
@@ -1305,19 +1311,19 @@ function renderGeneratorView() {
             </div>
 
             <!-- Checkbox & Form Cycle Button -->
-            <div class="flex items-center gap-1.5 flex-shrink-0">
+            <div class="flex items-center gap-2 flex-shrink-0">
               <!-- Form toggle button -->
-              <button class="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs transition-all" title="Current Form: ${formInfo.label} (Click to change)" data-cycle-form-id="${player.id}">
-                ${formInfo.icon}
+              <button class="px-2 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-sm font-bold flex items-center gap-1 shadow-md hover:scale-105 transition-all" title="Current Form: ${formInfo.label} (Click to change)" data-cycle-form-id="${player.id}">
+                <span>${formInfo.icon}</span>
               </button>
 
               <!-- Checkbox -->
-              <div class="w-5 h-5 rounded-md flex items-center justify-center border cursor-pointer transition-all ${
+              <div class="w-7 h-7 rounded-xl flex items-center justify-center border cursor-pointer transition-all shadow-md ${
                 isSelected
-                  ? "bg-blue-600 border-blue-400 text-white"
-                  : "bg-slate-800/80 border-slate-600 text-transparent"
+                  ? "bg-blue-600 border-blue-400 text-white shadow-blue-500/40 scale-105"
+                  : "bg-slate-800/90 border-slate-600 text-transparent hover:border-slate-400"
               }" data-player-select-id="${player.id}">
-                <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20">
+                <svg class="w-4 h-4 fill-current stroke-current stroke-1" viewBox="0 0 20 20">
                   <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
                 </svg>
               </div>
@@ -1325,20 +1331,30 @@ function renderGeneratorView() {
 
           </div>
 
-          <!-- Bottom: Matchday Fitness Slider (Always accessible) -->
-          <div class="mt-2.5 pt-2 border-t border-slate-800/60">
-            <div class="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-1">
-              <span class="flex items-center gap-1">
+          <!-- 6-Attribute Micro Ribbon -->
+          <div class="grid grid-cols-6 gap-1 p-2 bg-slate-950/70 rounded-xl border border-slate-800/80 text-center font-mono">
+            <div><div class="text-[9px] text-slate-400 font-bold">PAC</div><div class="text-[11px] font-black text-slate-200">${a.pac}</div></div>
+            <div><div class="text-[9px] text-slate-400 font-bold">SHO</div><div class="text-[11px] font-black text-slate-200">${a.sho}</div></div>
+            <div><div class="text-[9px] text-slate-400 font-bold">PAS</div><div class="text-[11px] font-black text-slate-200">${a.pas}</div></div>
+            <div><div class="text-[9px] text-slate-400 font-bold">DRI</div><div class="text-[11px] font-black text-slate-200">${a.dri}</div></div>
+            <div><div class="text-[9px] text-slate-400 font-bold">DEF</div><div class="text-[11px] font-black text-slate-200">${a.def}</div></div>
+            <div><div class="text-[9px] text-slate-400 font-bold">PHY</div><div class="text-[11px] font-black text-slate-200">${a.phy}</div></div>
+          </div>
+
+          <!-- Bottom: Matchday Fitness Slider -->
+          <div class="pt-2 border-t border-slate-800/70">
+            <div class="flex items-center justify-between text-[11px] text-slate-400 font-semibold mb-1.5">
+              <span class="flex items-center gap-1.5">
                 <span>🔋 Matchday Fitness:</span>
-                <span class="font-mono ${mSetting.fitness < 70 ? 'text-amber-400 font-bold' : 'text-emerald-400'}">${mSetting.fitness}%</span>
+                <span class="font-mono font-bold ${mSetting.fitness < 70 ? 'text-amber-400' : 'text-emerald-400'}">${mSetting.fitness}%</span>
               </span>
               <div class="flex items-center gap-1">
-                <button class="px-1 py-0.2 rounded text-[8px] bg-slate-800 hover:bg-slate-700 text-slate-300" data-set-fitness="${player.id}" data-val="100">100%</button>
-                <button class="px-1 py-0.2 rounded text-[8px] bg-slate-800 hover:bg-slate-700 text-slate-300" data-set-fitness="${player.id}" data-val="75">75%</button>
-                <button class="px-1 py-0.2 rounded text-[8px] bg-slate-800 hover:bg-slate-700 text-slate-300" data-set-fitness="${player.id}" data-val="50">50%</button>
+                <button class="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors" data-set-fitness="${player.id}" data-val="100">100%</button>
+                <button class="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors" data-set-fitness="${player.id}" data-val="75">75%</button>
+                <button class="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors" data-set-fitness="${player.id}" data-val="50">50%</button>
               </div>
             </div>
-            <input type="range" min="20" max="100" step="5" value="${mSetting.fitness}" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500" data-fitness-slider-id="${player.id}">
+            <input type="range" min="20" max="100" step="5" value="${mSetting.fitness}" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500" data-fitness-slider-id="${player.id}">
           </div>
 
         </div>
