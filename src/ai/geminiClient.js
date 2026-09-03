@@ -361,6 +361,11 @@ export async function refineDraftWithGemini(userPrompt, teamA = [], teamB = [], 
   const teamAName = context.teamAName || "Voyagers";
   const teamBName = context.teamBName || "Boots & Beers";
 
+  const formatRoster = (players) => (players || []).map(p => {
+    const a = p.effectiveAttributes || p.attributes || {};
+    return `  - ${p.name} (${p.position}, OVR: ${p.effectiveOvr || p.ovr}, SHO: ${a.sho ?? 70}, DEF: ${a.def ?? 70}, PAS: ${a.pas ?? 75}, PAC: ${a.pac ?? 75})`;
+  }).join("\n");
+
   const statsSummary = (context.statsA && context.statsB) ? `
 CURRENT CALCULATED TEAM POTENTIALS & BALANCE:
 - [${teamAName}]: Effective OVR: ${context.statsA.avgOvr} | ⚔️ Attack: ${context.statsA.attack} | ⚙️ Midfield: ${context.statsA.midfield} | 🛡️ Defense (incl GK): ${context.statsA.defense} (Best GK: ${context.statsA.goalkeeping}, Chemistry Boost: +${context.statsA.synergyBoost || 0} OVR)
