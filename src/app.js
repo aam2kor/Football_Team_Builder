@@ -1329,6 +1329,8 @@ function renderGeneratorView() {
               </div>
             </div>
 
+          </div>
+
           <!-- Bottom: Matchday Fitness Slider -->
           <div class="pt-2.5 border-t border-slate-800/70">
             <div class="flex items-center justify-between text-[11px] text-slate-400 font-semibold mb-1.5">
