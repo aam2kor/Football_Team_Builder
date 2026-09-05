@@ -193,72 +193,186 @@ export function getFormationsForSize(teamSizeKey = "8v8") {
 }
 
 /**
- * Intelligently assigns a list of players to the formation slots
- * based on position matching and ratings.
+ * Intelligently assigns a list of players to formation slots
+ * prioritizing primary position, then secondary position, avoiding out-of-position placement.
+ * Uses active slider-based positional role assignment without arbitrary penalty.
  */
 export function assignPlayersToFormation(players, formation) {
   if (!formation || !formation.slots) return [];
   const slots = formation.slots;
-  const unassigned = [...players];
-  const assignments = [];
-
-  // Helper: Find best player for a position slot
-  const findAndAssign = (targetPos) => {
-    // 1. Exact primary position match (highest OVR first)
-    let idx = unassigned.findIndex(p => p.position === targetPos);
-    if (idx !== -1) {
-      return unassigned.splice(idx, 1)[0];
-    }
-    // 2. Secondary position match
-    idx = unassigned.findIndex(p => p.secondaryPosition === targetPos);
-    if (idx !== -1) {
-      return unassigned.splice(idx, 1)[0];
-    }
-    // 3. Fallback: take first available
-    if (unassigned.length > 0) {
-      return unassigned.shift();
-    }
-    return null;
-  };
-
-  // Sort unassigned players by OVR descending first to prioritize high rated players in their main positions
-  unassigned.sort((a, b) => b.ovr - a.ovr);
-
-  // Assign in order: GK -> DEF -> FWD -> MID (so specific roles get filled first)
+  const unassigned = players.map(p => ({ ...p }));
   const slotAssignments = new Array(slots.length).fill(null);
 
-  // 1. Assign GK slots
-  slots.forEach((slot, i) => {
-    if (slot.pos === "GK") {
-      slotAssignments[i] = findAndAssign("GK");
+  // Group slots by index and target category
+  const targetSlots = slots.map((slot, index) => ({ index, slot, pos: slot.pos, role: slot.role || slot.label }));
+
+  // Helper to test if a player matches a target position
+  const isPrimaryMatch = (p, pos) => p && p.position === pos;
+  const isSecondaryMatch = (p, pos) => p && p.secondaryPosition === pos && p.secondaryPosition !== p.position;
+
+  // Pass 1: Assign dedicated GK slots first (highest priority / specialized)
+  targetSlots.filter(s => s.pos === "GK").forEach(s => {
+    let idx = unassigned.findIndex(p => isPrimaryMatch(p, "GK"));
+    if (idx === -1) idx = unassigned.findIndex(p => isSecondaryMatch(p, "GK"));
+    if (idx !== -1) {
+      slotAssignments[s.index] = unassigned.splice(idx, 1)[0];
     }
   });
 
-  // 2. Assign DEF slots
-  slots.forEach((slot, i) => {
-    if (slot.pos === "DEF" && !slotAssignments[i]) {
-      slotAssignments[i] = findAndAssign("DEF");
+  // Pass 1.5: Emergency Goalkeeper Selection (if squad has 0 dedicated GKs)
+  targetSlots.filter(s => s.pos === "GK" && slotAssignments[s.index] === null).forEach(s => {
+    if (unassigned.length > 0) {
+      // Emergency GK Priority: Best GK attribute among DEF/MID first, never a pure FWD unless only FWDs remain
+      const nonFwds = unassigned.filter(p => p.position !== "FWD");
+      const candidatePool = nonFwds.length > 0 ? nonFwds : unassigned;
+      
+      // Sort candidates by highest GK reflex rating, then defensive stats
+      candidatePool.sort((a, b) => {
+        const gkA = a.attributes?.gk ?? 20;
+        const gkB = b.attributes?.gk ?? 20;
+        if (gkB !== gkA) return gkB - gkA;
+        const defA = a.attributes?.def ?? 50;
+        const defB = b.attributes?.def ?? 50;
+        return defB - defA;
+      });
+
+      const emergencyGk = candidatePool[0];
+      const unassignedIdx = unassigned.findIndex(p => p.id === emergencyGk.id);
+      if (unassignedIdx !== -1) {
+        slotAssignments[s.index] = unassigned.splice(unassignedIdx, 1)[0];
+      }
     }
   });
 
-  // 3. Assign FWD slots
+  // Pass 2: Assign dedicated primary players to non-GK slots (players with no secondary or whose secondary is not needed)
+  // Process constrained slots first: FWD & DEF, then MID
+  const remainingSlots = targetSlots.filter(s => slotAssignments[s.index] === null);
+  const slotPriorityOrder = ["FWD", "DEF", "MID"];
+
+  slotPriorityOrder.forEach(targetPos => {
+    remainingSlots.filter(s => s.pos === targetPos && slotAssignments[s.index] === null).forEach(s => {
+      // Find highest OVR player whose primary matches targetPos
+      let idx = unassigned.findIndex(p => isPrimaryMatch(p, targetPos));
+      if (idx !== -1) {
+        slotAssignments[s.index] = unassigned.splice(idx, 1)[0];
+      }
+    });
+  });
+
+  // Pass 3: Fill remaining unfilled slots using Secondary positions (e.g. MID playing FWD or DEF playing MID)
+  slotPriorityOrder.forEach(targetPos => {
+    remainingSlots.filter(s => s.pos === targetPos && slotAssignments[s.index] === null).forEach(s => {
+      let idx = unassigned.findIndex(p => isSecondaryMatch(p, targetPos));
+      if (idx !== -1) {
+        slotAssignments[s.index] = unassigned.splice(idx, 1)[0];
+      }
+    });
+  });
+
+  // Pass 4: Fallback for any remaining unassigned outfield slots (never GK)
   slots.forEach((slot, i) => {
-    if (slot.pos === "FWD" && !slotAssignments[i]) {
-      slotAssignments[i] = findAndAssign("FWD");
+    if (!slotAssignments[i] && unassigned.length > 0) {
+      // Sort unassigned players by suitability for slot.pos
+      unassigned.sort((a, b) => {
+        if (slot.pos === "FWD") {
+          return (b.attributes?.sho || 0) - (a.attributes?.sho || 0);
+        } else if (slot.pos === "DEF") {
+          return (b.attributes?.def || 0) - (a.attributes?.def || 0);
+        } else {
+          return (b.attributes?.pas || 0) - (a.attributes?.pas || 0);
+        }
+      });
+      slotAssignments[i] = unassigned.shift();
     }
   });
 
-  // 4. Assign MID and remaining slots
-  slots.forEach((slot, i) => {
-    if (!slotAssignments[i]) {
-      slotAssignments[i] = findAndAssign("MID");
-    }
-  });
+  // Assemble final result with attached matchdayPosition and matchdayRole
+  return slots.map((slot, i) => {
+    const rawPlayer = slotAssignments[i] || { name: "TBD", ovr: 70, position: slot.pos, avatar: "⚽" };
+    const isPrimary = rawPlayer.position === slot.pos;
+    const isSecondary = !isPrimary && rawPlayer.secondaryPosition === slot.pos;
+    const isOutOfPosition = !isPrimary && !isSecondary && rawPlayer.position !== "GK";
 
-  // Assemble final result with slot positions
-  return slots.map((slot, i) => ({
-    slot: slot,
-    player: slotAssignments[i] || { name: "TBD", ovr: 70, position: slot.pos, avatar: "⚽" }
-  }));
+    const assignedPlayer = {
+      ...rawPlayer,
+      matchdayPosition: slot.pos,
+      matchdayRole: slot.role || slot.label,
+      isSecondaryRole: isSecondary,
+      isOutOfPosition: isOutOfPosition
+    };
+
+    return {
+      slot: slot,
+      player: assignedPlayer
+    };
+  });
+}
+
+/**
+ * Finds the optimal formation and player role assignment for a given team of players.
+ * Evaluates candidate formations for the squad size to minimize out-of-position assignments
+ * and maximize tactical cohesion according to user slider weights.
+ */
+export function findBestFormationForTeam(players, teamSizeKey = "8v8", sectorWeights = null, matchdaySettingsMap = {}, calculateStatsFn = null, fixedFormationKey = null) {
+  const formations = getFormationsForSize(teamSizeKey);
+  const keys = Object.keys(formations);
+
+  if (fixedFormationKey && formations[fixedFormationKey]) {
+    const formation = formations[fixedFormationKey];
+    const assignedSlots = assignPlayersToFormation(players, formation);
+    const assignedPlayers = assignedSlots.map(s => s.player);
+    const stats = calculateStatsFn ? calculateStatsFn(assignedPlayers, matchdaySettingsMap, sectorWeights, true) : null;
+    return {
+      formationKey: fixedFormationKey,
+      formation,
+      assignedSlots,
+      assignedPlayers,
+      stats,
+      outOfPositionCount: assignedPlayers.filter(p => p.isOutOfPosition).length,
+      secondaryCount: assignedPlayers.filter(p => p.isSecondaryRole).length
+    };
+  }
+
+  let bestResult = null;
+  let bestScore = -Infinity;
+
+  for (const key of keys) {
+    const formation = formations[key];
+    const assignedSlots = assignPlayersToFormation(players, formation);
+    const assignedPlayers = assignedSlots.map(s => s.player);
+
+    const outOfPositionCount = assignedPlayers.filter(p => p.isOutOfPosition).length;
+    const secondaryCount = assignedPlayers.filter(p => p.isSecondaryRole).length;
+
+    let stats = null;
+    let cohesionScore = 0;
+    if (calculateStatsFn) {
+      stats = calculateStatsFn(assignedPlayers, matchdaySettingsMap, sectorWeights, true);
+      // Encourage balanced sectors (Attack, Midfield, Defense should all be solid)
+      const sectorMin = Math.min(stats.attack, stats.midfield, stats.defense);
+      const sectorMax = Math.max(stats.attack, stats.midfield, stats.defense);
+      const sectorSpread = sectorMax - sectorMin;
+      cohesionScore = (stats.effectiveAvgOvr * 2) + (sectorMin * 0.5) - (sectorSpread * 0.3);
+    }
+
+    // Heavy penalty for unnatural out-of-position players; slight preference for natural primary
+    const fitScore = 1000 - (outOfPositionCount * 250) - (secondaryCount * 2) + cohesionScore;
+
+    if (fitScore > bestScore || !bestResult) {
+      bestScore = fitScore;
+      bestResult = {
+        formationKey: key,
+        formation,
+        assignedSlots,
+        assignedPlayers,
+        stats,
+        outOfPositionCount,
+        secondaryCount,
+        fitScore
+      };
+    }
+  }
+
+  return bestResult;
 }
 

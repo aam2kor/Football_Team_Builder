@@ -1243,11 +1243,30 @@ function applySolution(solution) {
 
   const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
   const formations = getFormationsForSize(sizeKey);
+
+  // Sync formation selections if provided in the solution
+  if (solution.formationA && formations[solution.formationA]) {
+    state.formationTeamA = solution.formationA;
+    const selA = document.getElementById("formation-team-a");
+    if (selA) selA.value = solution.formationA;
+  }
+  if (solution.formationB && formations[solution.formationB]) {
+    state.formationTeamB = solution.formationB;
+    const selB = document.getElementById("formation-team-b");
+    if (selB) selB.value = solution.formationB;
+  }
+
   const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
   const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
 
-  state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA);
-  state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
+  state.assignedSlotsA = (solution.assignedSlotsA && solution.assignedSlotsA.length === state.activeTeamA.length)
+    ? solution.assignedSlotsA
+    : assignPlayersToFormation(state.activeTeamA, formA);
+
+  state.assignedSlotsB = (solution.assignedSlotsB && solution.assignedSlotsB.length === state.activeTeamB.length)
+    ? solution.assignedSlotsB
+    : assignPlayersToFormation(state.activeTeamB, formB);
+
   syncMatchdayPositions();
 
   renderPitch();

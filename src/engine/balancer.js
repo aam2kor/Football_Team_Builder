@@ -9,6 +9,8 @@
  * - Fully configurable sector attribute & positional weights
  */
 
+import { findBestFormationForTeam, assignPlayersToFormation, getFormationsForSize } from "./formations.js";
+
 export const FORM_MODIFIERS = {
   hot: { label: "Super Hot", icon: "🔥", arrow: "⬆️", ovrDelta: +4, statMult: 1.08, color: "text-emerald-400" },
   good: { label: "Good Form", icon: "⚡", arrow: "↗️", ovrDelta: +2, statMult: 1.04, color: "text-blue-400" },
@@ -329,20 +331,32 @@ function getCombinations(array, k) {
 
 /**
  * Scores a split of two teams based on multi-sector fitness function.
- * All sector weights are fully configurable.
+ * Evaluates candidate formations and on-pitch primary/secondary positions using active slider weights.
  */
 export function scoreTeamBalance(teamA, teamB, options = {}) {
   const {
     mode = "balanced",
     gkMode = "fixed",
     matchdaySettingsMap = {},
-    sectorWeights = DEFAULT_SECTOR_WEIGHTS
+    sectorWeights = DEFAULT_SECTOR_WEIGHTS,
+    teamSizeKey = null,
+    formationA = null,
+    formationB = null,
+    autoFormation = true
   } = options;
 
   const sw = sectorWeights || DEFAULT_SECTOR_WEIGHTS;
+  const sizeKey = teamSizeKey || `${teamA.length}v${teamA.length}`;
 
-  const statsA = calculateTeamStats(teamA, matchdaySettingsMap, sw);
-  const statsB = calculateTeamStats(teamB, matchdaySettingsMap, sw);
+  const bestA = findBestFormationForTeam(teamA, sizeKey, sw, matchdaySettingsMap, calculateTeamStats, autoFormation ? formationA : (formationA || null));
+  const bestB = findBestFormationForTeam(teamB, sizeKey, sw, matchdaySettingsMap, calculateTeamStats, autoFormation ? formationB : (formationB || null));
+
+  const assignedA = bestA.assignedPlayers;
+  const assignedB = bestB.assignedPlayers;
+
+  // Calculate sector scores using assigned on-pitch matchday positions (respecting slider weights directly)
+  const statsA = bestA.stats || calculateTeamStats(assignedA, matchdaySettingsMap, sw, true);
+  const statsB = bestB.stats || calculateTeamStats(assignedB, matchdaySettingsMap, sw, true);
 
   const ovrDelta = Math.abs(statsA.effectiveAvgOvr - statsB.effectiveAvgOvr);
   const attDelta = Math.abs(statsA.attack   - statsB.attack);
@@ -365,6 +379,9 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
     Math.abs(statsA.positions.FWD - statsB.positions.FWD)
   ) * 3.5;
 
+  // Out-of-position penalty for players placed in unnatural roles (neither primary nor secondary)
+  const outOfPosPenalty = ((bestA.outOfPositionCount || 0) + (bestB.outOfPositionCount || 0)) * 25.0;
+
   const pacDelta = Math.abs(statsA.pace     - statsB.pace);
   const phyDelta = Math.abs(statsA.physical - statsB.physical);
 
@@ -379,15 +396,15 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
   switch (mode) {
     case "ratings_first":
       penalty = (ovrDelta * 40) + (attDelta * 5.0) + (midDelta * 5.0) +
-                (defDelta * 6.0) + (gkPenalty * 1.5) + (posPenalty * 0.8);
+                (defDelta * 6.0) + (gkPenalty * 1.5) + (posPenalty * 0.8) + outOfPosPenalty;
       break;
     case "tactical":
       penalty = (attDelta * 12.0) + (midDelta * 10.0) + (defDelta * 12.0) +
-                (gkPenalty * 2.0) + (posPenalty * 4.0) + (ovrDelta * 12.0);
+                (gkPenalty * 2.0) + (posPenalty * 4.0) + (ovrDelta * 12.0) + outOfPosPenalty;
       break;
     case "pace_power":
       penalty = (ovrDelta * 18) + (attDelta * 6.0) + (defDelta * 7.0) +
-                (pacDelta * 5.0) + (phyDelta * 4.0) + (gkPenalty * 1.5);
+                (pacDelta * 5.0) + (phyDelta * 4.0) + (gkPenalty * 1.5) + outOfPosPenalty;
       break;
     case "balanced":
     default:
@@ -398,7 +415,8 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
                 (gkPenalty * 2.0)   +
                 (posPenalty * 2.0)  +
                 (pacDelta * 0.8)    +
-                (phyDelta * 0.7);
+                (phyDelta * 0.7)    +
+                outOfPosPenalty;
       break;
   }
 
@@ -409,6 +427,12 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
     fairnessScore,
     statsA,
     statsB,
+    formationA: bestA.formationKey,
+    formationB: bestB.formationKey,
+    assignedSlotsA: bestA.assignedSlots,
+    assignedSlotsB: bestB.assignedSlots,
+    assignedTeamA: assignedA,
+    assignedTeamB: assignedB,
     deltas: {
       ovr:      Math.round(ovrDelta * 10) / 10,
       attack:   attDelta,
@@ -479,6 +503,9 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
     matchdaySettingsMap = {},
     sectorWeights = DEFAULT_SECTOR_WEIGHTS,
     constraints = null,
+    formationA = null,
+    formationB = null,
+    autoFormation = true,
     topK = 5
   } = options;
 
@@ -487,6 +514,8 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
     const cp = { ...p };
     delete cp.matchdayPosition;
     delete cp.matchdayRole;
+    delete cp.isSecondaryRole;
+    delete cp.isOutOfPosition;
     return cp;
   });
 
@@ -509,8 +538,27 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
       const teamAIds = new Set(teamA.map(p => p.id));
       const teamB = cleanPlayers.filter(p => !teamAIds.has(p.id));
 
-      const evaluation = scoreTeamBalance(teamA, teamB, { mode, gkMode, matchdaySettingsMap, sectorWeights });
-      const sol = { teamA, teamB, ...evaluation };
+      const evaluation = scoreTeamBalance(teamA, teamB, {
+        mode,
+        gkMode,
+        matchdaySettingsMap,
+        sectorWeights,
+        formationA,
+        formationB,
+        autoFormation
+      });
+
+      const sol = {
+        teamA,
+        teamB,
+        formationA: evaluation.formationA,
+        formationB: evaluation.formationB,
+        assignedSlotsA: evaluation.assignedSlotsA,
+        assignedSlotsB: evaluation.assignedSlotsB,
+        assignedTeamA: evaluation.assignedTeamA,
+        assignedTeamB: evaluation.assignedTeamB,
+        ...evaluation
+      };
 
       if (satisfiesConstraints(teamA, teamB, constraints)) {
         solutions.push(sol);
@@ -528,8 +576,27 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
       if (seenCombos.has(hash)) continue;
       seenCombos.add(hash);
 
-      const evaluation = scoreTeamBalance(teamA, teamB, { mode, gkMode, matchdaySettingsMap, sectorWeights });
-      const sol = { teamA, teamB, ...evaluation };
+      const evaluation = scoreTeamBalance(teamA, teamB, {
+        mode,
+        gkMode,
+        matchdaySettingsMap,
+        sectorWeights,
+        formationA,
+        formationB,
+        autoFormation
+      });
+
+      const sol = {
+        teamA,
+        teamB,
+        formationA: evaluation.formationA,
+        formationB: evaluation.formationB,
+        assignedSlotsA: evaluation.assignedSlotsA,
+        assignedSlotsB: evaluation.assignedSlotsB,
+        assignedTeamA: evaluation.assignedTeamA,
+        assignedTeamB: evaluation.assignedTeamB,
+        ...evaluation
+      };
 
       if (satisfiesConstraints(teamA, teamB, constraints)) {
         solutions.push(sol);
