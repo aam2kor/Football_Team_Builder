@@ -6,26 +6,34 @@ An interactive, modern web application designed to generate perfectly balanced f
 
 ## 🌟 Key Features
 
-### 1. 🎯 Smart Multi-Sector Combinatorial Team Balancer
+### 1. 🎯 Smart Multi-Sector Combinatorial Team Balancer & Adaptive Formations
 - Computes and evaluates all combinations in milliseconds ($\binom{16}{8} = 12,870$ splits for 8v8, scalable from 5v5 up to 11v11).
-- Balances teams across **3 primary tactical sectors simultaneously**:
-  - **⚔️ Attacking Power (ATT)**: Shooting, Dribbling, and Pace weighted heavily by Forward and Midfield roles.
-  - **⚙️ Midfield Control (MID)**: Passing, Vision, Dribbling, and defensive work rate.
-  - **🛡️ Defensive Strength (DEF & GK)**: Outfield Defending + Physicality ($65\%$) blended with Goalkeeper shot-stopping ($35\%$).
+- **🔄 Multi-Formation Adaptation**:
+  - Automatically evaluates all tactical formations for the squad size (e.g. `1-3-3-1`, `1-2-4-1`, `1-3-2-2`, `1-2-3-2` for 8v8).
+  - Finds the formation and role distribution per team that maximizes natural positional fit and minimizes sector imbalance.
+- **🔀 Fluid Primary & Secondary Position Switching**:
+  - Versatile players dynamically switch between their Primary and Secondary positions (e.g. `MID` playing as `FWD` in a 2-striker formation).
+  - Evaluates on-pitch contribution strictly using active slider multipliers with **zero hardcoded penalties**.
+- **🧤 Smart Emergency Goalkeeper Selector**:
+  - If a squad has 0 dedicated goalkeepers, the engine evaluates non-FWD players (DEF/MID) and selects the emergency keeper based on highest GK reflex & defensive profile (strikers are never forced into goal).
+- **Balances teams across 3 primary tactical sectors simultaneously**:
+  - **⚔️ Attacking Power (ATT)**: Shooting, Dribbling, Pace, and Physicality weighted by assigned on-pitch roles (e.g. FWD: $1.00$, MID: $0.50$).
+  - **⚙️ Midfield Control (MID)**: Passing, Vision, Dribbling, Pace, and Physicality weighted by Midfield roles.
+  - **🛡️ Defensive Strength (DEF & GK)**: Outfield Defending + Physicality + Pace + Passing blended with Goalkeeper shot-stopping ($35\%$).
 - Also optimizes:
   - **Effective Overall Rating Parity** (including Fitness, Form modifiers, and Chemistry boosts).
   - **Goalkeeper Parity** (Dedicated GK vs. Rotating GK mode).
   - **Positional Count Balance** (even distribution of DEF, MID, FWD across teams).
-  - **Database Position Isolation**: Balancing algorithms always evaluate players using their true database natural positions; on-pitch tactical tweaks are isolated for visual analysis.
+  - **Minimum Sector Imbalance Objective**: The combination that drives $\Delta\text{ATT}$, $\Delta\text{MID}$, and $\Delta\text{DEF}$ closest to zero is selected as Option 1.
 
 ---
 
 ### 2. ⚙️ Advanced Sector Weights Equalizer
 Expand the **⚙️ Advanced Sector Weights** panel to customize the engine's internal weights:
-- **Attribute Weights**: Adjust the importance of PAC, SHO, PAS, DRI, DEF, PHY per sector.
+- **Attribute Weights**: Adjust the importance of PAC, SHO, PAS, DRI, DEF, PHY per sector (normalized to $1.00$).
 - **Positional Weights**: Dynamically tune how heavily FWD, MID, DEF, and GK roles contribute to Attack, Midfield, and Defense.
 - **GK Blend %**: Set how much Goalkeeper shot-stopping contributes to the defensive sector rating ($0\%\text{–}100\%$, default $35\%$).
-- **Penalty Multipliers**: Adjust the priority weights given to balancing OVR ($\times 22.0$), DEF ($\times 9.0$), ATT ($\times 8.0$), and MID ($\times 7.0$).
+- **Penalty Multipliers**: Adjust the priority weights given to balancing OVR ($\times 0.00\text{–}40.0$), DEF ($\times 8.0$), ATT ($\times 8.0$), and MID ($\times 8.0$).
 - **Persistence & Reset**: Automatically saves to `localStorage`; includes per-sector **↺ Reset** and global **↺ Reset All** buttons.
 
 ---
@@ -96,6 +104,8 @@ Expand the **⚙️ Advanced Sector Weights** panel to customize the engine's in
 - **7 Head-to-Head Comparison Bars**:
   - **Highlighted Primary Sectors**: ⚔️ Attack (ATT), ⚙️ Midfield (MID), 🛡️ Defense & GK (DEF).
   - **Technical & Physical Metrics**: ⚡ Pace (PAC), 💪 Physical (PHY), 🎯 Passing (PAS), 🧤 GK Shot-Stopping.
+- **🔍 Inspect Individual Player Contributions**:
+  - Click **Inspect ▾** on any metric to expand a side-by-side drawer showing each player's exact score and on-pitch position badge.
 
 ---
 
@@ -129,12 +139,15 @@ Open your browser and navigate to:
 
 ## 🧪 Automated Test Suite
 
-Run the verification test suites to validate engine balancing, fitness scaling, chemistry bonuses, and league analytics:
+Run the verification test suites to validate engine balancing, fitness scaling, chemistry bonuses, adaptive formations, and league analytics:
 
 ```bash
-# Run Core Engine & AI Balancer Tests
+# Run Core Engine & Adaptive Formations Balancer Tests
 python3 tests/run_tests.py
 
 # Run League History & API Service Tests
 python3 tests/test_league_service.py
+
+# Run Dual AI Engine (Gemini & Ollama) Tests
+python3 tests/test_gemini_client.py
 ```
