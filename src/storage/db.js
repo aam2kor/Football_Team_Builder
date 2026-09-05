@@ -5,8 +5,10 @@ const STORAGE_KEY = "football_team_builder_players_v2";
 /**
  * Calculates recommended FIFA-style OVR rating from individual attributes based on position.
  */
-export function calculateOvr(position, attributes) {
-  if (!attributes) return 75;
+export function calculateOvr(arg1, arg2) {
+  let position = typeof arg1 === "string" ? arg1 : (typeof arg2 === "string" ? arg2 : "MID");
+  let attributes = typeof arg1 === "object" && arg1 !== null ? arg1 : (typeof arg2 === "object" && arg2 !== null ? arg2 : {});
+  
   const {
     pac = 70,
     sho = 70,
@@ -81,6 +83,11 @@ export class PlayerDatabase {
     }));
   }
 
+  get(idOrName) {
+    if (!idOrName) return null;
+    return this.getById(idOrName) || this.getByName(idOrName);
+  }
+
   getById(id) {
     const p = this.players.find(p => p.id === id);
     if (!p) return null;
@@ -101,6 +108,29 @@ export class PlayerDatabase {
       attributes: { ...(p.attributes || {}) },
       chemistryPartners: [...(p.chemistryPartners || [])]
     };
+  }
+
+  update(id, updates = {}) {
+    const idx = this.players.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    const current = this.players[idx];
+    const updated = {
+      ...current,
+      ...updates,
+      attributes: {
+        ...(current.attributes || {}),
+        ...(updates.attributes || {})
+      },
+      chemistryPartners: Array.isArray(updates.chemistryPartners)
+        ? [...updates.chemistryPartners]
+        : (current.chemistryPartners || [])
+    };
+    if (updates.ovr !== undefined) {
+      updated.ovr = Number(updates.ovr);
+    }
+    this.players[idx] = updated;
+    this.save();
+    return updated;
   }
 
   savePlayer(playerData) {
