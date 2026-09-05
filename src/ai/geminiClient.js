@@ -443,3 +443,140 @@ Do NOT say "no swaps needed". Propose concrete player swaps that fulfill the use
   };
 }
 
+/**
+ * AI Scout: Analyzes historical league performance data, goals, and partner records
+ * to generate attribute calibrations and chemistry partner recommendations using Google Gemini.
+ *
+ * @param {Object} scoutData - { playerProfiles, duoList, h2h }
+ * @param {Object} aiConfig - { apiKey, model }
+ * @returns {Promise<{ scoutSummary: string, attributeRecommendations: Array, chemistryRecommendations: Array }>}
+ */
+export async function generateGeminiScoutRecommendations(scoutData, aiConfig = {}) {
+  const apiKey = aiConfig.apiKey || "";
+  const model = aiConfig.model || GEMINI_DEFAULT_MODEL;
+
+  const { playerProfiles = [], duoList = [], h2h = {} } = scoutData;
+
+  const playerRosterSummary = playerProfiles.map(p => {
+    const s = p.leagueStats || {};
+    const a = p.attributes || {};
+    return `• ${p.name} (ID: ${p.id}, Pos: ${p.position}/${p.secondaryPosition}, OVR: ${p.ovr}):
+   - League Record: ${s.matches} matches (${s.wins}W - ${s.draws}D - ${s.losses}L, WinRate: ${s.winRate}%), Goals: ${s.goals}, GoalDiff: ${s.goalDifference > 0 ? '+' + s.goalDifference : s.goalDifference}
+   - Current Attributes: PAC:${a.pac} SHO:${a.sho} PAS:${a.pas} DRI:${a.dri} DEF:${a.def} PHY:${a.phy} GK:${a.gk || 20}
+   - Chemistry Partners: [${(p.chemistryPartners || []).join(', ')}]`;
+  }).join("\n\n");
+
+  const duoSummary = duoList.slice(0, 10).map(d =>
+    `• ${d.p1Name} & ${d.p2Name}: ${d.matches} matches together, ${d.wins} wins (${d.winRate}% win rate, ${d.goalsFor} team goals)`
+  ).join("\n");
+
+  const prompt = `You are the Lead Performance Scout & Chief Analyst for the Third Half United League.
+Your mission is to analyze players' real match history (goals scored, win rates, goal differences, teammate partnerships) and compare them with their current FIFA-style attributes (PAC, SHO, PAS, DRI, DEF, PHY, GK, OVR).
+
+LEAGUE CONTEXT:
+Total Matches Recorded: ${h2h.totalMatches || 4}
+Voyagers (${h2h.voyagersWins || 0}W) vs Boots & Beers (${h2h.bootsWins || 0}W)
+
+PLAYER PROFILES & STATS:
+${playerRosterSummary}
+
+TOP WINNING TEAMMATE DUOS:
+${duoSummary || "None recorded yet"}
+
+SCOUTING GUIDELINES:
+1. ATTRIBUTE CALIBRATIONS:
+   - Identify standout goalscorers (e.g. Vinay with 7 goals, Sreekanth with 5 goals) whose current SHO/PAC/DRI/OVR is underrated relative to their finishing impact. Recommend realistic upgrades (e.g. +4 to +10 SHO, +1 to +4 OVR).
+   - Identify high-win-rate anchors and defensive leaders (e.g. Anoop with 75% win rate, Sanjay) and recommend appropriate DEF/PHY/PAS boosts.
+   - For players with zero goals or struggling win rates, consider small recalibrations if appropriate.
+   - For each recommended player, provide a sharp 1-2 sentence scouting rationale, their currentOvr, suggestedOvr, attributeDiffs (e.g. { "sho": "+8", "pac": "+3" }), and complete suggestedAttributes object.
+
+2. CHEMISTRY DUO RECOMMENDATIONS:
+   - Recommend new Chemistry Partner pairs for teammates who have proven high win rates when playing together (e.g. win rate >= 65% across multiple games).
+   - Provide a clear rationale explaining their on-pitch synergy.
+
+Be precise, realistic, and insightful.`;
+
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0.3,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          scoutSummary: {
+            type: "STRING",
+            description: "2-3 sentence executive scout summary of the league's standout performers and key trends."
+          },
+          attributeRecommendations: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                playerId: { type: "STRING" },
+                playerName: { type: "STRING" },
+                reason: { type: "STRING" },
+                currentOvr: { type: "NUMBER" },
+                suggestedOvr: { type: "NUMBER" },
+                attributeDiffs: {
+                  type: "OBJECT",
+                  properties: {
+                    pac: { type: "STRING" },
+                    sho: { type: "STRING" },
+                    pas: { type: "STRING" },
+                    dri: { type: "STRING" },
+                    def: { type: "STRING" },
+                    phy: { type: "STRING" },
+                    gk: { type: "STRING" }
+                  }
+                },
+                suggestedAttributes: {
+                  type: "OBJECT",
+                  properties: {
+                    pac: { type: "NUMBER" },
+                    sho: { type: "NUMBER" },
+                    pas: { type: "NUMBER" },
+                    dri: { type: "NUMBER" },
+                    def: { type: "NUMBER" },
+                    phy: { type: "NUMBER" },
+                    gk: { type: "NUMBER" }
+                  },
+                  required: ["pac", "sho", "pas", "dri", "def", "phy"]
+                }
+              },
+              required: ["playerId", "playerName", "reason", "currentOvr", "suggestedOvr", "suggestedAttributes"]
+            }
+          },
+          chemistryRecommendations: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                player1Id: { type: "STRING" },
+                player1Name: { type: "STRING" },
+                player2Id: { type: "STRING" },
+                player2Name: { type: "STRING" },
+                reason: { type: "STRING" },
+                winRate: { type: "NUMBER" },
+                matchesTogether: { type: "NUMBER" }
+              },
+              required: ["player1Id", "player1Name", "player2Id", "player2Name", "reason"]
+            }
+          }
+        },
+        required: ["scoutSummary", "attributeRecommendations", "chemistryRecommendations"]
+      }
+    }
+  };
+
+  const data = await callGeminiGenerateContent(model, apiKey, payload);
+  const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+  const parsed = JSON.parse(textContent);
+
+  return {
+    scoutSummary: parsed.scoutSummary || "AI Scout analyzed recent league fixtures and performance records.",
+    attributeRecommendations: Array.isArray(parsed.attributeRecommendations) ? parsed.attributeRecommendations : [],
+    chemistryRecommendations: Array.isArray(parsed.chemistryRecommendations) ? parsed.chemistryRecommendations : []
+  };
+}
+

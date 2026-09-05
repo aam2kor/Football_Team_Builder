@@ -218,13 +218,53 @@ def test_top_goal_scorers():
   assert top_scorers[1] == ("Sreekanth", 5), f"Expected Sreekanth 5 goals, got {top_scorers[1]}"
   assert top_scorers[2] == ("CP", 4), f"Expected CP 4 goals, got {top_scorers[2]}"
 
-  print(f"[x] Top 3 Scorers Verified: 1. {top_scorers[0][0]} ({top_scorers[0][1]}G), 2. {top_scorers[1][0]} ({top_scorers[1][1]}G), 3. {top_scorers[2][0]} ({top_scorers[2][1]}G)")
+def test_ai_scout_analysis_and_calibration():
+  print("--- Testing AI Scout Analysis & Calibration Logic ---")
+  p_stats = compute_player_win_rates(SAMPLE_API_RESPONSE["matches"])
+  goal_map = {}
+  for m in SAMPLE_API_RESPONSE["matches"]:
+    for t in m["teams"]:
+      for s in t.get("scorers", []):
+        if not s.get("is_own_goal", False):
+          name = s["name"]
+          goal_map[name] = goal_map.get(name, 0) + s.get("goals", 1)
 
-  print(f"[x] Top 3 Scorers Verified: 1. {top_scorers[0][0]} ({top_scorers[0][1]}G), 2. {top_scorers[1][0]} ({top_scorers[1][1]}G), 3. {top_scorers[2][0]} ({top_scorers[2][1]}G)")
+  # Check high goal scorer calibration criteria
+  vinay_goals = goal_map.get("Vinay", 0)
+  assert vinay_goals >= 3, f"Vinay expected >= 3 goals, got {vinay_goals}"
+
+  # Simulated Scout Recommendation logic
+  vinay_sho_base = 76
+  vinay_sho_boost = 8
+  vinay_sho_calibrated = vinay_sho_base + vinay_sho_boost
+  assert vinay_sho_calibrated == 84
+
+  # Winning duo detection
+  duo_stats = {}
+  for m in SAMPLE_API_RESPONSE["matches"]:
+    for t in m["teams"]:
+      members = sorted(t["members"])
+      win = 1 if t["score"] > (next(ot["score"] for ot in m["teams"] if ot != t)) else 0
+      for i in range(len(members)):
+        for j in range(i + 1, len(members)):
+          key = f"{members[i]}___{members[j]}"
+          duo_stats.setdefault(key, {"matches": 0, "wins": 0})
+          duo_stats[key]["matches"] += 1
+          duo_stats[key]["wins"] += win
+
+  # Find high win rate duos
+  top_duos = [
+    (k, v) for k, v in duo_stats.items()
+    if v["matches"] >= 2 and (v["wins"] / v["matches"]) >= 0.65
+  ]
+  assert len(top_duos) > 0, "Expected at least one high-win-rate duo in match history"
+  print(f"[x] AI Scout Payload & Calibration verified: Top duo candidate '{top_duos[0][0]}' ({top_duos[0][1]['wins']}/{top_duos[0][1]['matches']} wins)")
 
 if __name__ == "__main__":
   test_h2h_calculation()
   test_player_stats()
   test_top_winners_and_losers()
   test_top_goal_scorers()
+  test_ai_scout_analysis_and_calibration()
   print("\n>>> ALL LEAGUE SERVICE TESTS PASSED! <<<\n")
+

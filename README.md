@@ -99,7 +99,22 @@ Expand the **⚙️ Advanced Sector Weights** panel to customize the engine's in
 
 ---
 
-### 7. 📊 Side-by-Side Head-to-Head Comparison Dashboard
+### 7. 💡 AI Scout: Performance Calibration & Chemistry Recommendations
+- **⚡ Live Match-Driven Attribute Calibrations**:
+  - Automatically assesses players against live fixture match history from the Lovable API endpoint.
+  - Leverages current **Sector Slider Weights** (`state.sectorWeights`) to evaluate Attacking, Midfield, and Defensive impact.
+  - Generates recommended attribute calibrations for standout performers (e.g. upgrading Vinay's shooting after 7 goals) and defensive anchors (e.g. boosting Anoop's DEF & PHY after leading 75% win rates).
+  - Displays side-by-side before/after ratings with color-coded deltas (e.g. `SHO: 76 → 84 (+8)`, `OVR: 80 → 83 (+3)`).
+- **🤝 Chemistry Duo Recommendations**:
+  - Automatically detects undefeated and high-win-rate teammate pairs (e.g. $\ge 65\%$ win rate across multiple fixtures) who have proven pitch synergy.
+  - Recommends linking them as **Chemistry Partners** with tactical rationales.
+- **✨ Flexible One-Click Application**:
+  - Apply individual calibrations or chemistry links per player/pair.
+  - Use **Apply All Attributes** and **Apply All Chemistry** batch actions to update the database instantly.
+
+---
+
+### 8. 📊 Side-by-Side Head-to-Head Comparison Dashboard
 - **Team Overview Cards**: Displays effective average OVR, chemistry links, positional counts, and full matchday rosters.
 - **7 Head-to-Head Comparison Bars**:
   - **Highlighted Primary Sectors**: ⚔️ Attack (ATT), ⚙️ Midfield (MID), 🛡️ Defense & GK (DEF).
@@ -109,7 +124,7 @@ Expand the **⚙️ Advanced Sector Weights** panel to customize the engine's in
 
 ---
 
-### 8. 💬 Matchday & Sharing Tools
+### 9. 💬 Matchday & Sharing Tools
 - **📋 Copy to WhatsApp**: One-click formatted match report with team names, tactical formations, emojis, player ratings, form arrows, and chemistry links.
 - **📸 Export Pitch Image**: Generates and downloads a high-resolution PNG image of the pitch lineup with team side banners and custom kit colors.
 - **🪙 Coin Toss & 👑 Random Captains**: Instant matchday kickoff decider and captain selector.

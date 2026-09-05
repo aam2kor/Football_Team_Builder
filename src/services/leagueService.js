@@ -479,3 +479,83 @@ export function formatLeagueSummaryForAi(matches = [], filterPlayers = null) {
 
   return out;
 }
+
+/**
+ * Builds structured performance and sector potential data for all players in the database
+ * to be analyzed by AI Scout.
+ * @param {Array} players - list of players from db.getAll()
+ * @param {Array} matches - list of match records from fetchLeagueMatches()
+ * @param {Object} sectorWeights - active sector weights
+ * @returns {Object} { playerProfiles, topDuoPerformances, leagueOverview }
+ */
+export function buildScoutAnalysisPayload(players = [], matches = [], sectorWeights = null) {
+  const playerStats = computePlayerLeagueStats(matches);
+  const topScorers = computeTopGoalScorers(matches, 50);
+  const scorerMap = {};
+  topScorers.forEach(s => scorerMap[s.name.toLowerCase().trim()] = s.goals);
+
+  // Compute all teammate duos and their combined win records
+  const duoMap = {};
+  matches.forEach(m => {
+    (m.teams || []).forEach(t => {
+      const otherTeam = (m.teams || []).find(ot => ot !== t);
+      const isWinner = otherTeam && Number(t.score) > Number(otherTeam.score);
+      const isDraw = otherTeam && Number(t.score) === Number(otherTeam.score);
+
+      const members = (t.members || []).map(n => n.trim()).sort();
+      for (let i = 0; i < members.length; i++) {
+        for (let j = i + 1; j < members.length; j++) {
+          const key = `${members[i]}|||${members[j]}`;
+          if (!duoMap[key]) {
+            duoMap[key] = { p1Name: members[i], p2Name: members[j], matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0 };
+          }
+          duoMap[key].matches++;
+          duoMap[key].goalsFor += Number(t.score) || 0;
+          if (isWinner) duoMap[key].wins++;
+          else if (isDraw) duoMap[key].draws++;
+          else duoMap[key].losses++;
+        }
+      }
+    });
+  });
+
+  const duoList = Object.values(duoMap).map(d => ({
+    ...d,
+    winRate: d.matches > 0 ? Math.round((d.wins / d.matches) * 100) : 0
+  })).filter(d => d.matches >= 2); // At least 2 matches together
+
+  // Map each player to their historical performance + current attributes & positions
+  const playerProfiles = players.map(p => {
+    const cleanName = p.name.trim().toLowerCase();
+    const stats = Object.entries(playerStats).find(([k]) => k.toLowerCase() === cleanName)?.[1] || {
+      matches: 0, wins: 0, draws: 0, losses: 0, winRate: 0, goalsFor: 0, goalsAgainst: 0
+    };
+    const goals = scorerMap[cleanName] || 0;
+    const a = p.attributes || { pac: 70, sho: 70, pas: 70, dri: 70, def: 70, phy: 70, gk: 20 };
+
+    return {
+      id: p.id,
+      name: p.name,
+      position: p.position,
+      secondaryPosition: p.secondaryPosition || p.position,
+      ovr: p.ovr || 75,
+      attributes: { ...a },
+      chemistryPartners: p.chemistryPartners || [],
+      leagueStats: {
+        matches: stats.matches,
+        wins: stats.wins,
+        draws: stats.draws,
+        losses: stats.losses,
+        winRate: stats.winRate,
+        goals: goals,
+        goalDifference: stats.goalsFor - stats.goalsAgainst
+      }
+    };
+  });
+
+  return {
+    playerProfiles,
+    duoList: duoList.sort((a, b) => b.winRate - a.winRate || b.matches - a.matches),
+    h2h: computeHeadToHeadSummary(matches)
+  };
+}

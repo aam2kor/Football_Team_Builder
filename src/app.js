@@ -1,8 +1,8 @@
 import { PlayerDatabase, calculateOvr } from "./storage/db.js";
 import { buildBalancedTeams, calculateTeamStats, FORM_MODIFIERS, getEffectivePlayerStats, DEFAULT_SECTOR_WEIGHTS, cloneSectorWeights, getPlayerMetricScore } from "./engine/balancer.js";
 import { FORMATIONS, getFormationsForSize, assignPlayersToFormation } from "./engine/formations.js";
-import { loadAiConfig, saveAiConfig, testAiConnection, testOllamaConnection, testGeminiConnection, queryAiCoach, queryLeagueInsights, refineDraftWithAi } from "./ai/ollamaClient.js";
-import { fetchLeagueMatches, computeHeadToHeadSummary, formatLeagueSummaryForAi, computeTopWinRatePlayers, computeTopWinningChemistries, computeTopGoalScorers, computeTopConsistentLosers } from "./services/leagueService.js";
+import { loadAiConfig, saveAiConfig, testAiConnection, testOllamaConnection, testGeminiConnection, queryAiCoach, queryLeagueInsights, refineDraftWithAi, getAiScoutRecommendations } from "./ai/ollamaClient.js";
+import { fetchLeagueMatches, computeHeadToHeadSummary, formatLeagueSummaryForAi, computeTopWinRatePlayers, computeTopWinningChemistries, computeTopGoalScorers, computeTopConsistentLosers, buildScoutAnalysisPayload } from "./services/leagueService.js";
 
 // Initialize Database instance
 const db = new PlayerDatabase();
@@ -101,6 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupRosterEvents();
   setupBackupEvents();
   setupPlayerModalEvents();
+  setupAiScoutModal();
 
   // Initial render
   renderApp();
@@ -2707,3 +2708,413 @@ function renderApp() {
   updateFormationOptions();
   updateActiveTabUI();
 }
+
+// ============================================================
+// AI Scout Modal & Performance Calibration Logic
+// ============================================================
+function setupAiScoutModal() {
+  const btnOpen = document.getElementById("btn-ai-scout");
+  const modal = document.getElementById("modal-ai-scout");
+  const btnClose = document.getElementById("btn-close-ai-scout");
+  const tabAttr = document.getElementById("tab-scout-attributes");
+  const tabChem = document.getElementById("tab-scout-chemistry");
+  const btnApplyAllAttr = document.getElementById("btn-apply-all-scout-attr");
+  const btnApplyAllChem = document.getElementById("btn-apply-all-scout-chem");
+
+  if (btnOpen) {
+    btnOpen.addEventListener("click", () => openAiScoutModal());
+  }
+
+  if (btnClose) {
+    btnClose.addEventListener("click", () => closeAiScoutModal());
+  }
+
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeAiScoutModal();
+    });
+  }
+
+  if (tabAttr && tabChem) {
+    tabAttr.addEventListener("click", () => switchScoutTab("attributes"));
+    tabChem.addEventListener("click", () => switchScoutTab("chemistry"));
+  }
+
+  if (btnApplyAllAttr) {
+    btnApplyAllAttr.addEventListener("click", () => handleApplyAllScoutAttributes());
+  }
+
+  if (btnApplyAllChem) {
+    btnApplyAllChem.addEventListener("click", () => handleApplyAllScoutChemistry());
+  }
+}
+
+function switchScoutTab(tab) {
+  const tabAttr = document.getElementById("tab-scout-attributes");
+  const tabChem = document.getElementById("tab-scout-chemistry");
+  const panelAttr = document.getElementById("scout-panel-attributes");
+  const panelChem = document.getElementById("scout-panel-chemistry");
+  const badgeAttr = document.getElementById("badge-attr-count");
+  const badgeChem = document.getElementById("badge-chem-count");
+
+  if (tab === "attributes") {
+    panelAttr?.classList.remove("hidden");
+    panelChem?.classList.add("hidden");
+
+    tabAttr.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all bg-purple-600 text-white shadow-md flex items-center gap-1.5";
+    tabChem.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all bg-slate-900 text-slate-400 hover:text-white flex items-center gap-1.5";
+
+    if (badgeAttr) badgeAttr.className = "px-1.5 py-0.2 rounded-full bg-purple-950 text-[10px] text-purple-200";
+    if (badgeChem) badgeChem.className = "px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-slate-400";
+  } else {
+    panelAttr?.classList.add("hidden");
+    panelChem?.classList.remove("hidden");
+
+    tabChem.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all bg-indigo-600 text-white shadow-md flex items-center gap-1.5";
+    tabAttr.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all bg-slate-900 text-slate-400 hover:text-white flex items-center gap-1.5";
+
+    if (badgeAttr) badgeAttr.className = "px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-slate-400";
+    if (badgeChem) badgeChem.className = "px-1.5 py-0.2 rounded-full bg-indigo-950 text-[10px] text-indigo-200";
+  }
+}
+
+function openAiScoutModal() {
+  const modal = document.getElementById("modal-ai-scout");
+  const loading = document.getElementById("ai-scout-loading");
+  const content = document.getElementById("ai-scout-content");
+  const footer = document.getElementById("ai-scout-footer");
+  const loadingText = document.getElementById("ai-scout-loading-text");
+
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  loading?.classList.remove("hidden");
+  content?.classList.add("hidden");
+  footer?.classList.add("hidden");
+  if (loadingText) loadingText.textContent = "Scouting match history & calculating sector potentials...";
+
+  switchScoutTab("attributes");
+  handleRunAiScout();
+}
+
+function closeAiScoutModal() {
+  const modal = document.getElementById("modal-ai-scout");
+  if (modal) modal.classList.add("hidden");
+}
+
+async function handleRunAiScout() {
+  const loading = document.getElementById("ai-scout-loading");
+  const content = document.getElementById("ai-scout-content");
+  const footer = document.getElementById("ai-scout-footer");
+  const loadingText = document.getElementById("ai-scout-loading-text");
+
+  try {
+    if (loadingText) loadingText.textContent = "Fetching live league fixture history...";
+    let matches = state.leagueMatches;
+    if (!matches || matches.length === 0) {
+      matches = await fetchLeagueMatches();
+      state.leagueMatches = matches;
+    }
+
+    if (loadingText) loadingText.textContent = `Analyzing ${matches.length} fixtures & evaluating sector potential metrics...`;
+    const allPlayers = db.getAll();
+    const scoutData = buildScoutAnalysisPayload(allPlayers, matches, state.sectorWeights);
+
+    if (loadingText) loadingText.textContent = "Generating AI Scout calibrations and chemistry synergies...";
+    const results = await getAiScoutRecommendations(scoutData, state.aiConfig);
+    state.aiScoutResults = results;
+
+    loading?.classList.add("hidden");
+    content?.classList.remove("hidden");
+    footer?.classList.remove("hidden");
+
+    renderAiScoutUI(results);
+  } catch (err) {
+    console.error("AI Scout Error:", err);
+    showToast("AI Scout encountered an issue: " + (err.message || "Unknown error"), "error");
+    closeAiScoutModal();
+  }
+}
+
+function renderAiScoutUI(results) {
+  const summaryBanner = document.getElementById("ai-scout-summary-banner");
+  const attrList = document.getElementById("scout-attributes-list");
+  const chemList = document.getElementById("scout-chemistry-list");
+  const badgeAttr = document.getElementById("badge-attr-count");
+  const badgeChem = document.getElementById("badge-chem-count");
+
+  const attrRecs = Array.isArray(results.attributeRecommendations) ? results.attributeRecommendations : [];
+  const chemRecs = Array.isArray(results.chemistryRecommendations) ? results.chemistryRecommendations : [];
+
+  if (summaryBanner) {
+    summaryBanner.innerHTML = `
+      <div class="flex items-start gap-2.5">
+        <span class="text-base">📊</span>
+        <div class="space-y-1">
+          <span class="font-bold text-purple-200">Scout Assessment:</span>
+          <p class="text-slate-300 leading-relaxed">${results.scoutSummary || "Analysis completed against active league fixtures."}</p>
+        </div>
+      </div>
+    `;
+  }
+
+  if (badgeAttr) badgeAttr.textContent = attrRecs.length;
+  if (badgeChem) badgeChem.textContent = chemRecs.length;
+
+  // Render Attributes List
+  if (attrList) {
+    if (attrRecs.length === 0) {
+      attrList.innerHTML = `
+        <div class="py-10 text-center text-slate-400 bg-slate-900/40 rounded-xl border border-slate-800">
+          <p class="text-sm font-semibold">No attribute calibrations needed</p>
+          <p class="text-xs text-slate-500 mt-1">Current player attributes are well-aligned with league performance.</p>
+        </div>
+      `;
+    } else {
+      attrList.innerHTML = attrRecs.map((rec, idx) => {
+        const player = db.get(rec.playerId) || db.getAll().find(p => p.name.toLowerCase().trim() === (rec.playerName || "").toLowerCase().trim());
+        const currentOvr = player ? player.ovr : (rec.currentOvr || 80);
+        const suggestedOvr = rec.suggestedOvr || currentOvr;
+        const ovrDelta = suggestedOvr - currentOvr;
+        const ovrDeltaBadge = ovrDelta > 0
+          ? `<span class="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">+${ovrDelta} OVR</span>`
+          : ovrDelta < 0
+          ? `<span class="px-2 py-0.5 rounded-md bg-red-500/20 text-red-300 border border-red-500/30 text-xs font-bold">${ovrDelta} OVR</span>`
+          : `<span class="px-2 py-0.5 rounded-md bg-slate-700 text-slate-300 text-xs font-bold">Same OVR</span>`;
+
+        // Generate stat diff badges
+        const currentAttrs = player?.attributes || {};
+        const suggestedAttrs = rec.suggestedAttributes || {};
+        const attrKeys = ["pac", "sho", "pas", "dri", "def", "phy"];
+        if (player?.position === "GK" || suggestedAttrs.gk !== undefined) attrKeys.push("gk");
+
+        const statDeltasHtml = attrKeys.map(k => {
+          const oldVal = currentAttrs[k] ?? 70;
+          const newVal = suggestedAttrs[k] ?? oldVal;
+          const diff = newVal - oldVal;
+          if (diff === 0) return "";
+          const color = diff > 0 ? "text-emerald-400 bg-emerald-950/40 border-emerald-500/30" : "text-red-400 bg-red-950/40 border-red-500/30";
+          const sign = diff > 0 ? `+${diff}` : `${diff}`;
+          return `<span class="px-2 py-0.5 rounded-lg border text-[11px] font-mono font-bold ${color}">${k.toUpperCase()}: ${oldVal} → ${newVal} (${sign})</span>`;
+        }).filter(Boolean).join(" ");
+
+        return `
+          <div class="p-4 rounded-xl bg-slate-900/70 border border-purple-500/20 hover:border-purple-500/40 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-3" data-scout-attr-card="${rec.playerId || idx}">
+            <div class="space-y-1.5 flex-1">
+              <div class="flex items-center gap-2.5 flex-wrap">
+                <span class="font-bold text-white text-sm">${rec.playerName}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md font-bold ${getPositionBadgeClass(player?.position || "MID")}">${player?.position || "MID"}</span>
+                <div class="flex items-center gap-1 font-mono text-xs">
+                  <span class="text-slate-400">${currentOvr}</span>
+                  <span class="text-slate-500">➔</span>
+                  <span class="text-purple-300 font-bold">${suggestedOvr}</span>
+                </div>
+                ${ovrDeltaBadge}
+              </div>
+              <p class="text-xs text-slate-400 leading-snug">${rec.reason}</p>
+              ${statDeltasHtml ? `<div class="flex flex-wrap items-center gap-1.5 pt-1">${statDeltasHtml}</div>` : ""}
+            </div>
+            <button class="btn-apply-attr-single px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 flex-shrink-0 flex items-center gap-1" data-attr-idx="${idx}">
+              <span>⚡</span>
+              <span>Apply</span>
+            </button>
+          </div>
+        `;
+      }).join("");
+
+      // Bind single apply buttons
+      attrList.querySelectorAll(".btn-apply-attr-single").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const idx = parseInt(btn.dataset.attrIdx, 10);
+          const rec = attrRecs[idx];
+          if (rec) applySingleScoutAttribute(rec, btn);
+        });
+      });
+    }
+  }
+
+  // Render Chemistry List
+  if (chemList) {
+    if (chemRecs.length === 0) {
+      chemList.innerHTML = `
+        <div class="py-10 text-center text-slate-400 bg-slate-900/40 rounded-xl border border-slate-800">
+          <p class="text-sm font-semibold">No new chemistry duos recommended</p>
+          <p class="text-xs text-slate-500 mt-1">Existing teammate synergies are already mapped.</p>
+        </div>
+      `;
+    } else {
+      chemList.innerHTML = chemRecs.map((rec, idx) => {
+        const p1 = db.get(rec.player1Id) || db.getAll().find(p => p.name.toLowerCase().trim() === (rec.player1Name || "").toLowerCase().trim());
+        const p2 = db.get(rec.player2Id) || db.getAll().find(p => p.name.toLowerCase().trim() === (rec.player2Name || "").toLowerCase().trim());
+
+        const alreadyPartners = p1 && p2 && ((p1.chemistryPartners || []).includes(p2.id) || (p2.chemistryPartners || []).includes(p1.id));
+
+        return `
+          <div class="p-4 rounded-xl bg-slate-900/70 border border-indigo-500/20 hover:border-indigo-500/40 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-3" data-scout-chem-card="${idx}">
+            <div class="space-y-1.5 flex-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-bold text-white text-sm">${rec.player1Name}</span>
+                <span class="text-indigo-400 font-bold">🤝</span>
+                <span class="font-bold text-white text-sm">${rec.player2Name}</span>
+                ${rec.winRate !== undefined ? `<span class="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-bold">${rec.winRate}% Win Rate</span>` : ""}
+                ${rec.matchesTogether !== undefined ? `<span class="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-xs">${rec.matchesTogether} Matches</span>` : ""}
+              </div>
+              <p class="text-xs text-slate-400 leading-snug">${rec.reason}</p>
+            </div>
+            <button class="btn-apply-chem-single px-3.5 py-1.5 rounded-xl ${alreadyPartners ? "bg-slate-800 text-slate-500 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20"} text-xs font-bold transition-all flex-shrink-0 flex items-center gap-1" data-chem-idx="${idx}" ${alreadyPartners ? "disabled" : ""}>
+              <span>${alreadyPartners ? "✓" : "🤝"}</span>
+              <span>${alreadyPartners ? "Linked" : "Link Duo"}</span>
+            </button>
+          </div>
+        `;
+      }).join("");
+
+      // Bind single chem buttons
+      chemList.querySelectorAll(".btn-apply-chem-single").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const idx = parseInt(btn.dataset.chemIdx, 10);
+          const rec = chemRecs[idx];
+          if (rec) applySingleScoutChemistry(rec, btn);
+        });
+      });
+    }
+  }
+}
+
+function applySingleScoutAttribute(rec, btnEl) {
+  const player = db.get(rec.playerId) || db.getAll().find(p => p.name.toLowerCase().trim() === (rec.playerName || "").toLowerCase().trim());
+  if (!player) {
+    showToast(`Could not locate player ${rec.playerName} in database.`, "warning");
+    return;
+  }
+
+  const updatedAttributes = {
+    ...player.attributes,
+    ...rec.suggestedAttributes
+  };
+
+  const newOvr = rec.suggestedOvr || calculateOvr(updatedAttributes, player.position);
+
+  db.update(player.id, {
+    attributes: updatedAttributes,
+    ovr: newOvr
+  });
+  db.save();
+  renderRosterView();
+
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.className = "px-3.5 py-1.5 rounded-xl bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-default flex items-center gap-1";
+    btnEl.innerHTML = `<span>✓</span><span>Applied</span>`;
+  }
+
+  showToast(`⚡ Calibrated ${player.name} (OVR: ${player.ovr} → ${newOvr})`, "success");
+}
+
+function applySingleScoutChemistry(rec, btnEl) {
+  const p1 = db.get(rec.player1Id) || db.getAll().find(p => p.name.toLowerCase().trim() === (rec.player1Name || "").toLowerCase().trim());
+  const p2 = db.get(rec.player2Id) || db.getAll().find(p => p.name.toLowerCase().trim() === (rec.player2Name || "").toLowerCase().trim());
+
+  if (!p1 || !p2) {
+    showToast(`Could not locate players in database.`, "warning");
+    return;
+  }
+
+  const p1Partners = Array.isArray(p1.chemistryPartners) ? [...p1.chemistryPartners] : [];
+  if (!p1Partners.includes(p2.id)) p1Partners.push(p2.id);
+
+  const p2Partners = Array.isArray(p2.chemistryPartners) ? [...p2.chemistryPartners] : [];
+  if (!p2Partners.includes(p1.id)) p2Partners.push(p1.id);
+
+  db.update(p1.id, { chemistryPartners: p1Partners });
+  db.update(p2.id, { chemistryPartners: p2Partners });
+  db.save();
+  renderRosterView();
+
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.className = "px-3.5 py-1.5 rounded-xl bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-default flex items-center gap-1";
+    btnEl.innerHTML = `<span>✓</span><span>Linked</span>`;
+  }
+
+  showToast(`🤝 Linked Chemistry Duo: ${p1.name} & ${p2.name}!`, "success");
+}
+
+function handleApplyAllScoutAttributes() {
+  const results = state.aiScoutResults;
+  if (!results || !Array.isArray(results.attributeRecommendations) || results.attributeRecommendations.length === 0) {
+    showToast("No attribute recommendations available to apply.", "info");
+    return;
+  }
+
+  let count = 0;
+  results.attributeRecommendations.forEach(rec => {
+    const player = db.get(rec.playerId) || db.getAll().find(p => p.name.toLowerCase().trim() === (rec.playerName || "").toLowerCase().trim());
+    if (player) {
+      const updatedAttributes = {
+        ...player.attributes,
+        ...rec.suggestedAttributes
+      };
+      const newOvr = rec.suggestedOvr || calculateOvr(updatedAttributes, player.position);
+      db.update(player.id, {
+        attributes: updatedAttributes,
+        ovr: newOvr
+      });
+      count++;
+    }
+  });
+
+  if (count > 0) {
+    db.save();
+    renderRosterView();
+
+    // Mark all buttons as applied
+    document.querySelectorAll(".btn-apply-attr-single").forEach(btn => {
+      btn.disabled = true;
+      btn.className = "px-3.5 py-1.5 rounded-xl bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-default flex items-center gap-1";
+      btn.innerHTML = `<span>✓</span><span>Applied</span>`;
+    });
+
+    showToast(`✨ Applied attribute calibrations to ${count} players!`, "success");
+  }
+}
+
+function handleApplyAllScoutChemistry() {
+  const results = state.aiScoutResults;
+  if (!results || !Array.isArray(results.chemistryRecommendations) || results.chemistryRecommendations.length === 0) {
+    showToast("No chemistry recommendations available to apply.", "info");
+    return;
+  }
+
+  let count = 0;
+  results.chemistryRecommendations.forEach(rec => {
+    const p1 = db.get(rec.player1Id) || db.getAll().find(p => p.name.toLowerCase().trim() === (rec.player1Name || "").toLowerCase().trim());
+    const p2 = db.get(rec.player2Id) || db.getAll().find(p => p.name.toLowerCase().trim() === (rec.player2Name || "").toLowerCase().trim());
+
+    if (p1 && p2) {
+      const p1Partners = Array.isArray(p1.chemistryPartners) ? [...p1.chemistryPartners] : [];
+      if (!p1Partners.includes(p2.id)) p1Partners.push(p2.id);
+
+      const p2Partners = Array.isArray(p2.chemistryPartners) ? [...p2.chemistryPartners] : [];
+      if (!p2Partners.includes(p1.id)) p2Partners.push(p1.id);
+
+      db.update(p1.id, { chemistryPartners: p1Partners });
+      db.update(p2.id, { chemistryPartners: p2Partners });
+      count++;
+    }
+  });
+
+  if (count > 0) {
+    db.save();
+    renderRosterView();
+
+    // Mark all buttons as linked
+    document.querySelectorAll(".btn-apply-chem-single").forEach(btn => {
+      btn.disabled = true;
+      btn.className = "px-3.5 py-1.5 rounded-xl bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-default flex items-center gap-1";
+      btn.innerHTML = `<span>✓</span><span>Linked</span>`;
+    });
+
+    showToast(`🤝 Linked ${count} chemistry partner duos!`, "success");
+  }
+}
+
