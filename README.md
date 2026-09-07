@@ -39,13 +39,16 @@ Expand the **⚙️ Advanced Sector Weights** panel to customize the engine's in
 ---
 
 ### 3. 🏟️ Interactive Match Pitch Visualizer & Tactical Swapping
-- **2-Click Live Swapping**:
+- **⇄ One-Click Team & Formation Swap**:
+  - Click **⇄ Swap Teams** (in the matchday toolbar) or **⇄ Swap Sides** (in the pitch header) to instantly flip full player rosters and tactical formations between **Voyagers** and **Boots & Beers** while keeping complete balance and sector parity.
+- **2-Click Live Player Swapping**:
   - **Within-Team Position Swap**: Click two players on the *same team* to immediately swap their tactical pitch slots (e.g. moving a Striker to Centre-Back) with automatic sectoral recalculation.
   - **Cross-Team Swap**: Click a player on Voyagers and a player on Boots & Beers to move them to the opposite team with live stat recalculations.
-- **🎨 5 Selectable Team Jersey Colors**:
-  - Choose between 🔵 **Blue**, 🔴 **Red**, 🟡 **Yellow**, ⚫ **Black**, and ⚪ **White** for either team.
-  - Goalkeepers wear matching team colors for a clean, unified team kit look.
-- **📛 High-Visibility Player Badges**: High-contrast, bold name badges (`13.5px` bold) and form arrows designed for crisp readability on mobile and desktop.
+- **🎨 Selectable Jersey Colors & Custom Crest Emblems**:
+  - Choose between 🔵 **Blue**, 🔴 **Red**, 🟡 **Yellow**, ⚫ **Black**, ⚪ **White**, or official **Custom Emblems**:
+    - 🥇 **Voyagers Gold Crest**: Renders player circles with the Gold Jersey Crest and illuminates Voyagers team text in glowing **Golden Color** (`#fbbf24`).
+    - 🥉 **Boots & Beers Bronze Crest**: Renders player circles with the Bronze Jersey Crest and illuminates Boots & Beers team text in glowing **Golden Color** (`#fbbf24`).
+- **📛 High-Visibility Player Badges**: High-contrast, bold name badges (`13.5px` bold) with clean circular tokens designed for crisp readability on mobile and desktop.
 - **📱 Mobile Responsive Pitch**: Dedicated `@media (max-width: 640px)` stylesheet ensuring a comfortable `350px` pitch height with clear tactical spacing.
 - **🏷️ Team Side Watermarks**: Clearly indicates the **LEFT** team (*Voyagers*) and **RIGHT** team (*Boots & Beers*) with active kit color badges on the turf.
 
