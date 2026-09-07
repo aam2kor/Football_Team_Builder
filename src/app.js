@@ -2799,9 +2799,10 @@ function swapEntireTeams() {
   state.selectedSwapPlayerId = null;
   state.selectedSwapTeam = null;
 
-  // 6. Re-render pitch and H2H comparison
+  // 6. Re-render pitch, team comparison, and synergy banner
   renderPitch();
-  renderH2HComparison();
+  renderTeamComparison();
+  renderSynergyBanner();
 
   showToast(`⇄ Swapped entire teams & formations between ${state.teamAName} and ${state.teamBName}!`, "success");
 }
