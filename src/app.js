@@ -257,7 +257,7 @@ function setupGeneratorEvents() {
     const btn = e.target.closest("[data-team-color-target]");
     if (!btn) return;
     const teamTarget = btn.dataset.teamColorTarget; // "A" or "B"
-    const color      = btn.dataset.color;           // blue|red|yellow|black|white
+    const color      = btn.dataset.color;           // blue|red|yellow|black|white|custom_voyagers|custom_boots
 
     if (teamTarget === "A") {
       state.teamAColor = color;
@@ -266,6 +266,7 @@ function setupGeneratorEvents() {
       state.teamBColor = color;
       updateColorSwatchActiveState("B", color);
     }
+    updateTeamNameColors();
     renderPitch();
   });
 
@@ -1060,6 +1061,60 @@ function updateColorSwatchActiveState(team, activeColor) {
       btn.style.opacity = "0.75";
     }
   });
+  updateTeamNameColors();
+}
+
+/** Sets Golden Color on team name inputs and labels when custom crest is selected */
+function updateTeamNameColors() {
+  const isCustomA = state.teamAColor === "custom_voyagers";
+  const inputA = document.getElementById("team-a-name-input");
+  if (inputA) {
+    if (isCustomA) {
+      inputA.classList.remove("text-blue-400");
+      inputA.classList.add("text-amber-400", "team-text-gold");
+      inputA.style.color = "#fbbf24";
+      inputA.style.textShadow = "0 0 10px rgba(251, 191, 36, 0.7)";
+    } else {
+      inputA.classList.add("text-blue-400");
+      inputA.classList.remove("text-amber-400", "team-text-gold");
+      inputA.style.color = "";
+      inputA.style.textShadow = "";
+    }
+  }
+  document.querySelectorAll(".team-a-name-label").forEach(el => {
+    if (isCustomA) {
+      el.classList.add("text-amber-400", "team-text-gold");
+      el.style.color = "#fbbf24";
+    } else {
+      el.classList.remove("text-amber-400", "team-text-gold");
+      el.style.color = "";
+    }
+  });
+
+  const isCustomB = state.teamBColor === "custom_boots";
+  const inputB = document.getElementById("team-b-name-input");
+  if (inputB) {
+    if (isCustomB) {
+      inputB.classList.remove("text-red-400");
+      inputB.classList.add("text-amber-400", "team-text-gold");
+      inputB.style.color = "#fbbf24";
+      inputB.style.textShadow = "0 0 10px rgba(251, 191, 36, 0.7)";
+    } else {
+      inputB.classList.add("text-red-400");
+      inputB.classList.remove("text-amber-400", "team-text-gold");
+      inputB.style.color = "";
+      inputB.style.textShadow = "";
+    }
+  }
+  document.querySelectorAll(".team-b-name-label").forEach(el => {
+    if (isCustomB) {
+      el.classList.add("text-amber-400", "team-text-gold");
+      el.style.color = "#fbbf24";
+    } else {
+      el.classList.remove("text-amber-400", "team-text-gold");
+      el.style.color = "";
+    }
+  });
 }
 
 function initSectorWeightsPanel() {
@@ -1593,15 +1648,23 @@ function renderPitch() {
 
   // ── Team Side Watermark Badges ─────────────────────────────
   // Left Side Team (Team A / Voyagers)
+  const isCustomA = state.teamAColor === "custom_voyagers";
   const watermarkLeft = document.createElement("div");
-  watermarkLeft.className = "pitch-team-watermark left";
-  watermarkLeft.innerHTML = `<span class="w-2.5 h-2.5 rounded-full inline-block jersey-${state.teamAColor}"></span> <span>${state.teamAName}</span>`;
+  watermarkLeft.className = `pitch-team-watermark left ${isCustomA ? "team-text-gold" : ""}`;
+  const dotA = isCustomA
+    ? `<span class="w-3.5 h-3.5 rounded-full inline-block bg-cover bg-center border border-amber-400 shadow-sm align-middle" style="background-image: url('assets/voyagers_custom_badge.png');"></span>`
+    : `<span class="w-2.5 h-2.5 rounded-full inline-block jersey-${state.teamAColor}"></span>`;
+  watermarkLeft.innerHTML = `${dotA} <span style="${isCustomA ? 'color: #fbbf24; text-shadow: 0 0 10px rgba(251, 191, 36, 0.7); font-weight: 900;' : ''}">${state.teamAName}</span>`;
   pitchContainer.appendChild(watermarkLeft);
 
   // Right Side Team (Team B / Boots & Beers)
+  const isCustomB = state.teamBColor === "custom_boots";
   const watermarkRight = document.createElement("div");
-  watermarkRight.className = "pitch-team-watermark right";
-  watermarkRight.innerHTML = `<span>${state.teamBName}</span> <span class="w-2.5 h-2.5 rounded-full inline-block jersey-${state.teamBColor}"></span>`;
+  watermarkRight.className = `pitch-team-watermark right ${isCustomB ? "team-text-gold" : ""}`;
+  const dotB = isCustomB
+    ? `<span class="w-3.5 h-3.5 rounded-full inline-block bg-cover bg-center border border-amber-400 shadow-sm align-middle" style="background-image: url('assets/boots_custom_badge.png');"></span>`
+    : `<span class="w-2.5 h-2.5 rounded-full inline-block jersey-${state.teamBColor}"></span>`;
+  watermarkRight.innerHTML = `<span style="${isCustomB ? 'color: #fbbf24; text-shadow: 0 0 10px rgba(251, 191, 36, 0.7); font-weight: 900;' : ''}">${state.teamBName}</span> ${dotB}`;
   pitchContainer.appendChild(watermarkRight);
 
   // Render Team A (Left Half of Pitch: x: 0% -> 48%)
@@ -1651,6 +1714,18 @@ const JERSEY_COLOR_MAP = {
     shadow: "0 0 12px rgba(255, 255, 255, 0.5)",
     color: "#0f172a",
     border: "2px solid #94a3b8"
+  },
+  custom_voyagers: {
+    bg: "url('assets/voyagers_custom_badge.png') center/cover no-repeat",
+    shadow: "0 0 14px rgba(245, 158, 11, 0.9)",
+    color: "transparent",
+    border: "2.5px solid #f59e0b"
+  },
+  custom_boots: {
+    bg: "url('assets/boots_custom_badge.png') center/cover no-repeat",
+    shadow: "0 0 14px rgba(217, 119, 6, 0.9)",
+    color: "transparent",
+    border: "2.5px solid #d97706"
   },
   gk: {
     bg: "linear-gradient(135deg, #059669, #047857)",
@@ -2517,52 +2592,90 @@ function exportPitchAsImage() {
     red: "#dc2626",
     yellow: "#eab308",
     black: "#111827",
-    white: "#f8fafc"
+    white: "#f8fafc",
+    custom_voyagers: "#f59e0b",
+    custom_boots: "#d97706"
   };
 
+  const voyagersBadgeImg = new Image();
+  voyagersBadgeImg.src = "assets/voyagers_custom_badge.png";
+
+  const bootsBadgeImg = new Image();
+  bootsBadgeImg.src = "assets/boots_custom_badge.png";
+
   // Left Side Team Banner (VOYAGERS)
+  const isCustomA = state.teamAColor === "custom_voyagers";
   const colorHexA = CANVAS_COLOR_HEX[state.teamAColor] || "#2563eb";
   ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
   ctx.beginPath();
   ctx.roundRect(50, 45, 340, 50, 25);
   ctx.fill();
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.strokeStyle = isCustomA ? "rgba(245, 158, 11, 0.8)" : "rgba(255, 255, 255, 0.3)";
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  ctx.beginPath();
-  ctx.arc(80, 70, 10, 0, Math.PI * 2);
-  ctx.fillStyle = colorHexA;
-  ctx.fill();
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  if (isCustomA && voyagersBadgeImg.complete && voyagersBadgeImg.naturalWidth > 0) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(80, 70, 14, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(voyagersBadgeImg, 66, 56, 28, 28);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(80, 70, 14, 0, Math.PI * 2);
+    ctx.strokeStyle = "#f59e0b";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.arc(80, 70, 10, 0, Math.PI * 2);
+    ctx.fillStyle = colorHexA;
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = isCustomA ? "#fbbf24" : "#ffffff";
   ctx.font = "bold 20px sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillText(`LEFT: ${state.teamAName.toUpperCase()}`, 102, 70);
 
   // Right Side Team Banner (BOOTS & BEERS)
+  const isCustomB = state.teamBColor === "custom_boots";
   const colorHexB = CANVAS_COLOR_HEX[state.teamBColor] || "#dc2626";
   ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
   ctx.beginPath();
   ctx.roundRect(canvas.width - 390, 45, 340, 50, 25);
   ctx.fill();
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.strokeStyle = isCustomB ? "rgba(217, 119, 6, 0.8)" : "rgba(255, 255, 255, 0.3)";
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  ctx.beginPath();
-  ctx.arc(canvas.width - 80, 70, 10, 0, Math.PI * 2);
-  ctx.fillStyle = colorHexB;
-  ctx.fill();
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  if (isCustomB && bootsBadgeImg.complete && bootsBadgeImg.naturalWidth > 0) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(canvas.width - 80, 70, 14, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(bootsBadgeImg, canvas.width - 94, 56, 28, 28);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(canvas.width - 80, 70, 14, 0, Math.PI * 2);
+    ctx.strokeStyle = "#d97706";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.arc(canvas.width - 80, 70, 10, 0, Math.PI * 2);
+    ctx.fillStyle = colorHexB;
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = isCustomB ? "#fbbf24" : "#ffffff";
   ctx.font = "bold 20px sans-serif";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
@@ -2580,13 +2693,39 @@ function exportPitchAsImage() {
     const fillColor = CANVAS_COLOR_HEX[teamColor] || (team === "A" ? "#2563eb" : "#dc2626");
 
     // Jersey circle
-    ctx.beginPath();
-    ctx.arc(x, y, 22, 0, Math.PI * 2);
-    ctx.fillStyle = fillColor;
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = teamColor === "white" ? "#94a3b8" : "#ffffff";
-    ctx.stroke();
+    if (teamColor === "custom_voyagers" && voyagersBadgeImg.complete && voyagersBadgeImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, 22, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(voyagersBadgeImg, x - 22, y - 22, 44, 44);
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(x, y, 22, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#f59e0b";
+      ctx.stroke();
+    } else if (teamColor === "custom_boots" && bootsBadgeImg.complete && bootsBadgeImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, 22, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(bootsBadgeImg, x - 22, y - 22, 44, 44);
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(x, y, 22, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#d97706";
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(x, y, 22, 0, Math.PI * 2);
+      ctx.fillStyle = fillColor;
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = teamColor === "white" ? "#94a3b8" : "#ffffff";
+      ctx.stroke();
+    }
 
     // Form icon inside jersey circle
     ctx.font = "14px sans-serif";
@@ -2707,6 +2846,7 @@ function downloadFile(content, fileName, contentType) {
 function renderApp() {
   updateFormationOptions();
   updateActiveTabUI();
+  updateTeamNameColors();
 }
 
 // ============================================================

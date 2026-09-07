@@ -261,6 +261,32 @@
   border-color: #94a3b8 !important;
 }
 
+.jersey-custom_voyagers {
+  background-image: url('../assets/voyagers_custom_badge.png') !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  border: 2.5px solid #f59e0b !important;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.9) !important;
+  color: transparent !important;
+}
+
+.jersey-custom_boots {
+  background-image: url('../assets/boots_custom_badge.png') !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  border: 2.5px solid #d97706 !important;
+  box-shadow: 0 0 14px rgba(217, 119, 6, 0.9) !important;
+  color: transparent !important;
+}
+
+.team-text-gold {
+  color: #fbbf24 !important;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.7) !important;
+  font-weight: 900 !important;
+}
+
 .token-jersey.gk-jersey {
   background: linear-gradient(135deg, #059669, #047857) !important;
   box-shadow: 0 0 12px rgba(5, 150, 105, 0.8) !important;

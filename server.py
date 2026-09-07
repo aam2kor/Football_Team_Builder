@@ -49,6 +49,10 @@ def fetch_upstream_matches():
     return None
 
 class FastProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        web_dir = os.path.dirname(os.path.abspath(__file__))
+        super().__init__(*args, directory=web_dir, **kwargs)
+
     def _send_cors_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
