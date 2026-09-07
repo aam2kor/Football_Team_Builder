@@ -247,6 +247,8 @@ function setupGeneratorEvents() {
   });
 
   // Share Actions
+  document.getElementById("btn-swap-teams")?.addEventListener("click", swapEntireTeams);
+  document.getElementById("btn-swap-teams-pitch")?.addEventListener("click", swapEntireTeams);
   document.getElementById("btn-copy-whatsapp")?.addEventListener("click", copyWhatsAppLineup);
   document.getElementById("btn-export-image")?.addEventListener("click", exportPitchAsImage);
   document.getElementById("btn-coin-toss")?.addEventListener("click", triggerCoinToss);
@@ -2762,6 +2764,46 @@ function exportPitchAsImage() {
   link.href = canvas.toDataURL("image/png");
   link.click();
   showToast("✅ High-res pitch lineup image downloaded!", "success");
+}
+
+function swapEntireTeams() {
+  if (!state.activeTeamA || state.activeTeamA.length === 0 || !state.activeTeamB || state.activeTeamB.length === 0) {
+    showToast("No active teams to swap.", "warning");
+    return;
+  }
+
+  // 1. Swap player rosters
+  const tempTeam = state.activeTeamA;
+  state.activeTeamA = state.activeTeamB;
+  state.activeTeamB = tempTeam;
+
+  // 2. Swap formations
+  const tempFormation = state.formationTeamA;
+  state.formationTeamA = state.formationTeamB;
+  state.formationTeamB = tempFormation;
+
+  // 3. Update formation select dropdowns in UI
+  const selA = document.getElementById("formation-team-a");
+  if (selA) selA.value = state.formationTeamA;
+  const selB = document.getElementById("formation-team-b");
+  if (selB) selB.value = state.formationTeamB;
+
+  // 4. Re-assign formation slots for both teams
+  const formations = getFormationsForSize(state.targetTeamSize);
+  const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
+  const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
+  state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA);
+  state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
+
+  // 5. Clear any pending individual player swap selection
+  state.selectedSwapPlayerId = null;
+  state.selectedSwapTeam = null;
+
+  // 6. Re-render pitch and H2H comparison
+  renderPitch();
+  renderH2HComparison();
+
+  showToast(`⇄ Swapped entire teams & formations between ${state.teamAName} and ${state.teamBName}!`, "success");
 }
 
 function triggerCoinToss() {

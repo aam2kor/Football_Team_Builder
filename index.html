@@ -448,6 +448,11 @@
 
             <!-- Matchday Tools & Share Buttons -->
             <div class="flex items-center gap-2 flex-wrap">
+              <button id="btn-swap-teams" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm" title="Swap entire teams, players and formations between Voyagers & Boots & Beers">
+                <span>⇄</span>
+                <span>Swap Teams</span>
+              </button>
+
               <button id="btn-copy-whatsapp" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/20 flex items-center gap-1.5 transition-all">
                 <span>💬</span>
                 <span>Copy to WhatsApp</span>
@@ -563,9 +568,12 @@
               <span>🏟️ Interactive Match Pitch</span>
               <span class="text-[11px] font-normal text-slate-500">(Click any player to select, then click another to swap — same team or opposite team)</span>
             </span>
-            <div class="flex items-center gap-3 text-xs font-bold">
+            <div class="flex items-center gap-2.5 text-xs font-bold">
               <span class="text-blue-400 team-a-name-label">Voyagers</span>
-              <span class="text-slate-600 font-mono">VS</span>
+              <button id="btn-swap-teams-pitch" type="button" class="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 border border-slate-700 text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm" title="Swap entire teams and formations">
+                <span>⇄</span>
+                <span>Swap Sides</span>
+              </button>
               <span class="text-red-400 team-b-name-label">Boots & Beers</span>
             </div>
           </div>
