@@ -1763,12 +1763,6 @@ function createPlayerToken(player, team, posX, posY, slotLabel) {
   jersey.style.color = styleConfig.color;
   jersey.style.border = styleConfig.border;
 
-  // Form icon inside jersey
-  const formBadge = document.createElement("span");
-  formBadge.className = "token-form-badge";
-  formBadge.textContent = effective.formMod.icon;
-  jersey.appendChild(formBadge);
-
   // Name badge below jersey
   const nameBadge = document.createElement("div");
   nameBadge.className = "token-name-badge";
@@ -2726,12 +2720,6 @@ function exportPitchAsImage() {
       ctx.strokeStyle = teamColor === "white" ? "#94a3b8" : "#ffffff";
       ctx.stroke();
     }
-
-    // Form icon inside jersey circle
-    ctx.font = "14px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(eff.formMod.icon, x, y);
 
     // Name badge below jersey
     ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
