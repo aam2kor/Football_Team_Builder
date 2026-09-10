@@ -1,4 +1,4 @@
-import { testGeminiConnection, queryGeminiCoach, queryGeminiLeagueInsights, refineDraftWithGemini, generateGeminiScoutRecommendations, formatSectorWeightsExplanation, GEMINI_DEFAULT_MODEL } from "./geminiClient.js";
+import { testGeminiConnection, queryGeminiCoach, queryGeminiPureTeamSplit, queryGeminiLeagueInsights, refineDraftWithGemini, generateGeminiScoutRecommendations, formatSectorWeightsExplanation, GEMINI_DEFAULT_MODEL } from "./geminiClient.js";
 
 export const DEFAULT_AI_CONFIG = {
   provider: "ollama", // "ollama" | "gemini"
@@ -765,5 +765,107 @@ export async function getAiScoutRecommendations(scoutData, aiConfig = DEFAULT_AI
     }
   } else {
     return await generateOllamaScoutRecommendations(scoutData, aiConfig);
+  }
+}
+
+/**
+ * Unified Direct Pure AI Squad Selection: Routes to Gemini or Ollama to directly build teams without math balancer.
+ */
+export async function queryAiPureTeamSplit(userPrompt, players, context = {}, aiConfig = DEFAULT_AI_CONFIG) {
+  if (aiConfig.provider === "gemini") {
+    return queryGeminiPureTeamSplit(userPrompt, players, context, aiConfig);
+  }
+  return queryOllamaPureTeamSplit(userPrompt, players, context, aiConfig);
+}
+
+/**
+ * Pure AI Squad Selection via local Ollama LLM
+ */
+async function queryOllamaPureTeamSplit(userPrompt, players, context = {}, aiConfig = DEFAULT_AI_CONFIG) {
+  const endpoint = (aiConfig.endpoint || DEFAULT_AI_CONFIG.endpoint).replace(/\/+$/, "");
+  const model = aiConfig.model || DEFAULT_AI_CONFIG.model;
+  const teamAName = context.teamAName || "Voyagers";
+  const teamBName = context.teamBName || "Boots & Beers";
+  const targetTeamSize = context.targetTeamSize || Math.floor(players.length / 2);
+
+  const detailedRoster = players.map(p => {
+    const a = p.attributes || {};
+    const setting = (context.matchdaySettings && context.matchdaySettings[p.id]) || {};
+    const form = setting.form || p.form || "neutral";
+    const fit = setting.fitness !== undefined ? setting.fitness : (p.fitness || 100);
+    const chem = (p.chemistryPartners || []).join(", ") || "None";
+    return `• "${p.name}" [ID: "${p.id}", Pos: ${p.position}, OVR: ${p.ovr}, PAC: ${a.pac || 70}, SHO: ${a.sho || 70}, PAS: ${a.pas || 70}, DRI: ${a.dri || 70}, DEF: ${a.def || 70}, PHY: ${a.phy || 70}, GK: ${a.gk || 20}, Form: ${form}, Fit: ${fit}%, Chem: [${chem}]]`;
+  }).join("\n");
+
+  const sectorExplanation = formatSectorWeightsExplanation(context.sectorWeights);
+
+  const systemPrompt = `You are an elite football tactical coach. Autonomously assign all ${players.length} players into two complete, balanced teams for ${teamAName} and ${teamBName} (${targetTeamSize} players each).
+
+Available Players:
+${detailedRoster}
+${context.leagueSummary ? `\nRecent League & Derby Context:\n${context.leagueSummary}\n` : ""}
+${sectorExplanation}
+
+Requirements:
+1. "teamA": exact list of ${targetTeamSize} player names for ${teamAName}.
+2. "teamB": exact list of ${targetTeamSize} player names for ${teamBName}.
+3. Every player must be assigned to exactly one team (no duplicates).
+4. Both teams must have proper positional balance (GK, DEF, MID, FWD).
+5. "formationA" & "formationB": tactical formations (e.g. "1-3-3-1", "1-3-2-2", "1-2-3-2").
+6. "tacticalRationale": 2-3 sentence analysis of the matchup and sector strengths.
+7. "coachBriefing": 2-sentence pre-match locker-room speech.
+
+CRITICAL: Return ONLY valid JSON:
+{
+  "teamA": ["PlayerName1", "PlayerName2", ...],
+  "teamB": ["PlayerName3", "PlayerName4", ...],
+  "formationA": "1-3-3-1",
+  "formationB": "1-3-2-2",
+  "tacticalRationale": "Tactical analysis of both lineups...",
+  "coachBriefing": "Passionate pre-match locker-room speech."
+}`;
+
+  const payload = {
+    model: model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt || `Construct tactically balanced derby starting lineups for ${teamAName} and ${teamBName}.` }
+    ],
+    stream: false,
+    format: "json",
+    options: {
+      temperature: 0.2,
+      num_predict: 500,
+      num_ctx: 2048
+    }
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+  try {
+    const res = await fetchOllamaApi("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    }, endpoint);
+    clearTimeout(timeoutId);
+
+    const data = await res.json();
+    const content = (data.message?.content || "").trim();
+    const parsed = extractJsonObject(content);
+
+    return {
+      teamANames: Array.isArray(parsed.teamA) ? parsed.teamA : [],
+      teamBNames: Array.isArray(parsed.teamB) ? parsed.teamB : [],
+      formationA: parsed.formationA || null,
+      formationB: parsed.formationB || null,
+      tacticalRationale: parsed.tacticalRationale || "",
+      coachBriefing: parsed.coachBriefing || parsed.tacticalRationale || ""
+    };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
   }
 }

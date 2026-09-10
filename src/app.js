@@ -1,7 +1,7 @@
 import { PlayerDatabase, calculateOvr } from "./storage/db.js";
 import { buildBalancedTeams, calculateTeamStats, FORM_MODIFIERS, getEffectivePlayerStats, DEFAULT_SECTOR_WEIGHTS, cloneSectorWeights, getPlayerMetricScore } from "./engine/balancer.js";
 import { FORMATIONS, getFormationsForSize, assignPlayersToFormation } from "./engine/formations.js";
-import { loadAiConfig, saveAiConfig, testAiConnection, testOllamaConnection, testGeminiConnection, queryAiCoach, queryLeagueInsights, refineDraftWithAi, getAiScoutRecommendations } from "./ai/ollamaClient.js";
+import { loadAiConfig, saveAiConfig, testAiConnection, testOllamaConnection, testGeminiConnection, queryAiCoach, queryAiPureTeamSplit, queryLeagueInsights, refineDraftWithAi, getAiScoutRecommendations } from "./ai/ollamaClient.js";
 import { fetchLeagueMatches, computeHeadToHeadSummary, formatLeagueSummaryForAi, computeTopWinRatePlayers, computeTopWinningChemistries, computeTopGoalScorers, computeTopConsistentLosers, buildScoutAnalysisPayload } from "./services/leagueService.js";
 
 // Initialize Database instance
@@ -567,6 +567,9 @@ function setupAiEvents() {
   // Check connection on load
   checkAiConnection(false);
 
+  // Pure AI Squad Selection button (LLM-Direct)
+  document.getElementById("btn-pure-ai-teams")?.addEventListener("click", handleBuildPureAiTeams);
+
   // Build with AI Coach button (Constraint-first)
   document.getElementById("btn-build-ai-teams")?.addEventListener("click", handleBuildAiTeams);
 
@@ -724,6 +727,140 @@ async function checkAiConnection(notifyIfOnline = false) {
     if (text) text.textContent = isGemini ? "Gemini Offline (Click ⚙️)" : "Ollama Offline (Click ⚙️)";
     badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5 cursor-pointer";
     badge.onclick = () => openAiSettingsModal();
+  }
+}
+
+async function handleBuildPureAiTeams() {
+  const promptInput = document.getElementById("ai-coach-prompt-input");
+  const prompt = promptInput?.value?.trim() || "";
+
+  const requiredCount = state.targetTeamSize * 2;
+  const selected = db.getAll().filter(p => state.selectedPlayerIds.has(p.id));
+
+  if (selected.length !== requiredCount) {
+    showToast(`⚠️ Please select exactly ${requiredCount} players (currently ${selected.length} selected).`, "warning");
+    return;
+  }
+
+  const btn = document.getElementById("btn-pure-ai-teams");
+  const btnIcon = document.getElementById("pure-ai-btn-icon");
+  const btnText = document.getElementById("pure-ai-btn-text");
+
+  state.isAiLoading = true;
+  if (btn) btn.disabled = true;
+  if (btnIcon) btnIcon.textContent = "⏳";
+  if (btnText) btnText.textContent = "Pure AI Matchmaking...";
+
+  const activeModelName = state.aiConfig.provider === "gemini" ? (state.aiConfig.geminiModel || "gemini-1.5-flash") : state.aiConfig.model;
+  showToast(`🤖 Direct AI Squad Matchmaker analyzing with ${activeModelName}...`, "info");
+
+  try {
+    const activeLeagueSummary = formatLeagueSummaryForAi(state.leagueMatches, selected);
+    const aiResult = await queryAiPureTeamSplit(prompt, selected, {
+      teamAName: state.teamAName,
+      teamBName: state.teamBName,
+      targetTeamSize: state.targetTeamSize,
+      sectorWeights: state.sectorWeights,
+      matchdaySettings: state.matchdaySettings,
+      leagueSummary: activeLeagueSummary
+    }, state.aiConfig);
+
+    // Smart Matcher: maps LLM returned names or IDs to unique players in selected
+    const findSelectedPlayer = (nameOrId, pool) => {
+      if (!nameOrId) return null;
+      const clean = nameOrId.toString().toLowerCase().replace(/\s*\([^)]*\)/g, "").trim();
+      let match = pool.find(p => p.id.toLowerCase() === clean || p.name.toLowerCase().trim() === clean);
+      if (match) return match;
+      match = pool.find(p => p.name.toLowerCase().includes(clean) || clean.includes(p.name.toLowerCase()));
+      if (match) return match;
+      const first = clean.split(" ")[0];
+      return pool.find(p => p.name.toLowerCase().split(" ")[0] === first) || null;
+    };
+
+    let remainingPool = [...selected];
+    const teamA = [];
+    const teamB = [];
+
+    // 1. Assign Team A players requested by AI
+    (aiResult.teamANames || []).forEach(nameOrId => {
+      if (teamA.length < state.targetTeamSize) {
+        const found = findSelectedPlayer(nameOrId, remainingPool);
+        if (found) {
+          teamA.push(found);
+          remainingPool = remainingPool.filter(p => p.id !== found.id);
+        }
+      }
+    });
+
+    // 2. Assign Team B players requested by AI
+    (aiResult.teamBNames || []).forEach(nameOrId => {
+      if (teamB.length < state.targetTeamSize) {
+        const found = findSelectedPlayer(nameOrId, remainingPool);
+        if (found) {
+          teamB.push(found);
+          remainingPool = remainingPool.filter(p => p.id !== found.id);
+        }
+      }
+    });
+
+    // 3. Fallback Distributor: If any players remain unassigned, distribute them evenly
+    remainingPool.forEach(player => {
+      if (teamA.length < state.targetTeamSize) {
+        teamA.push(player);
+      } else if (teamB.length < state.targetTeamSize) {
+        teamB.push(player);
+      }
+    });
+
+    // 4. Update active rosters
+    state.activeTeamA = teamA;
+    state.activeTeamB = teamB;
+
+    // 5. Tactical Formations
+    const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
+    const formations = getFormationsForSize(sizeKey);
+    const availableFormKeys = Object.keys(formations);
+
+    let formAKey = aiResult.formationA && formations[aiResult.formationA] ? aiResult.formationA : state.formationTeamA;
+    let formBKey = aiResult.formationB && formations[aiResult.formationB] ? aiResult.formationB : state.formationTeamB;
+
+    if (!formations[formAKey]) formAKey = availableFormKeys[0];
+    if (!formations[formBKey]) formBKey = availableFormKeys[0];
+
+    state.formationTeamA = formAKey;
+    state.formationTeamB = formBKey;
+
+    const selectA = document.getElementById("formation-select-team-a");
+    const selectB = document.getElementById("formation-select-team-b");
+    if (selectA) selectA.value = formAKey;
+    if (selectB) selectB.value = formBKey;
+
+    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formations[formAKey]);
+    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formations[formBKey]);
+    syncMatchdayPositions();
+
+    // 6. Briefing & Rationale
+    state.aiCoachBriefing = aiResult.coachBriefing || aiResult.tacticalRationale;
+    state.aiRefineSwaps = [];
+
+    // 7. Render Pitch, Comparison, Banner & Briefing
+    renderPitch();
+    renderTeamComparison();
+    renderSynergyBanner();
+    renderAiCoachBriefing();
+
+    // Scroll to results section smoothly
+    document.getElementById("match-results-section")?.classList.remove("hidden");
+    document.getElementById("match-results-section")?.scrollIntoView({ behavior: "smooth" });
+    showToast(`🤖 Pure AI Squad Selection generated directly for ${state.teamAName} & ${state.teamBName}!`, "success");
+  } catch (err) {
+    showToast(`Pure AI Error: ${err.message}`, "error");
+    console.error("Pure AI Error:", err);
+  } finally {
+    state.isAiLoading = false;
+    if (btn) btn.disabled = false;
+    if (btnIcon) btnIcon.textContent = "🤖";
+    if (btnText) btnText.textContent = "Pure AI Squad Selection";
   }
 }
 

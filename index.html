@@ -207,13 +207,17 @@
               <button id="btn-clear-ai-prompt" type="button" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs">✕</button>
             </div>
             <div class="flex flex-col sm:flex-row items-center gap-2">
-              <button id="btn-refine-ai-draft" type="button" class="w-full sm:w-auto flex-1 px-4 py-2 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-600/30 active:scale-95 transition-all flex items-center justify-center gap-1.5 whitespace-nowrap" title="Math Balancer creates 1st draft, then Local AI reviews and refines with tactical swaps">
-                <span id="ai-refine-btn-icon">🔍</span>
-                <span id="ai-refine-btn-text">Review &amp; Refine Draft with AI</span>
+              <button id="btn-pure-ai-teams" type="button" class="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black rounded-xl shadow-lg shadow-purple-600/30 active:scale-95 transition-all flex items-center justify-center gap-1.5 whitespace-nowrap" title="Direct Pure AI Selection: LLM directly builds the entire squads without the math balancer">
+                <span id="pure-ai-btn-icon">🤖</span>
+                <span id="pure-ai-btn-text">Pure AI Squad Selection</span>
               </button>
               <button id="btn-build-ai-teams" type="button" class="w-full sm:w-auto px-4 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/40 text-xs font-black rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 whitespace-nowrap" title="Constraint-first balancing: AI extracts rules then Math Balancer builds teams">
                 <span id="ai-btn-icon">🧠</span>
                 <span id="ai-btn-text">Build with AI Rules</span>
+              </button>
+              <button id="btn-refine-ai-draft" type="button" class="w-full sm:w-auto flex-1 px-4 py-2 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-600/30 active:scale-95 transition-all flex items-center justify-center gap-1.5 whitespace-nowrap" title="Math Balancer creates 1st draft, then Local AI reviews and refines with tactical swaps">
+                <span id="ai-refine-btn-icon">🔍</span>
+                <span id="ai-refine-btn-text">Review &amp; Refine Draft with AI</span>
               </button>
             </div>
           </div>

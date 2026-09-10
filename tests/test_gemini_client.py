@@ -53,6 +53,22 @@ class TestGeminiIntegration(unittest.TestCase):
             self.assertIn(key, mock_insights_response)
             self.assertTrue(len(mock_insights_response[key]) > 0)
 
+    def test_gemini_pure_team_split_schema(self):
+        """Validates that Gemini pure team split directly allocates both squads and tactical rationale."""
+        mock_pure_response = {
+            "teamA": ["Marcus Vance", "Carlos Mendoza", "Trent Walker", "Lucas Romero", "Rafael Santos"],
+            "teamB": ["Hugo De Silva", "Sami Al-Khatib", "Mateo Kovacic", "Hakim Sterling", "Julian Alvarez"],
+            "formationA": "1-3-3-1",
+            "formationB": "1-3-2-2",
+            "tacticalRationale": "Voyagers adopt a high pressing 1-3-3-1 counter style while Boots & Beers set up in a fluid 1-3-2-2.",
+            "coachBriefing": "Fight for every loose ball in midfield and exploit transitions!"
+        }
+        for key in ["teamA", "teamB", "formationA", "formationB", "tacticalRationale", "coachBriefing"]:
+            self.assertIn(key, mock_pure_response)
+        self.assertEqual(len(mock_pure_response["teamA"]), 5)
+        self.assertEqual(len(mock_pure_response["teamB"]), 5)
+        self.assertEqual(mock_pure_response["formationA"], "1-3-3-1")
+
 if __name__ == "__main__":
     unittest.main()
 

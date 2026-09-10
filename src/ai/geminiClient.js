@@ -580,3 +580,111 @@ Be precise, realistic, and insightful.`;
   };
 }
 
+/**
+ * Direct Pure AI Squad Selection: Google Gemini directly allocates players to Team A and Team B without the math balancer.
+ * @param {string} userPrompt - Instructions from user
+ * @param {Array}  players - Selected players for the match
+ * @param {Object} context - { teamAName, teamBName, targetTeamSize, sectorWeights, matchdaySettings, leagueSummary }
+ * @param {Object} aiConfig - { geminiApiKey, geminiModel }
+ * @returns {Promise<{ teamANames: string[], teamBNames: string[], formationA?: string, formationB?: string, tacticalRationale: string, coachBriefing: string }>}
+ */
+export async function queryGeminiPureTeamSplit(userPrompt, players, context = {}, aiConfig = {}) {
+  const apiKey = aiConfig.geminiApiKey || "";
+  const model = aiConfig.geminiModel || GEMINI_DEFAULT_MODEL;
+  const teamAName = context.teamAName || "Voyagers";
+  const teamBName = context.teamBName || "Boots & Beers";
+  const targetTeamSize = context.targetTeamSize || Math.floor(players.length / 2);
+
+  const detailedRoster = players.map(p => {
+    const a = p.attributes || {};
+    const setting = (context.matchdaySettings && context.matchdaySettings[p.id]) || {};
+    const form = setting.form || p.form || "neutral";
+    const fit = setting.fitness !== undefined ? setting.fitness : (p.fitness || 100);
+    const chem = (p.chemistryPartners || []).join(", ") || "None";
+    return `  - "${p.name}" (ID: "${p.id}", Natural Pos: ${p.position}, OVR: ${p.ovr}, PAC: ${a.pac || 70}, SHO: ${a.sho || 70}, PAS: ${a.pas || 70}, DRI: ${a.dri || 70}, DEF: ${a.def || 70}, PHY: ${a.phy || 70}, GK: ${a.gk || 20}, Form: ${form}, Fit: ${fit}%, Chemistry Partners: [${chem}])`;
+  }).join("\n");
+
+  const sectorExplanation = formatSectorWeightsExplanation(context.sectorWeights);
+
+  const systemInstruction = `You are an elite football tactical coach and AI squad matchmaker.
+Your task is to autonomously assign EXACTLY ${players.length} selected players into two balanced, tactically complete teams:
+- Team A ("${teamAName}"): exactly ${targetTeamSize} players
+- Team B ("${teamBName}"): exactly ${targetTeamSize} players
+
+Every single player from the list below MUST be assigned to exactly ONE team (no omissions, no duplicates).
+
+Available Selected Players:
+${detailedRoster}
+${context.leagueSummary ? `\nRecent League & Derby Context:\n${context.leagueSummary}\n` : ""}
+${sectorExplanation}
+
+Tactical Rules:
+1. Ensure both teams have suitable positional coverage (Goalkeeping, Defense, Midfield, Attack).
+2. Take into account chemistry duos, player attributes, matchday form, and sector balance.
+3. Follow the user's tactical instructions strictly while creating competitive derby lineups.
+4. Output recommended formations for both teams (e.g. "1-3-3-1", "1-3-2-2", "1-2-3-2", "1-2-4-1").
+5. Provide a tactical rationale and pre-match briefing.`;
+
+  const promptText = `User Instruction: "${userPrompt || `Build two tactically balanced, fiercely competitive derby teams for ${teamAName} and ${teamBName}`}"`;
+
+  const payload = {
+    contents: [
+      {
+        parts: [
+          { text: `${systemInstruction}\n\n${promptText}` }
+        ]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.2,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          teamA: {
+            type: "ARRAY",
+            items: { type: "STRING" },
+            description: `List of exactly ${targetTeamSize} player names assigned to ${teamAName}`
+          },
+          teamB: {
+            type: "ARRAY",
+            items: { type: "STRING" },
+            description: `List of exactly ${targetTeamSize} player names assigned to ${teamBName}`
+          },
+          formationA: {
+            type: "STRING",
+            description: `Recommended formation for ${teamAName} (e.g. 1-3-3-1, 1-3-2-2)`
+          },
+          formationB: {
+            type: "STRING",
+            description: `Recommended formation for ${teamBName} (e.g. 1-3-3-1, 1-3-2-2)`
+          },
+          tacticalRationale: {
+            type: "STRING",
+            description: "2-3 sentence analysis explaining how the tactical matchup and sector dynamics were constructed."
+          },
+          coachBriefing: {
+            type: "STRING",
+            description: "Passionate 2-sentence pre-match tactical locker-room briefing."
+          }
+        },
+        required: ["teamA", "teamB", "tacticalRationale", "coachBriefing"]
+      }
+    }
+  };
+
+  const data = await callGeminiGenerateContent(model, apiKey, payload);
+  const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+  const parsed = JSON.parse(textContent);
+
+  return {
+    teamANames: Array.isArray(parsed.teamA) ? parsed.teamA : [],
+    teamBNames: Array.isArray(parsed.teamB) ? parsed.teamB : [],
+    formationA: parsed.formationA || null,
+    formationB: parsed.formationB || null,
+    tacticalRationale: parsed.tacticalRationale || "",
+    coachBriefing: parsed.coachBriefing || parsed.tacticalRationale || ""
+  };
+}
+
+
