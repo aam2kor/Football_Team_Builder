@@ -2407,6 +2407,21 @@ function renderRosterView() {
   });
 }
 
+function calculateSectorAttributePotential(player, sectorKey, sectorWeights) {
+  const a = player.attributes || { pac: 70, sho: 70, pas: 70, dri: 70, def: 70, phy: 70, gk: 50 };
+  const sw = sectorWeights || DEFAULT_SECTOR_WEIGHTS;
+  const aw = sw[sectorKey]?.attributes || {};
+
+  const raw = (a.pac || 0) * (aw.pac || 0) +
+              (a.sho || 0) * (aw.sho || 0) +
+              (a.pas || 0) * (aw.pas || 0) +
+              (a.dri || 0) * (aw.dri || 0) +
+              (a.def || 0) * (aw.def || 0) +
+              (a.phy || 0) * (aw.phy || 0);
+
+  return Math.round(raw);
+}
+
 function renderSectorPotentialTables(players) {
   const attackContainer = document.getElementById("roster-attack-table-card");
   const midfieldContainer = document.getElementById("roster-midfield-table-card");
@@ -2425,8 +2440,7 @@ function renderSectorPotentialTables(players) {
       topBadgeColor: "bg-red-600 text-white shadow-red-600/40",
       statsSubtitle: () => {
         const aw = state.sectorWeights.attack?.attributes || {};
-        const pw = state.sectorWeights.attack?.positions || {};
-        return `Weights: SHO (${aw.sho ?? 0.4}) · DRI (${aw.dri ?? 0.3}) · PAC (${aw.pac ?? 0.3}) · Pos Mult (${pw.FWD ?? 1.4}x FWD)`;
+        return `Weights: SHO (${aw.sho ?? 0.4}) · DRI (${aw.dri ?? 0.3}) · PAC (${aw.pac ?? 0.3})`;
       },
       getKeyStats: (p) => {
         const a = p.attributes || {};
@@ -2443,7 +2457,6 @@ function renderSectorPotentialTables(players) {
       topBadgeColor: "bg-amber-600 text-slate-950 shadow-amber-600/40",
       statsSubtitle: () => {
         const aw = state.sectorWeights.midfield?.attributes || {};
-        const pw = state.sectorWeights.midfield?.positions || {};
         return `Weights: PAS (${aw.pas ?? 0.35}) · DRI (${aw.dri ?? 0.25}) · DEF (${aw.def ?? 0.2}) · PAC (${aw.pac ?? 0.2})`;
       },
       getKeyStats: (p) => {
@@ -2461,25 +2474,20 @@ function renderSectorPotentialTables(players) {
       topBadgeColor: "bg-blue-600 text-white shadow-blue-600/40",
       statsSubtitle: () => {
         const aw = state.sectorWeights.defense?.attributes || {};
-        const pw = state.sectorWeights.defense?.positions || {};
-        const gkBlend = state.sectorWeights.defense?.gkBlend ?? 0.35;
-        return `Weights: DEF (${aw.def ?? 0.45}) · PHY (${aw.phy ?? 0.35}) · PAC (${aw.pac ?? 0.2}) · GK Blend (${gkBlend})`;
+        return `Weights: DEF (${aw.def ?? 0.45}) · PHY (${aw.phy ?? 0.35}) · PAC (${aw.pac ?? 0.2})`;
       },
       getKeyStats: (p) => {
         const a = p.attributes || {};
-        if (p.position === "GK") {
-          return `<span class="text-emerald-300 font-semibold">GK ${a.gk || 0}</span> · DEF ${a.def || 0} · PHY ${a.phy || 0}`;
-        }
         return `<span class="text-blue-300 font-semibold">DEF ${a.def || 0}</span> · PHY ${a.phy || 0} · PAC ${a.pac || 0}`;
       }
     }
   ];
 
   sectors.forEach(sector => {
-    // Clone and score players for this sector
+    // Clone and score players for this sector purely based on attributes and slider weights
     const scoredPlayers = players.map(p => ({
       player: p,
-      score: getPlayerMetricScore(p, {}, sector.key, state.sectorWeights, false)
+      score: calculateSectorAttributePotential(p, sector.key, state.sectorWeights)
     }));
 
     // Sort descending by calculated score, tie-break by base ovr then name
