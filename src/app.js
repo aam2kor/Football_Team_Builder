@@ -34,6 +34,7 @@ const state = {
   filterPosition: "ALL",
   searchQuery: "",
   sortBy: "ovr_desc",
+  rosterViewMode: "cards",
 
   // Generator State
   generatedSolutions: [],
@@ -1294,6 +1295,7 @@ function initSectorWeightsPanel() {
     if (state.activeTeamA && state.activeTeamA.length > 0) {
       renderTeamComparison();
     }
+    renderRosterView();
   });
 
   // Per-sector reset buttons
@@ -1307,6 +1309,7 @@ function initSectorWeightsPanel() {
     if (state.activeTeamA && state.activeTeamA.length > 0) {
       renderTeamComparison();
     }
+    renderRosterView();
     showToast(`↺ ${sector.charAt(0).toUpperCase() + sector.slice(1)} weights reset to defaults`, "info");
   });
 
@@ -1318,6 +1321,7 @@ function initSectorWeightsPanel() {
     if (state.activeTeamA && state.activeTeamA.length > 0) {
       renderTeamComparison();
     }
+    renderRosterView();
     showToast("↺ All sector weights reset to defaults", "info");
   });
 }
@@ -2204,6 +2208,29 @@ function renderTeamRosterList(elementId, players, teamTag) {
 function setupRosterEvents() {
   document.getElementById("btn-add-player")?.addEventListener("click", () => openPlayerModal());
 
+  const btnCards = document.getElementById("btn-roster-view-cards");
+  const btnPotentials = document.getElementById("btn-roster-view-potentials");
+  const cardsContainer = document.getElementById("roster-cards-container");
+  const potentialsContainer = document.getElementById("roster-potentials-container");
+
+  btnCards?.addEventListener("click", () => {
+    state.rosterViewMode = "cards";
+    btnCards.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-blue-600 text-white shadow-md shadow-blue-600/30 flex items-center gap-1.5";
+    btnPotentials.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-transparent text-slate-400 hover:text-white flex items-center gap-1.5";
+    cardsContainer?.classList.remove("hidden");
+    potentialsContainer?.classList.add("hidden");
+    renderRosterView();
+  });
+
+  btnPotentials?.addEventListener("click", () => {
+    state.rosterViewMode = "potentials";
+    btnPotentials.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-blue-600 text-white shadow-md shadow-blue-600/30 flex items-center gap-1.5";
+    btnCards.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-transparent text-slate-400 hover:text-white flex items-center gap-1.5";
+    cardsContainer?.classList.add("hidden");
+    potentialsContainer?.classList.remove("hidden");
+    renderRosterView();
+  });
+
   document.getElementById("roster-search-input")?.addEventListener("input", (e) => {
     state.searchQuery = e.target.value.toLowerCase().trim();
     renderRosterView();
@@ -2242,6 +2269,25 @@ function renderRosterView() {
     players = players.filter(p => p.position === state.filterPosition);
   }
 
+  const totalCountEl = document.getElementById("roster-total-count");
+  if (totalCountEl) totalCountEl.textContent = `${players.length} Players`;
+
+  // Always keep sector potentials synchronized
+  renderSectorPotentialTables(players);
+
+  const cardsContainer = document.getElementById("roster-cards-container");
+  const potentialsContainer = document.getElementById("roster-potentials-container");
+
+  if (state.rosterViewMode === "potentials") {
+    cardsContainer?.classList.add("hidden");
+    potentialsContainer?.classList.remove("hidden");
+  } else {
+    cardsContainer?.classList.remove("hidden");
+    potentialsContainer?.classList.add("hidden");
+  }
+
+  if (!cardsContainer) return;
+
   players.sort((a, b) => {
     switch (state.sortBy) {
       case "ovr_asc": return a.ovr - b.ovr;
@@ -2255,14 +2301,8 @@ function renderRosterView() {
     }
   });
 
-  const totalCountEl = document.getElementById("roster-total-count");
-  if (totalCountEl) totalCountEl.textContent = `${players.length} Players`;
-
-  const container = document.getElementById("roster-cards-container");
-  if (!container) return;
-
   if (players.length === 0) {
-    container.innerHTML = `
+    cardsContainer.innerHTML = `
       <div class="col-span-full py-16 text-center text-slate-400">
         <p class="text-base font-semibold">No players match your search or filter.</p>
         <button id="btn-add-player-empty-roster" class="mt-4 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg shadow-lg">
@@ -2274,7 +2314,7 @@ function renderRosterView() {
     return;
   }
 
-  container.innerHTML = players.map(p => {
+  cardsContainer.innerHTML = players.map(p => {
     const cardClass = getFifaCardTierClass(p.ovr);
     const a = p.attributes || { pac: 70, sho: 70, pas: 70, dri: 70, def: 70, phy: 70 };
     
@@ -2349,11 +2389,11 @@ function renderRosterView() {
     `;
   }).join("");
 
-  container.querySelectorAll("[data-edit-player]").forEach(btn => {
+  cardsContainer.querySelectorAll("[data-edit-player]").forEach(btn => {
     btn.addEventListener("click", () => openPlayerModal(btn.dataset.editPlayer));
   });
 
-  container.querySelectorAll("[data-delete-player]").forEach(btn => {
+  cardsContainer.querySelectorAll("[data-delete-player]").forEach(btn => {
     btn.addEventListener("click", () => {
       const id = btn.dataset.deletePlayer;
       const player = db.getById(id);
@@ -2363,6 +2403,182 @@ function renderRosterView() {
         renderRosterView();
         showToast("Player deleted successfully.", "info");
       }
+    });
+  });
+}
+
+function renderSectorPotentialTables(players) {
+  const attackContainer = document.getElementById("roster-attack-table-card");
+  const midfieldContainer = document.getElementById("roster-midfield-table-card");
+  const defenseContainer = document.getElementById("roster-defense-table-card");
+
+  if (!attackContainer || !midfieldContainer || !defenseContainer) return;
+
+  const sectors = [
+    {
+      key: "attack",
+      container: attackContainer,
+      title: "Attack Potential",
+      icon: "⚔️",
+      headerColor: "from-red-950/50 via-red-900/30 to-slate-900/80 border-red-500/30 text-red-400",
+      badgeColor: "bg-red-950/80 text-red-300 border-red-500/40",
+      topBadgeColor: "bg-red-600 text-white shadow-red-600/40",
+      statsSubtitle: () => {
+        const aw = state.sectorWeights.attack?.attributes || {};
+        const pw = state.sectorWeights.attack?.positions || {};
+        return `Weights: SHO (${aw.sho ?? 0.4}) · DRI (${aw.dri ?? 0.3}) · PAC (${aw.pac ?? 0.3}) · Pos Mult (${pw.FWD ?? 1.4}x FWD)`;
+      },
+      getKeyStats: (p) => {
+        const a = p.attributes || {};
+        return `<span class="text-red-300 font-semibold">SHO ${a.sho || 0}</span> · DRI ${a.dri || 0} · PAC ${a.pac || 0}`;
+      }
+    },
+    {
+      key: "midfield",
+      container: midfieldContainer,
+      title: "Midfield Potential",
+      icon: "⚙️",
+      headerColor: "from-amber-950/50 via-amber-900/30 to-slate-900/80 border-amber-500/30 text-amber-400",
+      badgeColor: "bg-amber-950/80 text-amber-300 border-amber-500/40",
+      topBadgeColor: "bg-amber-600 text-slate-950 shadow-amber-600/40",
+      statsSubtitle: () => {
+        const aw = state.sectorWeights.midfield?.attributes || {};
+        const pw = state.sectorWeights.midfield?.positions || {};
+        return `Weights: PAS (${aw.pas ?? 0.35}) · DRI (${aw.dri ?? 0.25}) · DEF (${aw.def ?? 0.2}) · PAC (${aw.pac ?? 0.2})`;
+      },
+      getKeyStats: (p) => {
+        const a = p.attributes || {};
+        return `<span class="text-amber-300 font-semibold">PAS ${a.pas || 0}</span> · DRI ${a.dri || 0} · DEF ${a.def || 0}`;
+      }
+    },
+    {
+      key: "defense",
+      container: defenseContainer,
+      title: "Defense Potential",
+      icon: "🛡️",
+      headerColor: "from-blue-950/50 via-blue-900/30 to-slate-900/80 border-blue-500/30 text-blue-400",
+      badgeColor: "bg-blue-950/80 text-blue-300 border-blue-500/40",
+      topBadgeColor: "bg-blue-600 text-white shadow-blue-600/40",
+      statsSubtitle: () => {
+        const aw = state.sectorWeights.defense?.attributes || {};
+        const pw = state.sectorWeights.defense?.positions || {};
+        const gkBlend = state.sectorWeights.defense?.gkBlend ?? 0.35;
+        return `Weights: DEF (${aw.def ?? 0.45}) · PHY (${aw.phy ?? 0.35}) · PAC (${aw.pac ?? 0.2}) · GK Blend (${gkBlend})`;
+      },
+      getKeyStats: (p) => {
+        const a = p.attributes || {};
+        if (p.position === "GK") {
+          return `<span class="text-emerald-300 font-semibold">GK ${a.gk || 0}</span> · DEF ${a.def || 0} · PHY ${a.phy || 0}`;
+        }
+        return `<span class="text-blue-300 font-semibold">DEF ${a.def || 0}</span> · PHY ${a.phy || 0} · PAC ${a.pac || 0}`;
+      }
+    }
+  ];
+
+  sectors.forEach(sector => {
+    // Clone and score players for this sector
+    const scoredPlayers = players.map(p => ({
+      player: p,
+      score: getPlayerMetricScore(p, {}, sector.key, state.sectorWeights, false)
+    }));
+
+    // Sort descending by calculated score, tie-break by base ovr then name
+    scoredPlayers.sort((a, b) => b.score - a.score || b.player.ovr - a.player.ovr || a.player.name.localeCompare(b.player.name));
+
+    const subtitle = sector.statsSubtitle();
+
+    let rowsHtml = "";
+    if (scoredPlayers.length === 0) {
+      rowsHtml = `
+        <tr>
+          <td colspan="4" class="py-8 text-center text-xs text-slate-500">
+            No players found matching filter.
+          </td>
+        </tr>
+      `;
+    } else {
+      rowsHtml = scoredPlayers.map((item, idx) => {
+        const p = item.player;
+        const rank = idx + 1;
+        const rankBadge = rank === 1 ? "🥇 #1" : rank === 2 ? "🥈 #2" : rank === 3 ? "🥉 #3" : `#${rank}`;
+        const rankClass = rank === 1 ? "text-amber-400 font-black" : rank === 2 ? "text-slate-300 font-bold" : rank === 3 ? "text-amber-600 font-bold" : "text-slate-500 font-mono";
+        const ovrClass = getFifaCardTierClass(p.ovr);
+        const posClass = getPositionBadgeClass(p.position);
+
+        return `
+          <tr class="border-b border-slate-800/60 hover:bg-slate-800/50 transition-colors cursor-pointer group" data-open-modal-player="${p.id}" title="Click to view/edit ${p.name}">
+            <td class="py-2.5 px-3 text-xs ${rankClass} whitespace-nowrap">
+              ${rankBadge}
+            </td>
+            <td class="py-2.5 px-3">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-white text-xs group-hover:text-blue-400 transition-colors truncate max-w-[100px] sm:max-w-[130px]">
+                  ${p.name}
+                </span>
+                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${posClass} whitespace-nowrap">
+                  ${p.position}
+                </span>
+                ${p.secondaryPosition && p.secondaryPosition !== p.position ? `
+                  <span class="hidden sm:inline px-1 py-0.5 rounded text-[8px] font-semibold bg-slate-800 text-slate-400 whitespace-nowrap">
+                    ${p.secondaryPosition}
+                  </span>
+                ` : ''}
+              </div>
+              <div class="text-[10px] text-slate-400 mt-0.5 font-mono">
+                ${sector.getKeyStats(p)}
+              </div>
+            </td>
+            <td class="py-2.5 px-2 text-center whitespace-nowrap">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-black ${ovrClass}">
+                ${p.ovr}
+              </span>
+            </td>
+            <td class="py-2.5 px-3 text-right whitespace-nowrap">
+              <span class="px-2.5 py-1 rounded-lg text-xs font-black font-mono border shadow-sm ${
+                rank <= 3 ? `${sector.topBadgeColor} shadow-md` : sector.badgeColor
+              }">
+                ${item.score}
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    sector.container.innerHTML = `
+      <div class="p-3.5 bg-gradient-to-r ${sector.headerColor} border-b flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-lg">${sector.icon}</span>
+          <div>
+            <h3 class="font-black text-sm text-white tracking-wide">${sector.title}</h3>
+            <p class="text-[10px] text-slate-400 font-mono mt-0.5">${subtitle}</p>
+          </div>
+        </div>
+        <span class="text-[11px] font-mono font-bold text-slate-400 bg-slate-900/60 px-2 py-0.5 rounded border border-slate-800">
+          ${scoredPlayers.length} ${scoredPlayers.length === 1 ? 'Player' : 'Players'}
+        </span>
+      </div>
+      <div class="overflow-x-auto flex-1 max-h-[580px] overflow-y-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/90 sticky top-0 z-10 border-b border-slate-800">
+              <th class="py-2 px-3 w-12">Rank</th>
+              <th class="py-2 px-3">Player &amp; Stats</th>
+              <th class="py-2 px-2 text-center w-12">OVR</th>
+              <th class="py-2 px-3 text-right w-16">Potential</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-800/40">
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    sector.container.querySelectorAll("[data-open-modal-player]").forEach(row => {
+      row.addEventListener("click", () => {
+        openPlayerModal(row.dataset.openModalPlayer);
+      });
     });
   });
 }

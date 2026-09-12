@@ -711,16 +711,60 @@
 
       </div>
 
-      <!-- Count and Grid Header -->
-      <div class="flex items-center justify-between">
+      <!-- View Switcher & Count Header -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2 p-1 bg-slate-900/90 rounded-xl border border-slate-800 w-fit shadow-sm">
+          <button id="btn-roster-view-cards" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-blue-600 text-white shadow-md shadow-blue-600/30 flex items-center gap-1.5">
+            <span>🃏</span>
+            <span>Player Cards</span>
+          </button>
+          <button id="btn-roster-view-potentials" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-transparent text-slate-400 hover:text-white flex items-center gap-1.5">
+            <span>📊</span>
+            <span>Sector Potentials (ATT · MID · DEF)</span>
+          </button>
+        </div>
+
         <span id="roster-total-count" class="text-xs font-bold uppercase tracking-wider text-slate-400">
           24 Players
         </span>
       </div>
 
-      <!-- Cards Grid -->
+      <!-- 1. Cards Grid View Container -->
       <div id="roster-cards-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <!-- Populated dynamically by JavaScript -->
+      </div>
+
+      <!-- 2. Sector Potentials Tables View Container -->
+      <div id="roster-potentials-container" class="hidden space-y-6">
+        <!-- Live info banner -->
+        <div class="p-3.5 rounded-xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 text-xs text-slate-300 flex items-center justify-between gap-3 shadow-md">
+          <div class="flex items-center gap-2.5">
+            <span class="text-xl">⚙️</span>
+            <div>
+              <span class="font-bold text-white text-xs">Live Sector Potentials &amp; Rankings</span>
+              <p class="text-slate-400 text-[11px] mt-0.5">Calculated in real-time from database attributes multiplied by your active <span class="text-indigo-300 font-semibold">Advanced Sector Weights</span> and <span class="text-indigo-300 font-semibold">Positional Multipliers</span>.</p>
+            </div>
+          </div>
+          <span class="text-[10px] font-mono font-bold px-2.5 py-1 rounded-lg bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 whitespace-nowrap shadow-sm">⚡ Auto-Updated</span>
+        </div>
+
+        <!-- 3 Side-by-Side Tables for Attack, Midfield, Defense -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <!-- Attack Potential Table Card -->
+          <div id="roster-attack-table-card" class="glass-panel rounded-2xl border border-red-500/30 shadow-xl overflow-hidden flex flex-col">
+            <!-- Rendered by JavaScript -->
+          </div>
+
+          <!-- Midfield Potential Table Card -->
+          <div id="roster-midfield-table-card" class="glass-panel rounded-2xl border border-amber-500/30 shadow-xl overflow-hidden flex flex-col">
+            <!-- Rendered by JavaScript -->
+          </div>
+
+          <!-- Defense Potential Table Card -->
+          <div id="roster-defense-table-card" class="glass-panel rounded-2xl border border-blue-500/30 shadow-xl overflow-hidden flex flex-col">
+            <!-- Rendered by JavaScript -->
+          </div>
+        </div>
       </div>
 
     </div>
