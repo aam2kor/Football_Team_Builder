@@ -3149,12 +3149,13 @@ function swapEntireTeams() {
   const selB = document.getElementById("formation-team-b");
   if (selB) selB.value = state.formationTeamB;
 
-  // 4. Re-assign formation slots for both teams
-  const formations = getFormationsForSize(state.targetTeamSize);
-  const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
-  const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
-  state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA);
-  state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
+  // 4. Swap assigned tactical slots directly to preserve exact on-pitch positions and roles
+  const tempSlots = state.assignedSlotsA;
+  state.assignedSlotsA = state.assignedSlotsB;
+  state.assignedSlotsB = tempSlots;
+
+  // Sync matchdayPositions on player objects to match their new side's slots
+  syncMatchdayPositions();
 
   // 5. Clear any pending individual player swap selection
   state.selectedSwapPlayerId = null;
@@ -3165,7 +3166,7 @@ function swapEntireTeams() {
   renderTeamComparison();
   renderSynergyBanner();
 
-  showToast(`⇄ Swapped entire teams & formations between ${state.teamAName} and ${state.teamBName}!`, "success");
+  showToast(`⇄ Swapped sides between ${state.teamAName} and ${state.teamBName}!`, "success");
 }
 
 function triggerCoinToss() {
