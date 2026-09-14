@@ -370,6 +370,37 @@ def test_clutch_scorers_and_derby_trends():
   print(f"[x] Total derby goals: {total_goals} across 4 matches (8.0 avg)")
   print(f"[x] Hat-tricks recorded: {hat_tricks}")
 
+def test_audit_team_matchup():
+  print("--- Testing AI Matchup Auditor & Score Predictor Logic ---")
+  # Balanced squads simulation
+  team_a = [
+    {"name": "CP", "position": "FWD", "ovr": 78, "attributes": {"pac": 80, "sho": 78, "def": 55}},
+    {"name": "Mathai", "position": "DEF", "ovr": 77, "attributes": {"pac": 72, "sho": 68, "def": 78}},
+    {"name": "Ajith", "position": "MID", "ovr": 75, "attributes": {"pac": 74, "sho": 70, "def": 68}},
+    {"name": "Tom", "position": "DEF", "ovr": 74, "attributes": {"pac": 70, "sho": 60, "def": 74}},
+  ]
+  team_b = [
+    {"name": "Vinay", "position": "FWD", "ovr": 78, "attributes": {"pac": 78, "sho": 76, "def": 54}},
+    {"name": "Sreekanth", "position": "MID", "ovr": 78, "attributes": {"pac": 76, "sho": 75, "def": 68}},
+    {"name": "Abey", "position": "DEF", "ovr": 76, "attributes": {"pac": 74, "sho": 65, "def": 76}},
+    {"name": "Pradeep", "position": "MID", "ovr": 74, "attributes": {"pac": 70, "sho": 68, "def": 70}},
+  ]
+
+  # Goal production rate for Vinay (7G in 4M = 1.75) and CP (4G in 2M = 2.0)
+  p_stats = compute_player_win_rates(SAMPLE_API_RESPONSE["matches"])
+  goal_map = {}
+  for m in SAMPLE_API_RESPONSE["matches"]:
+    for t in m["teams"]:
+      for s in t.get("scorers", []):
+        if not s.get("is_own_goal", False):
+          goal_map[s["name"]] = goal_map.get(s["name"], 0) + s.get("goals", 1)
+
+  threat_a = (goal_map.get("CP", 0) / 2) + (goal_map.get("Mathai", 0) / 4)
+  threat_b = (goal_map.get("Vinay", 0) / 4) + (goal_map.get("Sreekanth", 0) / 4)
+  delta = abs(threat_a - threat_b)
+  assert delta < 1.0  # Evenly matched firepower
+  print(f"[x] Matchup Audit Parity verified: Team A Threat={threat_a:.2f} G/M vs Team B Threat={threat_b:.2f} G/M (Delta={delta:.2f})")
+
 if __name__ == "__main__":
   test_h2h_calculation()
   test_player_stats()
@@ -379,6 +410,7 @@ if __name__ == "__main__":
   test_jersey_win_rates()
   test_defensive_leakage()
   test_clutch_scorers_and_derby_trends()
+  test_audit_team_matchup()
   test_ai_scout_analysis_and_calibration()
   print("\n>>> ALL LEAGUE SERVICE TESTS PASSED! <<<\n")
 

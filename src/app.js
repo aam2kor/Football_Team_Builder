@@ -15,7 +15,8 @@ import {
   computeDefensiveLeakageStats,
   computeClutchScorers,
   computeDerbyTrends,
-  buildScoutAnalysisPayload
+  buildScoutAnalysisPayload,
+  auditTeamMatchup
 } from "./services/leagueService.js";
 
 // Initialize Database instance
@@ -2217,6 +2218,216 @@ function renderTeamComparison() {
 
   renderTeamRosterList("team-a-roster-list", state.activeTeamA, "A");
   renderTeamRosterList("team-b-roster-list", state.activeTeamB, "B");
+  renderMatchupAuditor();
+}
+
+/**
+ * Renders the AI Matchup Auditor & Scoreline Predictor Card below the team comparison.
+ */
+function renderMatchupAuditor() {
+  const container = document.getElementById("matchup-auditor-container");
+  if (!container) return;
+
+  if (!state.activeTeamA || !state.activeTeamB || state.activeTeamA.length === 0 || state.activeTeamB.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const audit = auditTeamMatchup(
+    state.activeTeamA,
+    state.activeTeamB,
+    state.leagueMatches,
+    state.sectorWeights,
+    state.matchdaySettings
+  );
+
+  if (!audit) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const isBlowout = audit.status === "blowout_risk";
+  const isGolden = audit.status === "golden_balance";
+
+  container.innerHTML = `
+    <div class="glass-panel p-5 sm:p-6 rounded-2xl border ${
+      isGolden
+        ? "border-emerald-500/40 bg-gradient-to-b from-slate-900/95 to-slate-950 shadow-emerald-500/10"
+        : isBlowout
+        ? "border-rose-500/50 bg-gradient-to-b from-rose-950/20 via-slate-900/95 to-slate-950 shadow-rose-500/10"
+        : "border-amber-500/40 bg-gradient-to-b from-slate-900/95 to-slate-950 shadow-amber-500/10"
+    } space-y-5 shadow-2xl transition-all">
+      
+      <!-- Top Header & Parity Gauge -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xl">🔮</span>
+            <h3 class="text-base font-black text-white tracking-tight">AI Matchup Auditor &amp; Scoreline Predictor</h3>
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+              isGolden
+                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                : isBlowout
+                ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse"
+                : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+            }">
+              ${audit.statusLabel}
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">Historical Goal Pace • Sector Mismatch (ATT vs DEF) • Pairwise Finisher Balancing</p>
+        </div>
+
+        <!-- Parity Score Badge -->
+        <div class="flex items-center gap-3">
+          <div class="text-right">
+            <div class="text-[10px] uppercase tracking-wider font-bold text-slate-400">Balance Parity Index</div>
+            <div class="text-xl font-black font-mono ${
+              isGolden ? "text-emerald-400" : isBlowout ? "text-rose-400" : "text-amber-400"
+            }">
+              ${audit.parityIndex}%
+            </div>
+          </div>
+          <div class="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg border ${
+            isGolden
+              ? "bg-emerald-950 border-emerald-500/50 text-emerald-300 shadow-lg shadow-emerald-500/20"
+              : isBlowout
+              ? "bg-rose-950 border-rose-500/50 text-rose-300 shadow-lg shadow-rose-500/20 animate-pulse"
+              : "bg-amber-950 border-amber-500/50 text-amber-300 shadow-lg shadow-amber-500/20"
+          }">
+            ${audit.parityIndex >= 88 ? "🟢" : audit.parityIndex >= 72 ? "🟡" : "🔴"}
+          </div>
+        </div>
+      </div>
+
+      <!-- Centerpiece: Predicted Scoreline Card -->
+      <div class="p-4 sm:p-5 rounded-xl bg-slate-950/80 border border-slate-800/90 flex flex-col md:flex-row items-center justify-between gap-4">
+        
+        <!-- Team A Predicted Threat -->
+        <div class="flex items-center gap-3 flex-1">
+          <div class="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center font-black text-blue-300 text-lg flex-shrink-0">
+            🔵
+          </div>
+          <div class="min-w-0">
+            <div class="text-xs font-black text-blue-400 truncate">${state.teamAName || "Voyagers"}</div>
+            <div class="text-[11px] font-mono text-slate-400">
+              xG: <span class="font-bold text-white">${audit.xGA}</span> • <span class="text-blue-300 font-bold">${audit.threatShareA}% Firepower</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Scoreline Projection -->
+        <div class="flex flex-col items-center justify-center px-6 py-2.5 rounded-xl bg-slate-900 border border-slate-700/80 min-w-[200px] shadow-inner text-center">
+          <span class="text-[9px] uppercase tracking-widest font-black text-indigo-400">Expected Scoreline</span>
+          <div class="text-2xl sm:text-3xl font-black text-white font-mono tracking-wider flex items-center gap-2 my-0.5">
+            <span class="text-blue-400">${audit.scoreA}</span>
+            <span class="text-slate-500 font-light">-</span>
+            <span class="text-red-400">${audit.scoreB}</span>
+          </div>
+          <span class="text-[10px] text-slate-400 font-medium">
+            ${audit.goalDelta === 0 ? "⚔️ Dead-Even Derby Projection" : audit.goalDelta > 0 ? `🔵 ${state.teamAName} +${Math.abs(audit.goalDelta)} xG Edge` : `🔴 ${state.teamBName} +${Math.abs(audit.goalDelta)} xG Edge`}
+          </span>
+        </div>
+
+        <!-- Team B Predicted Threat -->
+        <div class="flex items-center justify-end gap-3 flex-1 text-right">
+          <div class="min-w-0">
+            <div class="text-xs font-black text-red-400 truncate">${state.teamBName || "Boots & Beers"}</div>
+            <div class="text-[11px] font-mono text-slate-400">
+              <span class="text-red-300 font-bold">${audit.threatShareB}% Firepower</span> • xG: <span class="font-bold text-white">${audit.xGB}</span>
+            </div>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-red-600/30 border border-red-500/40 flex items-center justify-center font-black text-red-300 text-lg flex-shrink-0">
+            🔴
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Parity Health Meter Bar -->
+      <div class="space-y-1.5">
+        <div class="flex justify-between text-[11px] font-mono text-slate-400">
+          <span class="flex items-center gap-1 font-sans">
+            <span>⚖️</span>
+            <span class="font-semibold">Match Parity Health Meter:</span>
+          </span>
+          <span class="${isGolden ? "text-emerald-400" : isBlowout ? "text-rose-400" : "text-amber-400"} font-bold">
+            ${audit.parityIndex}% ${isGolden ? "• Optimal Golden Parity" : isBlowout ? "• High Blowout Risk" : "• Playable Parity"}
+          </span>
+        </div>
+        <div class="w-full h-2.5 bg-slate-950 rounded-full p-0.5 border border-slate-800 overflow-hidden">
+          <div class="h-full rounded-full transition-all duration-500 ${
+            isGolden
+              ? "bg-gradient-to-r from-emerald-500 to-teal-400 shadow-sm shadow-emerald-500/50"
+              : isBlowout
+              ? "bg-gradient-to-r from-rose-500 to-red-600 shadow-sm shadow-rose-500/50 animate-pulse"
+              : "bg-gradient-to-r from-amber-500 to-yellow-400 shadow-sm shadow-amber-500/50"
+          }" style="width: ${audit.parityIndex}%"></div>
+        </div>
+      </div>
+
+      <!-- Tactical Audit Observations (3-Column Grid) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        ${audit.tacticalObservations.map(obs => `
+          <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1 hover:border-slate-700 transition-colors">
+            <div class="flex items-center gap-1.5 text-[11px] font-black text-slate-300 uppercase tracking-wider">
+              <span>${obs.icon}</span>
+              <span>${obs.title}</span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-300 font-medium">${obs.text}</p>
+          </div>
+        `).join("")}
+      </div>
+
+      <!-- Micro-Swap Recommendation Banner (if available) -->
+      ${audit.suggestedSwap ? `
+        <div class="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/60 via-slate-900 to-indigo-950/60 border border-amber-500/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+          <div class="space-y-0.5 text-left">
+            <div class="flex items-center gap-1.5 text-xs font-black text-amber-300 uppercase tracking-wider">
+              <span>🔄</span>
+              <span>Recommended 1-Player Balancing Micro-Swap</span>
+            </div>
+            <p class="text-xs text-slate-200">${audit.suggestedSwap.rationale}</p>
+          </div>
+          <button id="btn-apply-auditor-swap" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all shadow-md shadow-amber-500/20 whitespace-nowrap flex-shrink-0 flex items-center gap-1.5 hover:scale-105 active:scale-95 cursor-pointer">
+            <span>Apply Micro-Swap</span>
+            <span>➜</span>
+          </button>
+        </div>
+      ` : ""}
+
+    </div>
+  `;
+
+  // Attach event listener for the micro-swap button
+  const swapBtn = document.getElementById("btn-apply-auditor-swap");
+  if (swapBtn && audit.suggestedSwap) {
+    swapBtn.addEventListener("click", () => {
+      const { playerA, playerB } = audit.suggestedSwap;
+      
+      // Perform the swap in active teams
+      const idxA = state.activeTeamA.findIndex(p => p.id === playerA.id);
+      const idxB = state.activeTeamB.findIndex(p => p.id === playerB.id);
+
+      if (idxA !== -1 && idxB !== -1) {
+        state.activeTeamA[idxA] = playerB;
+        state.activeTeamB[idxB] = playerA;
+
+        // Re-slot into formations
+        const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
+        const formations = getFormationsForSize(sizeKey);
+        const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
+        const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
+
+        state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions);
+        state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions);
+        syncMatchdayPositions();
+
+        renderPitch();
+        renderTeamComparison();
+        showToast(`🔄 Applied micro-swap: ${playerA.name} ⇄ ${playerB.name} (Now ${audit.suggestedSwap.newParityIndex}% Parity)`, "success");
+      }
+    });
+  }
 }
 
 function renderTeamRosterList(elementId, players, teamTag) {

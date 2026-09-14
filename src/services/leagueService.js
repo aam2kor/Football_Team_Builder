@@ -1,3 +1,5 @@
+import { calculateTeamStats, getEffectivePlayerStats } from "../engine/balancer.js";
+
 /**
  * League Service for Third Half United League
  * Fetches match history from public API and computes head-to-head records & player stats.
@@ -818,5 +820,212 @@ export function buildScoutAnalysisPayload(players = [], matches = [], sectorWeig
     playerProfiles,
     duoList: duoList.sort((a, b) => b.winRate - a.winRate || b.matches - a.matches),
     h2h: computeHeadToHeadSummary(matches)
+  };
+}
+
+/**
+ * AI Matchup Auditor & Scoreline Predictor
+ * Evaluates drafted Team A vs Team B using the 3-pillar model:
+ * 1. Historical goal production rate (xG)
+ * 2. Cross-sector mismatch (ATT_A vs DEF_B and ATT_B vs DEF_A)
+ * 3. Pairwise Head-to-Head player clashes
+ *
+ * @param {Array} teamA - List of players on Team A
+ * @param {Array} teamB - List of players on Team B
+ * @param {Array} matches - League match records
+ * @param {Object} [sectorWeights] - Sector weights (optional)
+ * @param {Object} [matchdaySettings] - Matchday settings (fitness/form)
+ * @returns {Object|null} Full audit report with predicted scoreline, xG, parity index, and micro-swap recommendation
+ */
+export function auditTeamMatchup(teamA = [], teamB = [], matches = [], sectorWeights = null, matchdaySettings = {}) {
+  if (!teamA || !teamB || teamA.length === 0 || teamB.length === 0) return null;
+
+  // 1. League Baseline Pace
+  const trends = computeDerbyTrends(matches);
+  const totalMatches = trends.totalMatches || 1;
+  const leagueTotalGoals = trends.totalGoals || 32;
+  const baselineTeamPace = leagueTotalGoals / (2 * totalMatches); // e.g. 4.0 goals / team / match
+
+  // 2. Extract Player Historical Stats & Goalscoring rates
+  const playerStats = computePlayerLeagueStats(matches);
+  const topScorers = computeTopGoalScorers(matches, 50);
+  const scorerMap = {};
+  topScorers.forEach(s => scorerMap[s.name.toLowerCase().trim()] = s.goals);
+
+  // Helper to extract stats for a player
+  const getPlayerHistory = (p) => {
+    const clean = p.name.trim().toLowerCase();
+    const stat = Object.entries(playerStats).find(([k]) => k.toLowerCase() === clean)?.[1] || {
+      matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0
+    };
+    const goals = scorerMap[clean] || 0;
+    const gPerMatch = stat.matches > 0 ? (goals / stat.matches) : (p.position === 'FWD' ? 0.7 : p.position === 'MID' ? 0.4 : 0.1);
+    const gaPerMatch = stat.matches > 0 ? (stat.goalsAgainst / stat.matches) : 4.0;
+    return { ...stat, goals, gPerMatch, gaPerMatch };
+  };
+
+  const histA = teamA.map(p => ({ player: p, ...getPlayerHistory(p) }));
+  const histB = teamB.map(p => ({ player: p, ...getPlayerHistory(p) }));
+
+  const totalGoalsA = histA.reduce((sum, h) => sum + h.goals, 0);
+  const totalGoalsB = histB.reduce((sum, h) => sum + h.goals, 0);
+
+  const squadOffensiveThreatA = histA.reduce((sum, h) => sum + h.gPerMatch, 0);
+  const squadOffensiveThreatB = histB.reduce((sum, h) => sum + h.gPerMatch, 0);
+
+  const squadDefensiveLeakageA = histA.reduce((sum, h) => sum + h.gaPerMatch, 0) / histA.length;
+  const squadDefensiveLeakageB = histB.reduce((sum, h) => sum + h.gaPerMatch, 0) / histB.length;
+
+  // 3. Sector Potential & Attribute Cross-Factor
+  const statsA = calculateTeamStats(teamA, matchdaySettings, sectorWeights);
+  const statsB = calculateTeamStats(teamB, matchdaySettings, sectorWeights);
+
+  const attA = statsA.attack || 75;
+  const defA = statsA.defense || 75;
+  const attB = statsB.attack || 75;
+  const defB = statsB.defense || 75;
+
+  const crossRatioA = Math.max(0.6, Math.min(1.5, attA / (defB || 75)));
+  const crossRatioB = Math.max(0.6, Math.min(1.5, attB / (defA || 75)));
+
+  // 4. Expected Goals (xG) Calculation
+  const baselineSquadOffense = 4.0; // standard 8v8 expected squad finishing rate
+  const normThreatA = squadOffensiveThreatA / baselineSquadOffense;
+  const normThreatB = squadOffensiveThreatB / baselineSquadOffense;
+  const normLeakageA = squadDefensiveLeakageA / 4.0;
+  const normLeakageB = squadDefensiveLeakageB / 4.0;
+
+  // xG Formula: combines historical finishing against opposing leakage (55%) with attribute cross-delta (45%)
+  let xGA = baselineTeamPace * (0.55 * normThreatA * normLeakageB + 0.45 * crossRatioA);
+  let xGB = baselineTeamPace * (0.55 * normThreatB * normLeakageA + 0.45 * crossRatioB);
+
+  // Clamp within reasonable recreational football bounds (1.5 to 7.5 goals)
+  xGA = Math.max(1.5, Math.min(7.5, Number(xGA.toFixed(1))));
+  xGB = Math.max(1.5, Math.min(7.5, Number(xGB.toFixed(1))));
+
+  const scoreA = Math.round(xGA);
+  const scoreB = Math.round(xGB);
+  const goalDelta = Number((xGA - xGB).toFixed(1));
+
+  // 5. Parity Index (0 - 100%)
+  const ovrDelta = Math.abs((statsA.overall || 75) - (statsB.overall || 75));
+  const sectorDelta = Math.abs(attA - attB) + Math.abs(defA - defB);
+  const parityIndex = Math.max(0, Math.min(100, Math.round(100 - (Math.abs(goalDelta) * 28 + ovrDelta * 2 + sectorDelta * 1.5))));
+
+  let status = "golden_balance";
+  let statusLabel = "High Parity (Golden Balance)";
+  let statusColor = "emerald";
+  if (parityIndex >= 88) {
+    status = "golden_balance";
+    statusLabel = "High Parity (Golden Balance)";
+    statusColor = "emerald";
+  } else if (parityIndex >= 72) {
+    status = "competitive";
+    statusLabel = "Competitive Matchup (Slight Edge)";
+    statusColor = "amber";
+  } else {
+    status = "blowout_risk";
+    statusLabel = "Asymmetric Matchup (Blowout Risk)";
+    statusColor = "rose";
+  }
+
+  // 6. Tactical Audit Bullet Points
+  const tacticalObservations = [];
+  
+  // Firepower comparison
+  const topFinisherA = [...histA].sort((a, b) => b.goals - a.goals)[0];
+  const topFinisherB = [...histB].sort((a, b) => b.goals - a.goals)[0];
+  if (topFinisherA && topFinisherB) {
+    const shoA = topFinisherA.player.effectiveAttributes?.sho ?? topFinisherA.player.attributes?.sho ?? 75;
+    const shoB = topFinisherB.player.effectiveAttributes?.sho ?? topFinisherB.player.attributes?.sho ?? 75;
+    tacticalObservations.push({
+      icon: "⚽",
+      title: "Finisher Showdown",
+      text: `${topFinisherA.player.name} (${topFinisherA.goals}G, ${shoA} SHO) vs ${topFinisherB.player.name} (${topFinisherB.goals}G, ${shoB} SHO)`
+    });
+  }
+
+  // Defensive Resistance
+  tacticalObservations.push({
+    icon: "🛡️",
+    title: "Defensive Resistance",
+    text: `Team A Defense (${defA} DEF, ${squadDefensiveLeakageA.toFixed(1)} GA/M) vs Team B Attack (${attB} ATT) • Team B Defense (${defB} DEF, ${squadDefensiveLeakageB.toFixed(1)} GA/M) vs Team A Attack (${attA} ATT)`
+  });
+
+  // Goal Threat Share
+  const totalThreat = (squadOffensiveThreatA + squadOffensiveThreatB) || 1;
+  const threatShareA = Math.round((squadOffensiveThreatA / totalThreat) * 100);
+  const threatShareB = 100 - threatShareA;
+  tacticalObservations.push({
+    icon: "⚖️",
+    title: "Historical Firepower Share",
+    text: `Team A holds ${threatShareA}% (${totalGoalsA} historical goals) vs Team B with ${threatShareB}% (${totalGoalsB} historical goals)`
+  });
+
+  // 7. Micro-Swap Recommendation (if blowout risk or noticeable imbalance)
+  let suggestedSwap = null;
+  if (parityIndex < 88 || Math.abs(goalDelta) > 0.8) {
+    let bestSwap = null;
+    let minDiff = Math.abs(goalDelta);
+
+    for (const pA of teamA) {
+      for (const pB of teamB) {
+        // Test swapped rosters
+        const swappedA = teamA.map(p => p.id === pA.id ? pB : p);
+        const swappedB = teamB.map(p => p.id === pB.id ? pA : p);
+
+        // Fast evaluate
+        const sHistA = swappedA.map(p => ({ player: p, ...getPlayerHistory(p) }));
+        const sHistB = swappedB.map(p => ({ player: p, ...getPlayerHistory(p) }));
+        const sThreatA = sHistA.reduce((sum, h) => sum + h.gPerMatch, 0);
+        const sThreatB = sHistB.reduce((sum, h) => sum + h.gPerMatch, 0);
+        const sStatsA = calculateTeamStats(swappedA, matchdaySettings, sectorWeights);
+        const sStatsB = calculateTeamStats(swappedB, matchdaySettings, sectorWeights);
+
+        const sXGA = baselineTeamPace * (0.55 * (sThreatA / baselineSquadOffense) + 0.45 * (sStatsA.attack / (sStatsB.defense || 75)));
+        const sXGB = baselineTeamPace * (0.55 * (sThreatB / baselineSquadOffense) + 0.45 * (sStatsB.attack / (sStatsA.defense || 75)));
+        const diff = Math.abs(sXGA - sXGB);
+
+        // Positional compatibility bonus
+        const posMatch = (pA.position === pB.position) ? 0.2 : 0;
+        const scoreVal = diff - posMatch;
+
+        if (scoreVal < minDiff) {
+          minDiff = scoreVal;
+          const newParity = Math.max(0, Math.min(100, Math.round(100 - (diff * 28 + Math.abs(sStatsA.overall - sStatsB.overall) * 2))));
+          bestSwap = {
+            playerA: pA,
+            playerB: pB,
+            newXGA: Number(sXGA.toFixed(1)),
+            newXGB: Number(sXGB.toFixed(1)),
+            newScoreline: `${Math.round(sXGA)} - ${Math.round(sXGB)}`,
+            newParityIndex: newParity,
+            rationale: `Swapping ${pA.name} (${pA.position}) for ${pB.name} (${pB.position}) shifts predicted score to ${Math.round(sXGA)} - ${Math.round(sXGB)} (${newParity}% Parity)`
+          };
+        }
+      }
+    }
+    suggestedSwap = bestSwap;
+  }
+
+  return {
+    xGA,
+    xGB,
+    scoreA,
+    scoreB,
+    predictedScoreline: `${scoreA} - ${scoreB}`,
+    goalDelta,
+    parityIndex,
+    status,
+    statusLabel,
+    statusColor,
+    threatShareA,
+    threatShareB,
+    totalGoalsA,
+    totalGoalsB,
+    tacticalObservations,
+    suggestedSwap,
+    statsA,
+    statsB
   };
 }
