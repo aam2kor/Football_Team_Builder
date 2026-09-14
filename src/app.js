@@ -2,7 +2,21 @@ import { PlayerDatabase, calculateOvr } from "./storage/db.js";
 import { buildBalancedTeams, calculateTeamStats, FORM_MODIFIERS, getEffectivePlayerStats, DEFAULT_SECTOR_WEIGHTS, cloneSectorWeights, getPlayerMetricScore } from "./engine/balancer.js";
 import { FORMATIONS, getFormationsForSize, assignPlayersToFormation } from "./engine/formations.js";
 import { loadAiConfig, saveAiConfig, testAiConnection, testOllamaConnection, testGeminiConnection, queryAiCoach, queryAiPureTeamSplit, queryLeagueInsights, refineDraftWithAi, getAiScoutRecommendations } from "./ai/ollamaClient.js";
-import { fetchLeagueMatches, computeHeadToHeadSummary, formatLeagueSummaryForAi, computeTopWinRatePlayers, computeTopWinningChemistries, computeTopGoalScorers, computeTopConsistentLosers, buildScoutAnalysisPayload } from "./services/leagueService.js";
+import {
+  fetchLeagueMatches,
+  computeHeadToHeadSummary,
+  formatLeagueSummaryForAi,
+  computeTopWinRatePlayers,
+  computeTopWinningChemistries,
+  computeTopGoalScorers,
+  computeTopConsistentLosers,
+  computePlayerH2HRivalries,
+  computePlayerJerseyWinRates,
+  computeDefensiveLeakageStats,
+  computeClutchScorers,
+  computeDerbyTrends,
+  buildScoutAnalysisPayload
+} from "./services/leagueService.js";
 
 // Initialize Database instance
 const db = new PlayerDatabase();
@@ -406,27 +420,31 @@ async function handleGenerateLeagueInsights() {
     const topWinners = computeTopWinRatePlayers(state.leagueMatches, 3);
     const topLosers = computeTopConsistentLosers(state.leagueMatches, 3);
     const topChemistries = computeTopWinningChemistries(state.leagueMatches);
+    const derbyTrends = computeDerbyTrends(state.leagueMatches);
 
-    // Call local LLM for concise tactical takeaway
+    // Call LLM / AI service for deep historical insights
     const insights = await queryLeagueInsights(state.leagueMatches, state.aiConfig);
 
     if (contentEl) {
       contentEl.innerHTML = `
         <!-- 1. Pundit Headline -->
-        <div class="p-3.5 rounded-xl bg-gradient-to-r from-indigo-950/80 to-purple-950/60 border border-indigo-500/40 space-y-1">
-          <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">🎙️ League Headline</span>
+        <div class="p-3.5 rounded-xl bg-gradient-to-r from-indigo-950/80 via-purple-950/70 to-slate-900 border border-indigo-500/40 space-y-1 shadow-sm">
+          <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+            <span>🎙️</span>
+            <span>League Derby Narrative &amp; Headline</span>
+          </span>
           <h4 class="text-sm font-black text-white">${insights.headline}</h4>
         </div>
 
-        <!-- 2. Specific Stat Leaderboards (3-Column Grid) -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <!-- 2. Specific Stat Leaderboards (4-Column Responsive Grid) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           
           <!-- Top 3 Goal Scorers -->
           <div class="p-3 rounded-xl bg-slate-900/90 border border-blue-500/30 space-y-2">
             <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
               <span class="text-[11px] font-black text-blue-400 uppercase tracking-wider flex items-center gap-1">
                 <span>⚽</span>
-                <span>Top 3 Goal Scorers</span>
+                <span>Top Scorers</span>
               </span>
             </div>
             <div class="space-y-1.5">
@@ -444,14 +462,14 @@ async function handleGenerateLeagueInsights() {
             <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
               <span class="text-[11px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1">
                 <span>👑</span>
-                <span>Top 3 Winners (Bayesian Avg)</span>
+                <span>Top Winners (Bayes)</span>
               </span>
             </div>
             <div class="space-y-1.5">
               ${topWinners.map((p, idx) => `
                 <div class="flex items-center justify-between text-[11px]">
                   <span class="font-bold text-slate-200">#${idx + 1} ${p.name}</span>
-                  <span class="font-mono text-emerald-300 font-bold">${p.wins}W / ${p.matches}M <span class="text-[10px] text-slate-400 font-normal">(${Math.round(p.bayesianScore * 100)}% Bayes)</span></span>
+                  <span class="font-mono text-emerald-300 font-bold">${p.wins}W / ${p.matches}M <span class="text-[10px] text-slate-400 font-normal">(${Math.round(p.bayesianScore * 100)}%)</span></span>
                 </div>
               `).join("") || '<span class="text-slate-500">No data</span>'}
             </div>
@@ -462,7 +480,7 @@ async function handleGenerateLeagueInsights() {
             <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
               <span class="text-[11px] font-black text-red-400 uppercase tracking-wider flex items-center gap-1">
                 <span>⚠️</span>
-                <span>Top 3 Underdogs</span>
+                <span>Top Underdogs</span>
               </span>
             </div>
             <div class="space-y-1.5">
@@ -475,65 +493,101 @@ async function handleGenerateLeagueInsights() {
             </div>
           </div>
 
+          <!-- Top Chemistries -->
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-amber-500/30 space-y-2">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[11px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                <span>🤝</span>
+                <span>Top Duo Chemistries</span>
+              </span>
+            </div>
+            <div class="space-y-1.5">
+              ${topChemistries.slice(0, 3).map((duo, idx) => `
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="font-bold text-slate-200 truncate pr-1">#${idx + 1} ${duo.p1} &amp; ${duo.p2}</span>
+                  <span class="font-mono text-amber-300 font-bold whitespace-nowrap">${duo.wins}W</span>
+                </div>
+              `).join("") || '<span class="text-slate-500">No data</span>'}
+            </div>
+          </div>
+
         </div>
 
-        <!-- 3. Best Winning Chemistries -->
-        <div class="p-3 rounded-xl bg-slate-900/90 border border-amber-500/30 space-y-2">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
-            <span class="text-[11px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1">
-              <span>🤝</span>
-              <span>Best Winning Chemistries (Top Duos)</span>
-            </span>
+        <!-- 3. Deep Historical AI Insights (6-Card Grid) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          
+          <!-- Card 1: Personal Head-to-Head Player Rivalries -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-rose-500/30 space-y-1.5 shadow-sm hover:border-rose-500/50 transition-colors">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[10px] font-black text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>⚔️</span>
+                <span>Head-to-Head Player Rivalries</span>
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.rivalryInsight}</p>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            ${topChemistries.map((duo, idx) => `
-              <div class="p-2 rounded-lg bg-slate-950/60 border border-slate-800 flex items-center justify-between text-[11px]">
-                <span class="font-bold text-slate-200 truncate pr-1">#${idx + 1} ${duo.p1} &amp; ${duo.p2}</span>
-                <span class="font-mono text-amber-300 font-bold whitespace-nowrap">${duo.wins} Wins</span>
-              </div>
-            `).join("") || '<span class="text-slate-500">No data</span>'}
+
+          <!-- Card 2: Proven Winning Partnerships -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-amber-500/30 space-y-1.5 shadow-sm hover:border-amber-500/50 transition-colors">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[10px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🏆</span>
+                <span>Winning Partnerships &amp; Chemistries</span>
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.partnershipInsight}</p>
           </div>
+
+          <!-- Card 3: Clutch Scorers & Hat-Trick Impact -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-1.5 shadow-sm hover:border-emerald-500/50 transition-colors">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[10px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🎯</span>
+                <span>Clutch Scorers &amp; Hat-Tricks</span>
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.clutchScorerInsight}</p>
+          </div>
+
+          <!-- Card 4: Defensive Lockdown & Leakage -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-cyan-500/30 space-y-1.5 shadow-sm hover:border-cyan-500/50 transition-colors">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[10px] font-black text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🛡️</span>
+                <span>Defensive Lockdown &amp; Leakage</span>
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.defensiveInsight}</p>
+          </div>
+
+          <!-- Card 5: Jersey Identity Win Rate Paradox -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-indigo-500/30 space-y-1.5 shadow-sm hover:border-indigo-500/50 transition-colors">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[10px] font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>👕</span>
+                <span>Jersey Identity Win Rate Paradox</span>
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.jerseyParadoxInsight}</p>
+          </div>
+
+          <!-- Card 6: Derby Dynamics & Expected Pace -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-purple-500/30 space-y-1.5 shadow-sm hover:border-purple-500/50 transition-colors">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[10px] font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🔮</span>
+                <span>Derby Dynamics &amp; Expected Pace</span>
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.derbyDynamicInsight}</p>
+          </div>
+
         </div>
 
-        <!-- 4. AI Tactical Takeaways (Top Scorers, Winners & Losers) -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div class="p-3 rounded-xl bg-slate-900 border border-blue-500/20 space-y-1">
-            <span class="text-[10px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1">
-              <span>⚽</span>
-              <span>Top Scorers Impact</span>
-            </span>
-            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.scorersTakeaway}</p>
-          </div>
-
-          <div class="p-3 rounded-xl bg-slate-900 border border-emerald-500/20 space-y-1">
-            <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-              <span>🌟</span>
-              <span>Why Top Winners Dominate</span>
-            </span>
-            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.winnersTakeaway}</p>
-          </div>
-
-          <div class="p-3 rounded-xl bg-slate-900 border border-red-500/20 space-y-1">
-            <span class="text-[10px] font-bold text-red-400 uppercase tracking-wider flex items-center gap-1">
-              <span>🛡️</span>
-              <span>Advice for Underdogs</span>
-            </span>
-            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.losersTakeaway}</p>
-          </div>
-        </div>
-
-        <!-- 5. Matchday Fun Fact -->
-        <div class="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/60 via-slate-900 to-indigo-950/60 border border-amber-500/40 space-y-1">
-          <span class="text-[10px] font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-            <span>🎉</span>
-            <span>Matchday Fun Fact</span>
-          </span>
-          <p class="text-xs leading-relaxed text-slate-200 italic font-medium">"${insights.funFact || insights.prediction}"</p>
-        </div>
-
-        <!-- 6. Provider Model Attribution -->
-        <div class="text-right text-[10px] text-slate-500 font-mono">
-          ⚡ Analyzed with ${state.aiConfig.provider === 'gemini' ? `Google Gemini (${state.aiConfig.geminiModel || 'gemini-3.6-flash'})` : `Local Ollama (${state.aiConfig.model})`}
+        <!-- 4. Provider Model Attribution & Match Count -->
+        <div class="flex items-center justify-between text-[10px] text-slate-500 font-mono px-1">
+          <span>📊 Season 2026: ${derbyTrends.totalMatches} Matches Played • ${derbyTrends.totalGoals} Total Goals (${derbyTrends.avgGoalsPerMatch} G/M)</span>
+          <span>⚡ Analyzed with ${state.aiConfig.provider === 'gemini' ? `Google Gemini (${state.aiConfig.geminiModel || 'gemini-3.6-flash'})` : `Local Ollama (${state.aiConfig.model})`}</span>
         </div>
       `;
       contentEl.classList.remove("hidden");

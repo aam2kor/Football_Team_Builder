@@ -44,15 +44,26 @@ class TestGeminiIntegration(unittest.TestCase):
         self.assertEqual(mock_refine_response["swaps"][0]["playerFromTeamB"], "CP")
 
     def test_gemini_league_insights_schema(self):
-        """Validates that Gemini league insights contains newspaper format fields."""
+        """Validates that Gemini league insights contains all 6 deep historical fields + headline."""
         mock_insights_response = {
             "headline": "Voyagers and Boots & Beers locked in fierce 2026 title race",
-            "scorersTakeaway": "Vinay leads all players with 7 goals across 4 games.",
-            "winnersTakeaway": "Mathai and Anoop boast top win rates.",
-            "losersTakeaway": "Defensive compactness required on transitional turnovers.",
-            "funFact": "Across all 4 fixtures this season, 32 goals have been scored at an average of 8.0 goals per match!"
+            "rivalryInsight": "Abey and Anoop have clashed in 4 direct matchups (Abey 2W - 1D - 1W Anoop).",
+            "partnershipInsight": "Vinay & Sreekanth boast a lethal joint record with 2 wins when paired together.",
+            "clutchScorerInsight": "Sanjay leads high-pressure moments with 3 clutch goals in tight 1-goal margin games.",
+            "defensiveInsight": "Mathai anchors defensive stability with only 3.5 goals conceded per match.",
+            "jerseyParadoxInsight": "Abey exhibits a notable jersey polarity: 50% win rate as Voyager vs 33% with Boots & Beers.",
+            "derbyDynamicInsight": "Across 4 matches, 32 goals have been scored at 8.0 goals/match average."
         }
-        for key in ["headline", "scorersTakeaway", "winnersTakeaway", "losersTakeaway", "funFact"]:
+        expected_keys = [
+            "headline",
+            "rivalryInsight",
+            "partnershipInsight",
+            "clutchScorerInsight",
+            "defensiveInsight",
+            "jerseyParadoxInsight",
+            "derbyDynamicInsight"
+        ]
+        for key in expected_keys:
             self.assertIn(key, mock_insights_response)
             self.assertTrue(len(mock_insights_response[key]) > 0)
 

@@ -438,8 +438,230 @@ export function computeTopGoalImpactPlayers(matches = [], topN = 3) {
 }
 
 /**
- * Formats a compact league summary string suitable for passing to the local LLM.
+ * Computes direct player-vs-player head-to-head rivalry records across opposing teams.
  * @param {Array} matches
+ * @param {number} minMatchups
+ * @returns {Array<{ p1: string, p2: string, matches: number, p1Wins: number, p2Wins: number, draws: number, p1Goals: number, p2Goals: number }>}
+ */
+export function computePlayerH2HRivalries(matches = [], minMatchups = 2) {
+  const rivalryMap = {};
+
+  matches.forEach(m => {
+    const voyTeam = (m.teams || []).find(t => t.team?.toLowerCase().includes("voyager"));
+    const bootsTeam = (m.teams || []).find(t => t.team?.toLowerCase().includes("boot"));
+    if (!voyTeam || !bootsTeam) return;
+
+    const vScore = Number(voyTeam.score) || 0;
+    const bScore = Number(bootsTeam.score) || 0;
+    const voyMembers = (voyTeam.members || []).map(n => n.trim());
+    const bootsMembers = (bootsTeam.members || []).map(n => n.trim());
+
+    voyMembers.forEach(p1 => {
+      bootsMembers.forEach(p2 => {
+        const [a, b] = p1.localeCompare(p2) < 0 ? [p1, p2] : [p2, p1];
+        const key = `${a} vs ${b}`;
+        if (!rivalryMap[key]) {
+          rivalryMap[key] = {
+            p1: a,
+            p2: b,
+            matches: 0,
+            p1Wins: 0,
+            p2Wins: 0,
+            draws: 0,
+            p1Goals: 0,
+            p2Goals: 0
+          };
+        }
+        rivalryMap[key].matches++;
+        const p1IsVoy = (p1 === a);
+        const aScore = p1IsVoy ? vScore : bScore;
+        const bScoreVal = p1IsVoy ? bScore : vScore;
+        rivalryMap[key].p1Goals += aScore;
+        rivalryMap[key].p2Goals += bScoreVal;
+
+        if (aScore > bScoreVal) {
+          rivalryMap[key].p1Wins++;
+        } else if (bScoreVal > aScore) {
+          rivalryMap[key].p2Wins++;
+        } else {
+          rivalryMap[key].draws++;
+        }
+      });
+    });
+  });
+
+  return Object.values(rivalryMap)
+    .filter(r => r.matches >= minMatchups)
+    .sort((a, b) => {
+      if (b.matches !== a.matches) return b.matches - a.matches;
+      const diffA = Math.abs(a.p1Wins - a.p2Wins);
+      const diffB = Math.abs(b.p1Wins - b.p2Wins);
+      return diffB - diffA;
+    });
+}
+
+/**
+ * Computes individual player win rates segmented by jersey/team (Voyagers vs Boots & Beers).
+ * @param {Array} matches
+ * @returns {Array<{ name: string, voyagers: Object, boots: Object, totalMatches: number }>}
+ */
+export function computePlayerJerseyWinRates(matches = []) {
+  const jerseyStats = {};
+
+  matches.forEach(m => {
+    const voyTeam = (m.teams || []).find(t => t.team?.toLowerCase().includes("voyager"));
+    const bootsTeam = (m.teams || []).find(t => t.team?.toLowerCase().includes("boot"));
+    if (!voyTeam || !bootsTeam) return;
+
+    const vScore = Number(voyTeam.score) || 0;
+    const bScore = Number(bootsTeam.score) || 0;
+
+    const recordJersey = (name, isVoyagers) => {
+      const cleanName = name.trim();
+      if (!jerseyStats[cleanName]) {
+        jerseyStats[cleanName] = {
+          name: cleanName,
+          voyagers: { matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 },
+          boots: { matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 }
+        };
+      }
+      const target = isVoyagers ? jerseyStats[cleanName].voyagers : jerseyStats[cleanName].boots;
+      const myScore = isVoyagers ? vScore : bScore;
+      const oppScore = isVoyagers ? bScore : vScore;
+
+      target.matches++;
+      target.goalsFor += myScore;
+      target.goalsAgainst += oppScore;
+      if (myScore > oppScore) target.wins++;
+      else if (oppScore > myScore) target.losses++;
+      else target.draws++;
+    };
+
+    (voyTeam.members || []).forEach(name => recordJersey(name, true));
+    (bootsTeam.members || []).forEach(name => recordJersey(name, false));
+  });
+
+  Object.values(jerseyStats).forEach(p => {
+    p.voyagers.winRate = p.voyagers.matches > 0 ? Math.round((p.voyagers.wins / p.voyagers.matches) * 100) : null;
+    p.boots.winRate = p.boots.matches > 0 ? Math.round((p.boots.wins / p.boots.matches) * 100) : null;
+    p.totalMatches = p.voyagers.matches + p.boots.matches;
+  });
+
+  return Object.values(jerseyStats);
+}
+
+/**
+ * Computes defensive leakage and lockdown metrics per player.
+ * @param {Array} matches
+ * @param {number} topN
+ * @returns {Array<{ name: string, matches: number, goalsAgainst: number, goalsAgainstPerMatch: number, goalDifference: number }>}
+ */
+export function computeDefensiveLeakageStats(matches = [], topN = 5) {
+  const stats = computePlayerLeagueStats(matches);
+  return Object.values(stats)
+    .filter(p => p.matches >= 2)
+    .map(p => ({
+      name: p.name,
+      matches: p.matches,
+      goalsAgainst: p.goalsAgainst,
+      goalsAgainstPerMatch: Number((p.goalsAgainst / p.matches).toFixed(1)),
+      goalDifference: p.goalsFor - p.goalsAgainst
+    }))
+    .sort((a, b) => a.goalsAgainstPerMatch - b.goalsAgainstPerMatch || b.goalDifference - a.goalDifference)
+    .slice(0, topN);
+}
+
+/**
+ * Computes clutch goalscoring impact (goals in 1-goal margin games / draws) vs blowout goals and hat-tricks.
+ * @param {Array} matches
+ * @returns {{ clutchScorers: Array<{ name: string, clutchGoals: number }>, hatTricks: Array<{ name: string, goals: number, date: string, team: string, matchResult: string }> }}
+ */
+export function computeClutchScorers(matches = []) {
+  const clutchGoalMap = {};
+  const blowoutGoalMap = {};
+  const hatTricks = [];
+
+  matches.forEach(m => {
+    const voyTeam = (m.teams || []).find(t => t.team?.toLowerCase().includes("voyager"));
+    const bootsTeam = (m.teams || []).find(t => t.team?.toLowerCase().includes("boot"));
+    if (!voyTeam || !bootsTeam) return;
+
+    const vScore = Number(voyTeam.score) || 0;
+    const bScore = Number(bootsTeam.score) || 0;
+    const margin = Math.abs(vScore - bScore);
+    const isClutchMatch = margin <= 1;
+
+    [voyTeam, bootsTeam].forEach(team => {
+      (team.scorers || []).forEach(s => {
+        if (s.is_own_goal) return;
+        const name = (typeof s === "string" ? s : s.name || "").trim();
+        const goals = typeof s === "object" && s.goals ? Number(s.goals) : 1;
+        if (!name) return;
+
+        if (isClutchMatch) {
+          clutchGoalMap[name] = (clutchGoalMap[name] || 0) + goals;
+        } else {
+          blowoutGoalMap[name] = (blowoutGoalMap[name] || 0) + goals;
+        }
+
+        if (goals >= 3) {
+          hatTricks.push({
+            name,
+            goals,
+            date: m.match_date,
+            team: team.team,
+            matchResult: `${vScore}-${bScore}`
+          });
+        }
+      });
+    });
+  });
+
+  const clutchScorers = Object.entries(clutchGoalMap)
+    .map(([name, goals]) => ({ name, clutchGoals: goals }))
+    .sort((a, b) => b.clutchGoals - a.clutchGoals);
+
+  return { clutchScorers, hatTricks };
+}
+
+/**
+ * Computes overall derby pace, goal averages, and scoring records.
+ * @param {Array} matches
+ * @returns {Object}
+ */
+export function computeDerbyTrends(matches = []) {
+  const h2h = computeHeadToHeadSummary(matches);
+  const totalMatches = matches.length;
+  const totalGoals = (h2h.voyagersGoals || 0) + (h2h.bootsGoals || 0);
+  const avgGoalsPerMatch = totalMatches > 0 ? Number((totalGoals / totalMatches).toFixed(1)) : 0;
+
+  let highestScoringMatch = null;
+  let maxGoals = -1;
+  (h2h.matchHistory || []).forEach(m => {
+    const sum = m.voyagersScore + m.bootsScore;
+    if (sum > maxGoals) {
+      maxGoals = sum;
+      highestScoringMatch = m;
+    }
+  });
+
+  return {
+    totalMatches,
+    totalGoals,
+    avgGoalsPerMatch,
+    voyagersWins: h2h.voyagersWins,
+    bootsWins: h2h.bootsWins,
+    draws: h2h.draws,
+    voyagersGoals: h2h.voyagersGoals,
+    bootsGoals: h2h.bootsGoals,
+    highestScoringMatch
+  };
+}
+
+/**
+ * Formats a comprehensive historical league summary string suitable for LLM analysis.
+ * @param {Array} matches
+ * @param {Array} filterPlayers
  * @returns {string}
  */
 export function formatLeagueSummaryForAi(matches = [], filterPlayers = null) {
@@ -450,32 +672,27 @@ export function formatLeagueSummaryForAi(matches = [], filterPlayers = null) {
     ? new Set(filterPlayers.map(p => (typeof p === "string" ? p : p.name).toLowerCase().trim()))
     : null;
 
-  const recentList = h2h.matchHistory.slice(0, 3).map(m => {
-    const voyScorers = (m.voyagersScorers || [])
-      .filter(s => !s.is_own_goal && (!allowedNames || allowedNames.has(s.name.toLowerCase().trim())))
-      .map(s => `${s.name}${s.goals > 1 ? `(${s.goals})` : ''}`)
-      .join(", ");
-    const bootsScorers = (m.bootsScorers || [])
-      .filter(s => !s.is_own_goal && (!allowedNames || allowedNames.has(s.name.toLowerCase().trim())))
-      .map(s => `${s.name}${s.goals > 1 ? `(${s.goals})` : ''}`)
-      .join(", ");
-    return `• ${m.date}: Voyagers ${m.voyagersScore} [${voyScorers || 'no active scorers'}] - ${m.bootsScore} [${bootsScorers || 'no active scorers'}] Boots & Beers`;
-  }).join("\n");
+  const trends = computeDerbyTrends(matches);
+  const rivalries = computePlayerH2HRivalries(matches, 2).slice(0, 4);
+  const chemistries = computeTopWinningChemistries(matches).slice(0, 3);
+  const clutch = computeClutchScorers(matches);
+  const defensive = computeDefensiveLeakageStats(matches, 4);
+  const jerseyStats = computePlayerJerseyWinRates(matches).filter(p => p.totalMatches >= 2 && p.voyagers.matches > 0 && p.boots.matches > 0).slice(0, 4);
 
   const allScorers = computeTopGoalScorers(matches, 30);
-  const activeScorers = (allowedNames ? allScorers.filter(s => allowedNames.has(s.name.toLowerCase().trim())) : allScorers).slice(0, 3);
+  const activeScorers = (allowedNames ? allScorers.filter(s => allowedNames.has(s.name.toLowerCase().trim())) : allScorers).slice(0, 4);
 
-  const allWinners = computeTopWinRatePlayers(matches, 30);
-  const activeWinners = (allowedNames ? allWinners.filter(w => allowedNames.has(w.name.toLowerCase().trim())) : allWinners).slice(0, 3);
-
-  const allLosers = computeTopConsistentLosers(matches, 30);
-  const activeLosers = (allowedNames ? allLosers.filter(l => allowedNames.has(l.name.toLowerCase().trim())) : allLosers).slice(0, 3);
-
-  let out = `Third Half United League History (Season 2026):\nHead-to-Head: Voyagers (${h2h.voyagersWins}W - ${h2h.draws}D - ${h2h.bootsWins}L), Boots & Beers (${h2h.bootsWins}W - ${h2h.draws}D - ${h2h.voyagersWins}L)\n`;
-  if (activeScorers.length > 0) out += `Top Scorers in Squad: ${activeScorers.map(s => `${s.name} (${s.goals}G)`).join(", ")}\n`;
-  if (activeWinners.length > 0) out += `Top Winners in Squad: ${activeWinners.map(w => `${w.name} (${w.wins}W)`).join(", ")}\n`;
-  if (activeLosers.length > 0) out += `Top Underdogs in Squad: ${activeLosers.map(l => `${l.name} (${l.losses}L)`).join(", ")}\n`;
-  out += `Recent Match Scorers:\n${recentList}`;
+  let out = `Third Half United League History (Season 2026):\n`;
+  out += `• Derby Record: Voyagers ${h2h.voyagersWins}W - ${h2h.draws}D - ${h2h.bootsWins}L Boots & Beers (${trends.totalGoals} total goals, ${trends.avgGoalsPerMatch} goals/match avg).\n`;
+  out += `• Top Scorers: ${activeScorers.map(s => `${s.name} (${s.goals}G)`).join(", ")}\n`;
+  out += `• Hat-Tricks Recorded: ${clutch.hatTricks.map(ht => `${ht.name} (${ht.goals}G on ${ht.date})`).join(", ") || 'None'}\n`;
+  out += `• Clutch Scorers (<=1 goal margins/draws): ${clutch.clutchScorers.slice(0, 4).map(c => `${c.name} (${c.clutchGoals} clutch goals)`).join(", ")}\n`;
+  out += `• Top Winning Chemistries: ${chemistries.map(c => `${c.p1} & ${c.p2} (${c.wins} wins)`).join(", ")}\n`;
+  out += `• Top Player H2H Rivalries: ${rivalries.map(r => `${r.p1} vs ${r.p2} (${r.matches} matches: ${r.p1} ${r.p1Wins}W - ${r.draws}D - ${r.p2Wins}W ${r.p2})`).join("; ")}\n`;
+  out += `• Defensive Leakage (Goals conceded/match): ${defensive.map(d => `${d.name} (${d.goalsAgainstPerMatch} GA/match)`).join(", ")}\n`;
+  if (jerseyStats.length > 0) {
+    out += `• Jersey Win Rates: ${jerseyStats.map(j => `${j.name} (Voyagers: ${j.voyagers.winRate}% vs Boots: ${j.boots.winRate}%)`).join(", ")}\n`;
+  }
 
   return out;
 }

@@ -260,11 +260,125 @@ def test_ai_scout_analysis_and_calibration():
   assert len(top_duos) > 0, "Expected at least one high-win-rate duo in match history"
   print(f"[x] AI Scout Payload & Calibration verified: Top duo candidate '{top_duos[0][0]}' ({top_duos[0][1]['wins']}/{top_duos[0][1]['matches']} wins)")
 
+def test_h2h_rivalries():
+  print("--- Testing Player H2H Rivalries ---")
+  rivalry_map = {}
+  matches = SAMPLE_API_RESPONSE["matches"]
+  for m in matches:
+    voy = next(t for t in m["teams"] if "voyager" in t["team"].lower())
+    boots = next(t for t in m["teams"] if "boot" in t["team"].lower())
+    v_score = voy["score"]
+    b_score = boots["score"]
+    for p1 in voy["members"]:
+      for p2 in boots["members"]:
+        pair = tuple(sorted([p1, p2]))
+        rivalry_map.setdefault(pair, {"matches": 0, "p1_wins": 0, "p2_wins": 0, "draws": 0})
+        rivalry_map[pair]["matches"] += 1
+        p1_is_voy = (p1 == pair[0])
+        a_score = v_score if p1_is_voy else b_score
+        b_score_val = b_score if p1_is_voy else v_score
+        if a_score > b_score_val: rivalry_map[pair]["p1_wins"] += 1
+        elif b_score_val > a_score: rivalry_map[pair]["p2_wins"] += 1
+        else: rivalry_map[pair]["draws"] += 1
+
+  # Abey vs Anoop (2 clashes as opponents, 2 matches as teammates)
+  abey_anoop = rivalry_map.get(("Abey", "Anoop"))
+  assert abey_anoop is not None
+  assert abey_anoop["matches"] == 2
+  print(f"[x] Abey vs Anoop H2H verified: {abey_anoop['matches']} direct clashes")
+
+  # Abey vs Ajith (3 clashes as opponents)
+  abey_ajith = rivalry_map.get(("Abey", "Ajith"))
+  assert abey_ajith is not None
+  assert abey_ajith["matches"] == 3
+  print(f"[x] Abey vs Ajith H2H verified: {abey_ajith['matches']} direct clashes")
+
+def test_jersey_win_rates():
+  print("--- Testing Player Jersey Win Rates ---")
+  matches = SAMPLE_API_RESPONSE["matches"]
+  jersey_stats = {}
+  for m in matches:
+    voy = next(t for t in m["teams"] if "voyager" in t["team"].lower())
+    boots = next(t for t in m["teams"] if "boot" in t["team"].lower())
+    v_score, b_score = voy["score"], boots["score"]
+
+    for name in voy["members"]:
+      jersey_stats.setdefault(name, {"voy_played": 0, "voy_wins": 0, "boots_played": 0, "boots_wins": 0})
+      jersey_stats[name]["voy_played"] += 1
+      if v_score > b_score: jersey_stats[name]["voy_wins"] += 1
+
+    for name in boots["members"]:
+      jersey_stats.setdefault(name, {"voy_played": 0, "voy_wins": 0, "boots_played": 0, "boots_wins": 0})
+      jersey_stats[name]["boots_played"] += 1
+      if b_score > v_score: jersey_stats[name]["boots_wins"] += 1
+
+  assert "Abey" in jersey_stats
+  assert jersey_stats["Abey"]["voy_played"] == 2
+  assert jersey_stats["Abey"]["boots_played"] == 2
+  print(f"[x] Jersey Win Rates verified for Abey: Voyagers ({jersey_stats['Abey']['voy_wins']}/{jersey_stats['Abey']['voy_played']}W) vs Boots ({jersey_stats['Abey']['boots_wins']}/{jersey_stats['Abey']['boots_played']}W)")
+
+def test_defensive_leakage():
+  print("--- Testing Defensive Leakage Stats ---")
+  matches = SAMPLE_API_RESPONSE["matches"]
+  p_stats = compute_player_win_rates(matches)
+  # compute goals against per player
+  ga_map = {}
+  for m in matches:
+    voy = next(t for t in m["teams"] if "voyager" in t["team"].lower())
+    boots = next(t for t in m["teams"] if "boot" in t["team"].lower())
+    for name in voy["members"]:
+      ga_map.setdefault(name, {"ga": 0, "m": 0})
+      ga_map[name]["ga"] += boots["score"]
+      ga_map[name]["m"] += 1
+    for name in boots["members"]:
+      ga_map.setdefault(name, {"ga": 0, "m": 0})
+      ga_map[name]["ga"] += voy["score"]
+      ga_map[name]["m"] += 1
+
+  mathai_ga = ga_map["Mathai"]
+  assert mathai_ga["m"] == 4
+  assert mathai_ga["ga"] == 14  # 3 + 2 + 5 + 4 = 14
+  avg_ga = mathai_ga["ga"] / mathai_ga["m"]
+  assert avg_ga == 3.5
+  print(f"[x] Defensive Leakage verified for Mathai: {mathai_ga['ga']} goals against in {mathai_ga['m']} matches ({avg_ga:.1f} GA/match)")
+
+def test_clutch_scorers_and_derby_trends():
+  print("--- Testing Clutch Scorers & Derby Trends ---")
+  matches = SAMPLE_API_RESPONSE["matches"]
+  total_goals = 0
+  clutch_goals = {}
+  hat_tricks = []
+  for m in matches:
+    voy = next(t for t in m["teams"] if "voyager" in t["team"].lower())
+    boots = next(t for t in m["teams"] if "boot" in t["team"].lower())
+    margin = abs(voy["score"] - boots["score"])
+    is_clutch = margin <= 1
+    total_goals += voy["score"] + boots["score"]
+    for t in [voy, boots]:
+      for s in t.get("scorers", []):
+        if not s.get("is_own_goal", False):
+          if is_clutch:
+            clutch_goals[s["name"]] = clutch_goals.get(s["name"], 0) + s.get("goals", 1)
+          if s.get("goals", 1) >= 3:
+            hat_tricks.append((s["name"], s.get("goals", 1), m["match_date"]))
+
+  assert total_goals == 32
+  assert len(hat_tricks) >= 2  # CP and Vinay
+  hat_trick_names = [ht[0] for ht in hat_tricks]
+  assert "CP" in hat_trick_names
+  assert "Vinay" in hat_trick_names
+  print(f"[x] Total derby goals: {total_goals} across 4 matches (8.0 avg)")
+  print(f"[x] Hat-tricks recorded: {hat_tricks}")
+
 if __name__ == "__main__":
   test_h2h_calculation()
   test_player_stats()
   test_top_winners_and_losers()
   test_top_goal_scorers()
+  test_h2h_rivalries()
+  test_jersey_win_rates()
+  test_defensive_leakage()
+  test_clutch_scorers_and_derby_trends()
   test_ai_scout_analysis_and_calibration()
   print("\n>>> ALL LEAGUE SERVICE TESTS PASSED! <<<\n")
 
