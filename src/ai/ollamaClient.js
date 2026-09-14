@@ -332,18 +332,18 @@ CRITICAL: You MUST respond ONLY with a valid JSON object matching this schema. N
 /**
  * Generates comprehensive tactical and historical league insights from match history.
  */
-export async function queryLeagueInsights(matches = [], aiConfig = DEFAULT_AI_CONFIG) {
+export async function queryLeagueInsights(matches = [], aiConfig = DEFAULT_AI_CONFIG, playerDb = []) {
   if (aiConfig.provider === "gemini") {
-    return queryGeminiLeagueInsights(matches, {}, aiConfig);
+    return queryGeminiLeagueInsights(matches, { playerDb }, aiConfig);
   }
-  return queryOllamaLeagueInsights(matches, aiConfig);
+  return queryOllamaLeagueInsights(matches, aiConfig, playerDb);
 }
 
-async function queryOllamaLeagueInsights(matches = [], aiConfig = DEFAULT_AI_CONFIG) {
+async function queryOllamaLeagueInsights(matches = [], aiConfig = DEFAULT_AI_CONFIG, playerDb = []) {
   const endpoint = (aiConfig.endpoint || DEFAULT_AI_CONFIG.endpoint).replace(/\/+$/, "");
   const model = aiConfig.model || DEFAULT_AI_CONFIG.model;
 
-  const leagueSummary = formatLeagueSummaryForAi(matches);
+  const leagueSummary = formatLeagueSummaryForAi(matches, null, playerDb);
 
   const rivalries = computePlayerH2HRivalries(matches, 2);
   const chemistries = computeTopWinningChemistries(matches);
@@ -358,11 +358,11 @@ async function queryOllamaLeagueInsights(matches = [], aiConfig = DEFAULT_AI_CON
   const topDef = defensive[0] || { name: "Mathai", goalsAgainstPerMatch: 3.5 };
   const topJersey = jerseyStats[0] || { name: "Abey", voyagers: { winRate: 50 }, boots: { winRate: 33 } };
 
-  const systemPrompt = `You are a sharp football pundit and tactician for Third Half United League.
+  const systemPrompt = `You are a sharp football pundit, scout, and tactician for Third Half United League.
 Match & Player History:
 ${leagueSummary}
 
-Provide 6 concrete, data-grounded insights strictly based on match history.
+Provide 6 concrete, data-grounded insights strictly based on match history and player database attributes.
 Respond with pure JSON matching this exact schema:
 {
   "headline": "Punchy 1-line headline summarizing the derby status",

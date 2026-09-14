@@ -422,8 +422,9 @@ async function handleGenerateLeagueInsights() {
     const topChemistries = computeTopWinningChemistries(state.leagueMatches);
     const derbyTrends = computeDerbyTrends(state.leagueMatches);
 
-    // Call LLM / AI service for deep historical insights
-    const insights = await queryLeagueInsights(state.leagueMatches, state.aiConfig);
+    // Call LLM / AI service with Grounded Hybrid context (matches + player DB + verified stats)
+    const allDbPlayers = db.getAll();
+    const insights = await queryLeagueInsights(state.leagueMatches, state.aiConfig, allDbPlayers);
 
     if (contentEl) {
       contentEl.innerHTML = `

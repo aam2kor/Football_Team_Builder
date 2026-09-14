@@ -400,18 +400,19 @@ export async function queryGeminiLeagueInsights(matches = [], context = {}, aiCo
   const apiKey = aiConfig.geminiApiKey || "";
   const model = aiConfig.geminiModel || GEMINI_DEFAULT_MODEL;
 
-  const leagueContext = formatLeagueSummaryForAi(matches);
+  const playerDb = context.playerDb || (Array.isArray(context) ? context : []);
+  const leagueContext = formatLeagueSummaryForAi(matches, null, playerDb);
 
-  const prompt = `You are the chief tactical analyst and master statistician for Third Half United League.
-Analyze the following deep historical match statistics from Season 2026:
+  const prompt = `You are the chief tactical analyst, pundit, and master statistician for Third Half United League.
+Analyze the following deep historical match statistics, raw match logs, and player database attributes from Season 2026:
 
 ${leagueContext}
 
-Generate 6 deep, concrete, data-grounded insights derived strictly from actual match history:
+Generate 6 deep, concrete, data-grounded insights. Cross-reference player database attributes (OVR, Position, SHO, DEF, PAC, PAS) with their on-pitch historical performance to explain WHY players succeed or struggle:
 1. "headline": Catchy, dramatic newspaper headline summarizing the derby narrative.
-2. "rivalryInsight": Highlight a fierce personal Head-to-Head player rivalry (e.g. Abey vs Anoop, Abey vs Vinay), citing exact win/loss records when on opposing sides.
-3. "partnershipInsight": Highlight a lethal winning teammate duo/chemistry (e.g. Vinay & Sreekanth, Mathai & Sanjay) and why they dominate when playing together.
-4. "clutchScorerInsight": Analyze decisive clutch goalscorers in tight 1-goal games / draws vs high-scoring hat-trick performances (cite exact names and numbers).
+2. "rivalryInsight": Highlight a fierce personal Head-to-Head player rivalry (e.g. Abey vs Anoop, Abey vs Ajith), citing exact win/loss records when on opposing sides.
+3. "partnershipInsight": Highlight a lethal winning teammate duo/chemistry (e.g. Vinay & Sreekanth, Mathai & Sanjay) and how their complementary attributes create dominance.
+4. "clutchScorerInsight": Analyze decisive clutch goalscorers in tight 1-goal games / draws vs high-scoring hat-trick performances (cite exact names, attributes, and goal counts).
 5. "defensiveInsight": Analyze defensive lockdown vs goals conceded leakage per match, identifying who acts as a defensive wall and who needs greater compactness.
 6. "jerseyParadoxInsight": Explore any surprising win rate disparities or paradoxes when players wear the Voyagers (Blue) jersey vs Boots & Beers (Yellow) jersey.
 7. "derbyDynamicInsight": Forecast the derby pace and expected scoreline based on the historical goals per match average and past blowout/thriller patterns.`;

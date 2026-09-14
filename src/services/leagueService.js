@@ -660,11 +660,17 @@ export function computeDerbyTrends(matches = []) {
 
 /**
  * Formats a comprehensive historical league summary string suitable for LLM analysis.
+ * Implements the Grounded Hybrid Architecture:
+ * Layer 1: Match-by-Match Raw Log (lineups, scorelines, scorers)
+ * Layer 2: Player Database Attribute Matrix (OVR, positions, PAC/SHO/PAS/DEF/PHY/GK)
+ * Layer 3: Verified Statistical Ground-Truth Anchors (exact H2H, duos, clutch, leakage)
+ *
  * @param {Array} matches
- * @param {Array} filterPlayers
+ * @param {Array|null} filterPlayers
+ * @param {Array|null} playerDb
  * @returns {string}
  */
-export function formatLeagueSummaryForAi(matches = [], filterPlayers = null) {
+export function formatLeagueSummaryForAi(matches = [], filterPlayers = null, playerDb = null) {
   const h2h = computeHeadToHeadSummary(matches);
   if (h2h.totalMatches === 0) return "";
 
@@ -672,22 +678,60 @@ export function formatLeagueSummaryForAi(matches = [], filterPlayers = null) {
     ? new Set(filterPlayers.map(p => (typeof p === "string" ? p : p.name).toLowerCase().trim()))
     : null;
 
+  // Layer 1: Raw Match-by-Match Log
+  const rawMatchLines = h2h.matchHistory.map(m => {
+    const voyScorers = (m.voyagersScorers || [])
+      .filter(s => !s.is_own_goal)
+      .map(s => `${s.name}${s.goals > 1 ? ` (${s.goals}G)` : ''}`)
+      .join(", ") || "none";
+    const bootsScorers = (m.bootsScorers || [])
+      .filter(s => !s.is_own_goal)
+      .map(s => `${s.name}${s.goals > 1 ? ` (${s.goals}G)` : ''}`)
+      .join(", ") || "none";
+
+    return `• Date ${m.date}: Voyagers ${m.voyagersScore} [Scorers: ${voyScorers}] vs ${m.bootsScore} Boots & Beers [Scorers: ${bootsScorers}]
+  Voyagers Lineup: ${(m.voyagersMembers || []).join(", ")}
+  Boots Lineup: ${(m.bootsMembers || []).join(", ")}`;
+  }).join("\n");
+
+  // Layer 2: Player Database Attributes
+  let playerAttributesText = "";
+  if (Array.isArray(playerDb) && playerDb.length > 0) {
+    const playerLines = playerDb
+      .filter(p => !allowedNames || allowedNames.has(p.name.toLowerCase().trim()))
+      .map(p => {
+        const a = p.attributes || {};
+        const pos = p.position || "MID";
+        const secPos = p.secondaryPosition && p.secondaryPosition !== pos ? ` (Sec: ${p.secondaryPosition})` : "";
+        const gkStr = a.gk ? `, GK: ${a.gk}` : "";
+        return `• ${p.name}: ${pos}${secPos} | OVR: ${p.ovr || 75} [PAC: ${a.pac ?? 70}, SHO: ${a.sho ?? 70}, PAS: ${a.pas ?? 70}, DRI: ${a.dri ?? 70}, DEF: ${a.def ?? 70}, PHY: ${a.phy ?? 70}${gkStr}]`;
+      });
+    if (playerLines.length > 0) {
+      playerAttributesText = `\n=== PLAYER DATABASE ATTRIBUTE MATRIX ===\n${playerLines.join("\n")}\n`;
+    }
+  }
+
+  // Layer 3: Verified Statistical Anchors
   const trends = computeDerbyTrends(matches);
-  const rivalries = computePlayerH2HRivalries(matches, 2).slice(0, 4);
-  const chemistries = computeTopWinningChemistries(matches).slice(0, 3);
+  const rivalries = computePlayerH2HRivalries(matches, 2).slice(0, 5);
+  const chemistries = computeTopWinningChemistries(matches).slice(0, 4);
   const clutch = computeClutchScorers(matches);
-  const defensive = computeDefensiveLeakageStats(matches, 4);
-  const jerseyStats = computePlayerJerseyWinRates(matches).filter(p => p.totalMatches >= 2 && p.voyagers.matches > 0 && p.boots.matches > 0).slice(0, 4);
+  const defensive = computeDefensiveLeakageStats(matches, 5);
+  const jerseyStats = computePlayerJerseyWinRates(matches).filter(p => p.totalMatches >= 2 && p.voyagers.matches > 0 && p.boots.matches > 0).slice(0, 5);
 
   const allScorers = computeTopGoalScorers(matches, 30);
-  const activeScorers = (allowedNames ? allScorers.filter(s => allowedNames.has(s.name.toLowerCase().trim())) : allScorers).slice(0, 4);
+  const activeScorers = (allowedNames ? allScorers.filter(s => allowedNames.has(s.name.toLowerCase().trim())) : allScorers).slice(0, 5);
 
-  let out = `Third Half United League History (Season 2026):\n`;
+  let out = `=== MATCH-BY-MATCH HISTORICAL LOG (Season 2026) ===\n${rawMatchLines}\n`;
+  if (playerAttributesText) {
+    out += playerAttributesText;
+  }
+  out += `\n=== VERIFIED STATISTICAL GROUND-TRUTH (CITE THESE EXACT FIGURES) ===\n`;
   out += `• Derby Record: Voyagers ${h2h.voyagersWins}W - ${h2h.draws}D - ${h2h.bootsWins}L Boots & Beers (${trends.totalGoals} total goals, ${trends.avgGoalsPerMatch} goals/match avg).\n`;
   out += `• Top Scorers: ${activeScorers.map(s => `${s.name} (${s.goals}G)`).join(", ")}\n`;
-  out += `• Hat-Tricks Recorded: ${clutch.hatTricks.map(ht => `${ht.name} (${ht.goals}G on ${ht.date})`).join(", ") || 'None'}\n`;
+  out += `• Verified Hat-Tricks: ${clutch.hatTricks.map(ht => `${ht.name} (${ht.goals}G on ${ht.date})`).join(", ") || 'None'}\n`;
   out += `• Clutch Scorers (<=1 goal margins/draws): ${clutch.clutchScorers.slice(0, 4).map(c => `${c.name} (${c.clutchGoals} clutch goals)`).join(", ")}\n`;
-  out += `• Top Winning Chemistries: ${chemistries.map(c => `${c.p1} & ${c.p2} (${c.wins} wins)`).join(", ")}\n`;
+  out += `• Top Winning Duos: ${chemistries.map(c => `${c.p1} & ${c.p2} (${c.wins} wins)`).join(", ")}\n`;
   out += `• Top Player H2H Rivalries: ${rivalries.map(r => `${r.p1} vs ${r.p2} (${r.matches} matches: ${r.p1} ${r.p1Wins}W - ${r.draws}D - ${r.p2Wins}W ${r.p2})`).join("; ")}\n`;
   out += `• Defensive Leakage (Goals conceded/match): ${defensive.map(d => `${d.name} (${d.goalsAgainstPerMatch} GA/match)`).join(", ")}\n`;
   if (jerseyStats.length > 0) {
