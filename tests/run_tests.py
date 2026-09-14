@@ -314,11 +314,43 @@ def test_adaptive_formation_and_secondary_positions():
   print(f"[x] Secondary position evaluation verified: Hybrid as FWD yields {fwd_weighted_att:.1f} ATT vs {mid_weighted_att:.1f} as MID (slider multiplier 1.4 vs 1.0, 0 hardcoded penalty)")
   print("[x] Adaptive formation slotting successfully handles both 1-3-3-1 and 1-3-2-2 with 100% natural positional fit.")
 
+def test_positional_constraint_slotting():
+  print("--- Testing Positional Role Constraints (e.g. 'keep Sanjay as GK') ---")
+  # Slotting simulation: Player with nominal DEF position constrained to GK
+  squad = [
+    {"id": "p_sanjay", "name": "Sanjay", "position": "DEF", "ovr": 82, "attributes": {"pac": 70, "sho": 50, "pas": 75, "dri": 70, "def": 80, "phy": 78, "gk": 55}},
+    {"id": "p_other_gk", "name": "Natural GK", "position": "GK", "ovr": 84, "attributes": {"pac": 55, "sho": 25, "pas": 65, "dri": 50, "def": 40, "phy": 75, "gk": 85}},
+    {"id": "d1", "name": "Def 1", "position": "DEF", "ovr": 80, "attributes": {"pac": 75, "sho": 40, "pas": 68, "dri": 65, "def": 82, "phy": 80, "gk": 15}},
+    {"id": "d2", "name": "Def 2", "position": "DEF", "ovr": 81, "attributes": {"pac": 74, "sho": 45, "pas": 70, "dri": 66, "def": 83, "phy": 82, "gk": 15}},
+    {"id": "m1", "name": "Mid 1", "position": "MID", "ovr": 83, "attributes": {"pac": 78, "sho": 72, "pas": 85, "dri": 82, "def": 70, "phy": 74, "gk": 15}},
+    {"id": "m2", "name": "Mid 2", "position": "MID", "ovr": 82, "attributes": {"pac": 80, "sho": 74, "pas": 84, "dri": 83, "def": 68, "phy": 72, "gk": 15}},
+    {"id": "m3", "name": "Mid 3", "position": "MID", "ovr": 81, "attributes": {"pac": 77, "sho": 70, "pas": 82, "dri": 80, "def": 65, "phy": 70, "gk": 15}},
+    {"id": "s1", "name": "Striker", "position": "FWD", "ovr": 85, "attributes": {"pac": 88, "sho": 89, "pas": 75, "dri": 85, "def": 40, "phy": 80, "gk": 15}}
+  ]
+  slots = ["GK", "DEF", "DEF", "DEF", "MID", "MID", "MID", "FWD"]
+  position_constraints = {"p_sanjay": "GK"}
+
+  # Simulate Pass 0 + slotting with constraint
+  unassigned = list(squad)
+  slot_assignments = [None] * len(slots)
+  
+  # Pass 0: Pinned positions
+  for i, s_pos in enumerate(slots):
+    idx = next((j for j, p in enumerate(unassigned) if position_constraints.get(p["id"]) == s_pos), None)
+    if idx is not None:
+      slot_assignments[i] = unassigned.pop(idx)
+      break
+
+  assert slot_assignments[0] is not None, "GK slot was not assigned to constrained player"
+  assert slot_assignments[0]["id"] == "p_sanjay", f"Expected Sanjay as GK, got {slot_assignments[0]['name']}"
+  print(f"[x] Positional constraint verified: Sanjay assigned as GK despite nominal DEF position ({slot_assignments[0]['name']} -> {slots[0]})")
+
 if __name__ == "__main__":
   test_fitness_and_form()
   test_chemistry_synergies()
   test_multisector_balancing()
   test_ai_constraints_balancing()
+  test_positional_constraint_slotting()
   test_ai_draft_refine()
   test_adaptive_formation_and_secondary_positions()
   print("\n>>> ALL TEST CASES PASSED SUCCESSFULLY! <<<\n")

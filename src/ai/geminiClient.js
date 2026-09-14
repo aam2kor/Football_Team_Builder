@@ -142,6 +142,73 @@ export function formatSectorWeightsExplanation(weights) {
  * @param {Object} aiConfig - { geminiApiKey, geminiModel }
  * @returns {Promise<{ constraints: Object, coachBriefing: string, raw: Object }>}
  */
+/**
+ * Deterministic rule-based extractor for player on-pitch role/position constraints
+ * Matches patterns like "keep Sanjay as GK", "play Abey as striker", "Manu in defense", etc.
+ */
+export function extractPositionalConstraints(userPrompt, players = []) {
+  const result = {};
+  if (!userPrompt || !players || players.length === 0) return result;
+
+  const text = userPrompt.toLowerCase();
+
+  const roleMap = {
+    gk: "GK",
+    goalkeeper: "GK",
+    goalie: "GK",
+    keeper: "GK",
+    goal: "GK",
+    def: "DEF",
+    defender: "DEF",
+    defense: "DEF",
+    cb: "DEF",
+    lb: "DEF",
+    rb: "DEF",
+    mid: "MID",
+    midfielder: "MID",
+    midfield: "MID",
+    cm: "MID",
+    fwd: "FWD",
+    forward: "FWD",
+    striker: "FWD",
+    attacker: "FWD",
+    attack: "FWD",
+    st: "FWD"
+  };
+
+  players.forEach(p => {
+    const firstName = p.name.split(" ")[0].toLowerCase();
+    const fullName = p.name.toLowerCase();
+    const pId = p.id.toLowerCase();
+
+    if (text.includes(firstName) || text.includes(fullName) || text.includes(pId)) {
+      const escapedFirst = firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedFull = fullName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const namePattern = `(?:${escapedFull}|${escapedFirst}|${pId})`;
+
+      const regexes = [
+        new RegExp(`(?:keep|play|put|make|set|have|use)\\s+${namePattern}\\s+(?:as|in|at|on)?\\s+(?:the\\s+)?(gk|goalkeeper|goalie|keeper|goal|def|defender|defense|cb|lb|rb|mid|midfielder|midfield|cm|fwd|forward|striker|attacker|attack|st)\\b`, "i"),
+        new RegExp(`${namePattern}\\s+(?:as|in|at|to be|is|must be|should be)\\s+(?:the\\s+)?(gk|goalkeeper|goalie|keeper|goal|def|defender|defense|cb|lb|rb|mid|midfielder|midfield|cm|fwd|forward|striker|attacker|attack|st)\\b`, "i"),
+        new RegExp(`(?:^|[,.;&\\s])(gk|goalkeeper|goalie|keeper|def|defender|mid|midfielder|fwd|forward|striker)\\s+${namePattern}\\b`, "i"),
+        new RegExp(`\\b${namePattern}\\s+(gk|goalkeeper|goalie|keeper)\\b`, "i")
+      ];
+
+      for (const rx of regexes) {
+        const match = text.match(rx);
+        if (match && match[1]) {
+          const roleKey = match[1].toLowerCase();
+          if (roleMap[roleKey]) {
+            result[p.id] = roleMap[roleKey];
+            break;
+          }
+        }
+      }
+    }
+  });
+
+  return result;
+}
+
 export async function queryGeminiCoach(userPrompt, players, context = {}, aiConfig = {}) {
   const apiKey = aiConfig.geminiApiKey || "";
   const model = aiConfig.geminiModel || GEMINI_DEFAULT_MODEL;
@@ -167,9 +234,10 @@ ${sectorExplanation}
 
 Output Rules:
 1. Extract pinned players for Team A ("${teamAName}") and Team B ("${teamBName}").
-2. Extract separated pairs (rivals who must be on opposite teams).
-3. Extract paired players (duos who must be on the same team).
-4. Provide a passionate, insightful 2-sentence pre-match tactical briefing referencing the match dynamics and strategy based on your sector analysis.`;
+2. Extract pinnedPositions: any explicit on-pitch role/position assigned to a player (e.g. "keep Sanjay as GK" -> { player: "Sanjay", position: "GK" }, "play Abey as striker" -> { player: "Abey", position: "FWD" }).
+3. Extract separated pairs (rivals who must be on opposite teams).
+4. Extract paired players (duos who must be on the same team).
+5. Provide a passionate, insightful 2-sentence pre-match tactical briefing referencing the match dynamics and strategy based on your sector analysis.`;
 
   const promptText = `User Instruction: "${userPrompt || "Generate tactically balanced lineups with even attacking and defensive strength"}"`;
 
@@ -196,6 +264,18 @@ Output Rules:
             type: "ARRAY",
             items: { type: "STRING" },
             description: "Player names or IDs pinned to Team B"
+          },
+          pinnedPositions: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                player: { type: "STRING", description: "Player name or ID" },
+                position: { type: "STRING", enum: ["GK", "DEF", "MID", "FWD"], description: "Role/position player must play" }
+              },
+              required: ["player", "position"]
+            },
+            description: "Explicit role/position assignments requested by user (e.g. 'keep Sanjay as GK')"
           },
           separatedPairs: {
             type: "ARRAY",
@@ -240,6 +320,7 @@ Output Rules:
   const pinnedB = new Set();
   const separated = [];
   const paired = [];
+  const pinnedPositions = {};
 
   (parsed.pinnedTeamA || []).forEach(name => {
     const id = findIdByName(name);
@@ -250,6 +331,20 @@ Output Rules:
     const id = findIdByName(name);
     if (id) pinnedB.add(id);
   });
+
+  (parsed.pinnedPositions || []).forEach(item => {
+    if (item && item.player && item.position) {
+      const id = findIdByName(item.player);
+      const pos = (item.position || "").toUpperCase().trim();
+      if (id && ["GK", "DEF", "MID", "FWD"].includes(pos)) {
+        pinnedPositions[id] = pos;
+      }
+    }
+  });
+
+  // Guarantee extraction with rule-based regex fallback
+  const regexPositions = extractPositionalConstraints(userPrompt, players);
+  Object.assign(pinnedPositions, regexPositions);
 
   (parsed.separatedPairs || []).forEach(pair => {
     if (Array.isArray(pair) && pair.length >= 2) {
@@ -269,10 +364,15 @@ Output Rules:
 
   return {
     constraints: {
+      pinnedA,
+      pinnedB,
       pinnedTeamA: pinnedA,
       pinnedTeamB: pinnedB,
+      separated,
       separatedPairs: separated,
-      pairedTogether: paired
+      paired,
+      pairedTogether: paired,
+      pinnedPositions
     },
     coachBriefing: parsed.coachBriefing || "Tactically balanced lineup created.",
     raw: parsed

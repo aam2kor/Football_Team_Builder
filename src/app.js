@@ -219,7 +219,7 @@ function setupGeneratorEvents() {
     const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
     const formations = getFormationsForSize(sizeKey);
     const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
-    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA);
+    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions);
     syncMatchdayPositions();
     renderPitch();
     renderTeamComparison();
@@ -230,7 +230,7 @@ function setupGeneratorEvents() {
     const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
     const formations = getFormationsForSize(sizeKey);
     const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
-    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
+    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions);
     syncMatchdayPositions();
     renderPitch();
     renderTeamComparison();
@@ -1460,11 +1460,11 @@ function applySolution(solution) {
 
   state.assignedSlotsA = (solution.assignedSlotsA && solution.assignedSlotsA.length === state.activeTeamA.length)
     ? solution.assignedSlotsA
-    : assignPlayersToFormation(state.activeTeamA, formA);
+    : assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions);
 
   state.assignedSlotsB = (solution.assignedSlotsB && solution.assignedSlotsB.length === state.activeTeamB.length)
     ? solution.assignedSlotsB
-    : assignPlayersToFormation(state.activeTeamB, formB);
+    : assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions);
 
   syncMatchdayPositions();
 

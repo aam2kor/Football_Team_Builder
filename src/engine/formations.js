@@ -197,7 +197,7 @@ export function getFormationsForSize(teamSizeKey = "8v8") {
  * prioritizing primary position, then secondary position, avoiding out-of-position placement.
  * Uses active slider-based positional role assignment without arbitrary penalty.
  */
-export function assignPlayersToFormation(players, formation) {
+export function assignPlayersToFormation(players, formation, positionConstraints = {}) {
   if (!formation || !formation.slots) return [];
   const slots = formation.slots;
   const unassigned = players.map(p => ({ ...p }));
@@ -210,8 +210,19 @@ export function assignPlayersToFormation(players, formation) {
   const isPrimaryMatch = (p, pos) => p && p.position === pos;
   const isSecondaryMatch = (p, pos) => p && p.secondaryPosition === pos && p.secondaryPosition !== p.position;
 
+  // Pass 0: Explicit Pinned Position Constraints (from AI Rules or user pins)
+  if (positionConstraints && Object.keys(positionConstraints).length > 0) {
+    targetSlots.forEach(s => {
+      if (slotAssignments[s.index] !== null) return;
+      const idx = unassigned.findIndex(p => positionConstraints[p.id] === s.pos);
+      if (idx !== -1) {
+        slotAssignments[s.index] = unassigned.splice(idx, 1)[0];
+      }
+    });
+  }
+
   // Pass 1: Assign dedicated GK slots first (highest priority / specialized)
-  targetSlots.filter(s => s.pos === "GK").forEach(s => {
+  targetSlots.filter(s => s.pos === "GK" && slotAssignments[s.index] === null).forEach(s => {
     let idx = unassigned.findIndex(p => isPrimaryMatch(p, "GK"));
     if (idx === -1) idx = unassigned.findIndex(p => isSecondaryMatch(p, "GK"));
     if (idx !== -1) {
@@ -219,7 +230,7 @@ export function assignPlayersToFormation(players, formation) {
     }
   });
 
-  // Pass 1.5: Emergency Goalkeeper Selection (if squad has 0 dedicated GKs)
+  // Pass 1.5: Emergency Goalkeeper Selection (if squad has 0 dedicated GKs and GK slot empty)
   targetSlots.filter(s => s.pos === "GK" && slotAssignments[s.index] === null).forEach(s => {
     if (unassigned.length > 0) {
       // Emergency GK Priority: Best GK attribute among DEF/MID first, never a pure FWD unless only FWDs remain
@@ -289,16 +300,18 @@ export function assignPlayersToFormation(players, formation) {
   // Assemble final result with attached matchdayPosition and matchdayRole
   return slots.map((slot, i) => {
     const rawPlayer = slotAssignments[i] || { name: "TBD", ovr: 70, position: slot.pos, avatar: "⚽" };
+    const isPinned = Boolean(positionConstraints && positionConstraints[rawPlayer.id] === slot.pos);
     const isPrimary = rawPlayer.position === slot.pos;
     const isSecondary = !isPrimary && rawPlayer.secondaryPosition === slot.pos;
-    const isOutOfPosition = !isPrimary && !isSecondary && rawPlayer.position !== "GK";
+    const isOutOfPosition = !isPrimary && !isSecondary && rawPlayer.position !== "GK" && !isPinned;
 
     const assignedPlayer = {
       ...rawPlayer,
       matchdayPosition: slot.pos,
       matchdayRole: slot.role || slot.label,
       isSecondaryRole: isSecondary,
-      isOutOfPosition: isOutOfPosition
+      isOutOfPosition: isOutOfPosition,
+      isPinnedRole: isPinned
     };
 
     return {
@@ -313,13 +326,13 @@ export function assignPlayersToFormation(players, formation) {
  * Evaluates candidate formations for the squad size to minimize out-of-position assignments
  * and maximize tactical cohesion according to user slider weights.
  */
-export function findBestFormationForTeam(players, teamSizeKey = "8v8", sectorWeights = null, matchdaySettingsMap = {}, calculateStatsFn = null, fixedFormationKey = null) {
+export function findBestFormationForTeam(players, teamSizeKey = "8v8", sectorWeights = null, matchdaySettingsMap = {}, calculateStatsFn = null, fixedFormationKey = null, positionConstraints = {}) {
   const formations = getFormationsForSize(teamSizeKey);
   const keys = Object.keys(formations);
 
   if (fixedFormationKey && formations[fixedFormationKey]) {
     const formation = formations[fixedFormationKey];
-    const assignedSlots = assignPlayersToFormation(players, formation);
+    const assignedSlots = assignPlayersToFormation(players, formation, positionConstraints);
     const assignedPlayers = assignedSlots.map(s => s.player);
     const stats = calculateStatsFn ? calculateStatsFn(assignedPlayers, matchdaySettingsMap, sectorWeights, true) : null;
     return {
@@ -338,7 +351,7 @@ export function findBestFormationForTeam(players, teamSizeKey = "8v8", sectorWei
 
   for (const key of keys) {
     const formation = formations[key];
-    const assignedSlots = assignPlayersToFormation(players, formation);
+    const assignedSlots = assignPlayersToFormation(players, formation, positionConstraints);
     const assignedPlayers = assignedSlots.map(s => s.player);
 
     const outOfPositionCount = assignedPlayers.filter(p => p.isOutOfPosition).length;

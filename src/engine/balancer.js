@@ -342,14 +342,16 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
     teamSizeKey = null,
     formationA = null,
     formationB = null,
-    autoFormation = true
+    autoFormation = true,
+    constraints = null
   } = options;
 
+  const posConstraints = constraints?.pinnedPositions || options.pinnedPositions || {};
   const sw = sectorWeights || DEFAULT_SECTOR_WEIGHTS;
   const sizeKey = teamSizeKey || `${teamA.length}v${teamA.length}`;
 
-  const bestA = findBestFormationForTeam(teamA, sizeKey, sw, matchdaySettingsMap, calculateTeamStats, autoFormation ? formationA : (formationA || null));
-  const bestB = findBestFormationForTeam(teamB, sizeKey, sw, matchdaySettingsMap, calculateTeamStats, autoFormation ? formationB : (formationB || null));
+  const bestA = findBestFormationForTeam(teamA, sizeKey, sw, matchdaySettingsMap, calculateTeamStats, autoFormation ? formationA : (formationA || null), posConstraints);
+  const bestB = findBestFormationForTeam(teamB, sizeKey, sw, matchdaySettingsMap, calculateTeamStats, autoFormation ? formationB : (formationB || null), posConstraints);
 
   const assignedA = bestA.assignedPlayers;
   const assignedB = bestB.assignedPlayers;
@@ -452,7 +454,11 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
  */
 function satisfiesConstraints(teamA, teamB, constraints) {
   if (!constraints) return true;
-  const { pinnedA, pinnedB, separated, paired } = constraints;
+  const pinnedA = constraints.pinnedA || constraints.pinnedTeamA;
+  const pinnedB = constraints.pinnedB || constraints.pinnedTeamB;
+  const separated = constraints.separated || constraints.separatedPairs;
+  const paired = constraints.paired || constraints.pairedTogether;
+
   const teamAIds = new Set(teamA.map(p => p.id));
   const teamBIds = new Set(teamB.map(p => p.id));
 
@@ -545,7 +551,8 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
         sectorWeights,
         formationA,
         formationB,
-        autoFormation
+        autoFormation,
+        constraints
       });
 
       const sol = {
@@ -583,7 +590,8 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
         sectorWeights,
         formationA,
         formationB,
-        autoFormation
+        autoFormation,
+        constraints
       });
 
       const sol = {

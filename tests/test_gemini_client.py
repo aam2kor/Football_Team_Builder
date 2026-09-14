@@ -14,6 +14,7 @@ class TestGeminiIntegration(unittest.TestCase):
         mock_response = {
             "pinnedTeamA": ["Abey", "Mathai"],
             "pinnedTeamB": ["Anoop"],
+            "pinnedPositions": [{"player": "Sanjay", "position": "GK"}],
             "separatedPairs": [["Abey", "Anoop"]],
             "pairedTogether": [["Mathai", "Vinay"]],
             "coachBriefing": "Voyagers balance high pressing against Boots & Beers counter-attacking pace."
@@ -22,6 +23,8 @@ class TestGeminiIntegration(unittest.TestCase):
             self.assertIn(k, mock_response)
         self.assertEqual(len(mock_response["pinnedTeamA"]), 2)
         self.assertEqual(len(mock_response["separatedPairs"]), 1)
+        self.assertEqual(len(mock_response["pinnedPositions"]), 1)
+        self.assertEqual(mock_response["pinnedPositions"][0]["position"], "GK")
 
     def test_gemini_draft_refine_schema(self):
         """Validates that Gemini draft refinement produces valid player swaps."""

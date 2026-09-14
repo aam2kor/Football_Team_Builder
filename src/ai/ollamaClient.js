@@ -1,4 +1,4 @@
-import { testGeminiConnection, queryGeminiCoach, queryGeminiPureTeamSplit, queryGeminiLeagueInsights, refineDraftWithGemini, generateGeminiScoutRecommendations, formatSectorWeightsExplanation, GEMINI_DEFAULT_MODEL } from "./geminiClient.js";
+import { testGeminiConnection, queryGeminiCoach, queryGeminiPureTeamSplit, queryGeminiLeagueInsights, refineDraftWithGemini, generateGeminiScoutRecommendations, formatSectorWeightsExplanation, extractPositionalConstraints, GEMINI_DEFAULT_MODEL } from "./geminiClient.js";
 
 export const DEFAULT_AI_CONFIG = {
   provider: "ollama", // "ollama" | "gemini"
@@ -194,15 +194,16 @@ ${sectorExplanation}
 
 Rules:
 1. Pinned players: assign specific players to "${teamAName}" or "${teamBName}" ONLY if the user explicitly requested it or implied it strongly.
-2. Separated players: if user wants players on opposite teams (e.g. "separate strikers", "put X against Y"), pair them in separatedPairs.
-3. Paired players: if user wants players together, pair them in pairedTogether.
-4. If the user mentions tactical style (e.g. "counter-attack", "possession", "high pace"), pick key players fitting that profile and pin or pair them accordingly.
+2. Pinned positions: if user specifies an on-pitch role/position (e.g. "keep Sanjay as GK", "play Alex as striker"), add { "player": "Sanjay", "position": "GK" } to pinnedPositions.
+3. Separated players: if user wants players on opposite teams, pair them in separatedPairs.
+4. Paired players: if user wants players together, pair them in pairedTogether.
 5. Provide a 2-sentence pre-match tactical briefing explaining your strategy and highlighting a key player matchup based on sector potentials.
 
 CRITICAL: You MUST respond ONLY with a valid JSON object matching this schema. No intro, no markdown explanation, no other text:
 {
-  "pinnedTeamA": ["PlayerName1", "PlayerName2"],
-  "pinnedTeamB": ["PlayerName3"],
+  "pinnedTeamA": ["PlayerName1"],
+  "pinnedTeamB": ["PlayerName2"],
+  "pinnedPositions": [{ "player": "PlayerName", "position": "GK" }],
   "separatedPairs": [["PlayerNameA", "PlayerNameB"]],
   "pairedTogether": [["PlayerNameC", "PlayerNameD"]],
   "coachBriefing": "Two-sentence tactical briefing and matchup preview."
@@ -252,6 +253,7 @@ CRITICAL: You MUST respond ONLY with a valid JSON object matching this schema. N
     const pinnedB = new Set();
     const separated = [];
     const paired = [];
+    const pinnedPositions = {};
 
     (parsed.pinnedTeamA || []).forEach(name => {
       const id = findIdByName(name);
@@ -262,6 +264,20 @@ CRITICAL: You MUST respond ONLY with a valid JSON object matching this schema. N
       const id = findIdByName(name);
       if (id) pinnedB.add(id);
     });
+
+    (parsed.pinnedPositions || []).forEach(item => {
+      if (item && item.player && item.position) {
+        const id = findIdByName(item.player);
+        const pos = (item.position || "").toUpperCase().trim();
+        if (id && ["GK", "DEF", "MID", "FWD"].includes(pos)) {
+          pinnedPositions[id] = pos;
+        }
+      }
+    });
+
+    // Guarantee extraction with rule-based regex fallback
+    const regexPositions = extractPositionalConstraints(userPrompt, players);
+    Object.assign(pinnedPositions, regexPositions);
 
     (parsed.separatedPairs || []).forEach(pair => {
       if (Array.isArray(pair) && pair.length >= 2) {
@@ -280,7 +296,17 @@ CRITICAL: You MUST respond ONLY with a valid JSON object matching this schema. N
     });
 
     return {
-      constraints: { pinnedA, pinnedB, separated, paired },
+      constraints: {
+        pinnedA,
+        pinnedB,
+        pinnedTeamA: pinnedA,
+        pinnedTeamB: pinnedB,
+        separated,
+        separatedPairs: separated,
+        paired,
+        pairedTogether: paired,
+        pinnedPositions
+      },
       coachBriefing: parsed.coachBriefing || parsed.tacticalStyle || "Balanced lineup generated based on matchday tactical requirements.",
       raw: parsed
     };
