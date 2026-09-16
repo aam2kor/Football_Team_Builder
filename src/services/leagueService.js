@@ -876,9 +876,9 @@ export function auditTeamMatchup(teamA = [], teamB = [], matches = [], sectorWei
   const squadDefensiveLeakageA = histA.reduce((sum, h) => sum + h.gaPerMatch, 0) / histA.length;
   const squadDefensiveLeakageB = histB.reduce((sum, h) => sum + h.gaPerMatch, 0) / histB.length;
 
-  // 3. Sector Potential & Attribute Cross-Factor
-  const statsA = calculateTeamStats(teamA, matchdaySettings, sectorWeights);
-  const statsB = calculateTeamStats(teamB, matchdaySettings, sectorWeights);
+  // 3. Sector Potential & Attribute Cross-Factor (Evaluates exact on-pitch matchday positions)
+  const statsA = calculateTeamStats(teamA, matchdaySettings, sectorWeights, true);
+  const statsB = calculateTeamStats(teamB, matchdaySettings, sectorWeights, true);
 
   const attA = statsA.attack || 75;
   const defA = statsA.defense || 75;
