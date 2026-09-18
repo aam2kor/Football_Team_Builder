@@ -596,7 +596,7 @@ async function handleGenerateLeagueInsights() {
               <span>🎽</span>
               <span>Jersey Rotation &amp; Fatigue Tracker</span>
             </span>
-            <span class="text-[10px] text-slate-400 font-mono">Rule: Last 4 Matches (P1: Streak &ge; 3, P2: Streak == 2)</span>
+            <span class="text-[10px] text-slate-400 font-mono">Rule: Last 4 Matches • Selected / Active Matchday Players</span>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-left text-xs text-slate-300">
@@ -609,36 +609,56 @@ async function handleGenerateLeagueInsights() {
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-800/60 font-mono text-[11px]">
-                ${jerseyRotationStats.toppers.map(p => `
-                  <tr class="hover:bg-slate-800/40">
-                    <td class="py-1.5 px-2 font-sans font-bold text-white">${p.name}</td>
-                    <td class="py-1.5 px-2">
-                      <span class="${
-                        p.priority === 1
-                          ? 'text-rose-400 font-black'
-                          : p.priority === 2
-                          ? (p.currentStreakTeam === 'A' ? 'text-amber-400 font-bold' : 'text-indigo-400 font-bold')
-                          : 'text-slate-400'
-                      }">
-                        ${p.currentStreakCount > 0 ? `${p.currentStreakCount}x in ${p.currentStreakTeam === 'A' ? 'Voyagers' : 'Boots & Beers'}` : 'None'}
-                      </span>
-                    </td>
-                    <td class="py-1.5 px-2 text-slate-300">
-                      ${p.windowCountA} Voyagers / ${p.windowCountB} Boots &amp; Beers
-                    </td>
-                    <td class="py-1.5 px-2 font-sans">
-                      <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
-                        p.priority === 1
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                          : p.priority === 2
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                          : 'bg-slate-800/60 text-slate-400 border border-slate-700/40'
-                      }">
-                        ${p.recommendation}
-                      </span>
-                    </td>
-                  </tr>
-                `).join("")}
+                ${(() => {
+                  const activeOrSelectedPlayers = (state.activeTeamA?.length > 0 || state.activeTeamB?.length > 0)
+                    ? [...(state.activeTeamA || []), ...(state.activeTeamB || [])]
+                    : db.getAll().filter(p => state.selectedPlayerIds.has(p.id));
+                  const activeNames = new Set(activeOrSelectedPlayers.map(p => (p.name || "").trim().toLowerCase()));
+                  const filteredToppers = activeNames.size > 0
+                    ? jerseyRotationStats.toppers.filter(p => activeNames.has((p.name || "").trim().toLowerCase()))
+                    : jerseyRotationStats.toppers;
+
+                  if (filteredToppers.length === 0) {
+                    return `
+                      <tr>
+                        <td colspan="4" class="py-3 text-center text-xs text-slate-400">
+                          🟢 No selected or active players have match history in the 4-game window.
+                        </td>
+                      </tr>
+                    `;
+                  }
+
+                  return filteredToppers.map(p => `
+                    <tr class="hover:bg-slate-800/40">
+                      <td class="py-1.5 px-2 font-sans font-bold text-white">${p.name}</td>
+                      <td class="py-1.5 px-2">
+                        <span class="${
+                          p.priority === 1
+                            ? 'text-rose-400 font-black'
+                            : p.priority === 2
+                            ? (p.currentStreakTeam === 'A' ? 'text-amber-400 font-bold' : 'text-indigo-400 font-bold')
+                            : 'text-slate-400'
+                        }">
+                          ${p.currentStreakCount > 0 ? `${p.currentStreakCount}x in ${p.currentStreakTeam === 'A' ? 'Voyagers' : 'Boots & Beers'}` : 'None'}
+                        </span>
+                      </td>
+                      <td class="py-1.5 px-2 text-slate-300">
+                        ${p.windowCountA} Voyagers / ${p.windowCountB} Boots &amp; Beers
+                      </td>
+                      <td class="py-1.5 px-2 font-sans">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+                          p.priority === 1
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                            : p.priority === 2
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            : 'bg-slate-800/60 text-slate-400 border border-slate-700/40'
+                        }">
+                          ${p.recommendation}
+                        </span>
+                      </td>
+                    </tr>
+                  `).join("");
+                })()}
               </tbody>
             </table>
           </div>
@@ -2643,37 +2663,43 @@ function renderJerseyAdvisory() {
 
       </div>
 
-      <!-- League-Wide Toppers Quick Summary -->
-      <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-            <span>📋</span>
-            <span>League-Wide Jersey Rotation Standings (Last 4 Matches)</span>
-          </span>
-          <span class="text-[10px] text-slate-500 font-mono">Ranked by Priority &amp; Streak</span>
+      <!-- Active Matchday Squad Fatigue Summary -->
+      ${totalFatigued > 0 ? `
+        <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span>📋</span>
+              <span>Active Matchday Jersey Fatigue Summary</span>
+            </span>
+            <span class="text-[10px] text-slate-500 font-mono">${totalFatigued} active player(s) flagged</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+            ${[...fatiguedInA, ...fatiguedInB].sort((a, b) => a.stats.priority - b.stats.priority || b.stats.currentStreakCount - a.stats.currentStreakCount).map(f => {
+              const top = f.stats;
+              return `
+                <div class="p-2.5 rounded-lg bg-slate-950 border ${top.priority === 1 ? 'border-rose-500/40 bg-rose-950/10' : 'border-amber-500/40 bg-amber-950/10'} space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold text-white truncate">${f.player.name} (${f.player.position})</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded font-black ${top.priority === 1 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'}">
+                      ${top.priority === 1 ? '🚨 P1' : '⚠️ P2'}
+                    </span>
+                  </div>
+                  <div class="text-[10px] text-slate-400 font-mono">
+                    Streak: <span class="font-bold text-slate-200">${top.currentStreakCount}x in ${top.currentStreakTeam === 'A' ? 'Voyagers' : 'Boots & Beers'}</span>
+                  </div>
+                  <div class="text-[10px] font-semibold ${top.recommendedTeam === 'B' ? 'text-amber-300' : 'text-blue-300'} truncate" title="${top.recommendation}">
+                    ${top.recommendation}
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
         </div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-          ${rotationStats.toppers.slice(0, 4).map(top => `
-            <div class="p-2 rounded-lg bg-slate-950 border ${top.priority === 1 ? 'border-rose-500/40 bg-rose-950/10' : top.priority === 2 ? 'border-amber-500/40 bg-amber-950/10' : 'border-slate-800/80'} space-y-1">
-              <div class="flex items-center justify-between">
-                <span class="font-bold text-white truncate">${top.name}</span>
-                <span class="text-[10px] ${top.priority === 1 ? 'text-rose-400 font-black' : top.priority === 2 ? 'text-amber-400 font-bold' : 'text-slate-400'}">
-                  ${top.priority === 1 ? '🚨 P1' : top.priority === 2 ? '⚠️ P2' : '🟢 P3'}
-                </span>
-              </div>
-              <div class="text-[10px] text-slate-400 font-mono">
-                Streak: <span class="font-bold text-slate-200">${top.currentStreakCount > 0 ? `${top.currentStreakCount}x in ${top.currentStreakTeam === 'A' ? 'Voyagers' : 'Boots & Beers'}` : 'None'}</span>
-              </div>
-              <div class="text-[10px] text-slate-400 font-mono">
-                4M Split: <span class="font-bold text-slate-200">${top.windowCountA} Voy / ${top.windowCountB} B&amp;B</span>
-              </div>
-              <div class="text-[10px] font-semibold ${top.recommendedTeam === 'B' ? 'text-amber-300' : top.recommendedTeam === 'A' ? 'text-blue-300' : 'text-slate-400'} truncate" title="${top.recommendation}">
-                ${top.recommendation}
-              </div>
-            </div>
-          `).join("")}
+      ` : `
+        <div class="p-3 rounded-xl bg-slate-900/40 border border-slate-800/80 text-center text-xs text-slate-400 font-medium">
+          🟢 All active players in this match have balanced jersey rotation.
         </div>
-      </div>
+      `}
 
       <!-- Advisory 1-to-1 Balanced Swap Recommendation Banner (Non-intrusive) -->
       ${bestSwap ? `
