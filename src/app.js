@@ -594,18 +594,18 @@ async function handleGenerateLeagueInsights() {
           <div class="flex items-center justify-between border-b border-slate-800 pb-2">
             <span class="text-xs font-black text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
               <span>🎽</span>
-              <span>Dual-Window Jersey Rotation &amp; Fatigue Tracker</span>
+              <span>Jersey Rotation &amp; Fatigue Tracker</span>
             </span>
-            <span class="text-[10px] text-slate-400 font-mono">Short (Last 2M) • Long (Last 4M)</span>
+            <span class="text-[10px] text-slate-400 font-mono">Rule: Last 4 Matches (P1: Streak &ge; 3, P2: Streak == 2)</span>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-left text-xs text-slate-300">
               <thead>
                 <tr class="border-b border-slate-800 text-[10px] font-black uppercase text-slate-400 tracking-wider">
                   <th class="py-1.5 px-2">Player</th>
-                  <th class="py-1.5 px-2">Short Window (2M Streak)</th>
-                  <th class="py-1.5 px-2">Long Window (4M Exposure)</th>
-                  <th class="py-1.5 px-2">Status / Recommendation</th>
+                  <th class="py-1.5 px-2">Consecutive Streak</th>
+                  <th class="py-1.5 px-2">Last 4M Exposure</th>
+                  <th class="py-1.5 px-2">Priority / Recommendation</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-800/60 font-mono text-[11px]">
@@ -613,20 +613,26 @@ async function handleGenerateLeagueInsights() {
                   <tr class="hover:bg-slate-800/40">
                     <td class="py-1.5 px-2 font-sans font-bold text-white">${p.name}</td>
                     <td class="py-1.5 px-2">
-                      <span class="${p.currentStreakCount >= 2 ? (p.currentStreakTeam === 'A' ? 'text-amber-400 font-bold' : 'text-indigo-400 font-bold') : 'text-slate-400'}">
-                        ${p.currentStreakCount}x in ${p.currentStreakTeam === 'A' ? 'Voyagers' : 'Boots & Beers'}
+                      <span class="${
+                        p.priority === 1
+                          ? 'text-rose-400 font-black'
+                          : p.priority === 2
+                          ? (p.currentStreakTeam === 'A' ? 'text-amber-400 font-bold' : 'text-indigo-400 font-bold')
+                          : 'text-slate-400'
+                      }">
+                        ${p.currentStreakCount > 0 ? `${p.currentStreakCount}x in ${p.currentStreakTeam === 'A' ? 'Voyagers' : 'Boots & Beers'}` : 'None'}
                       </span>
                     </td>
                     <td class="py-1.5 px-2 text-slate-300">
-                      ${p.longCountA} Voyagers / ${p.longCountB} Boots &amp; Beers <span class="text-[10px] text-slate-500">(${p.longPctA}% / ${p.longPctB}%)</span>
+                      ${p.windowCountA} Voyagers / ${p.windowCountB} Boots &amp; Beers
                     </td>
                     <td class="py-1.5 px-2 font-sans">
                       <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
-                        p.urgency === 'high'
+                        p.priority === 1
                           ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                          : p.urgency === 'medium'
+                          : p.priority === 2
                           ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                          : 'bg-slate-800 text-slate-400'
+                          : 'bg-slate-800/60 text-slate-400 border border-slate-700/40'
                       }">
                         ${p.recommendation}
                       </span>
@@ -2500,12 +2506,10 @@ function renderJerseyAdvisory() {
   const jerseyAudit = auditJerseyBalance(
     state.activeTeamA,
     state.activeTeamB,
-    state.leagueMatches,
-    shortWindow,
-    longWindow
+    state.leagueMatches
   );
 
-  const rotationStats = computeJerseyRotationStats(state.leagueMatches, shortWindow, longWindow);
+  const rotationStats = computeJerseyRotationStats(state.leagueMatches);
 
   const { fatiguedInA, fatiguedInB, totalFatigued, jerseyParityIndex, bestSwap } = jerseyAudit;
   const isOptimal = totalFatigued === 0;
@@ -2528,7 +2532,7 @@ function renderJerseyAdvisory() {
         <div>
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-xl">🎽</span>
-            <h3 class="text-base font-black text-white tracking-tight">Dual-Window Jersey Rotation &amp; Fatigue Advisory</h3>
+            <h3 class="text-base font-black text-white tracking-tight">Jersey Rotation &amp; Fatigue Advisory</h3>
             <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
               isOptimal
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
@@ -2539,7 +2543,7 @@ function renderJerseyAdvisory() {
               ${isOptimal ? "🟢 Perfect Rotation" : totalFatigued + " Player(s) Due for Switch"}
             </span>
           </div>
-          <p class="text-xs text-slate-400 mt-0.5">Short Window: <strong class="text-slate-200">2 Matches</strong> (Consecutive Streaks) • Long Window: <strong class="text-slate-200">4 Matches</strong> (Cumulative Exposure)</p>
+          <p class="text-xs text-slate-400 mt-0.5">Rule: Last 4 Matches • <strong class="text-rose-300">Priority 1</strong>: Streak &ge; 3 (Must Switch) • <strong class="text-amber-300">Priority 2</strong>: Streak == 2 (Recommend Switch)</p>
         </div>
 
         <!-- Jersey Parity Index Badge -->
@@ -2580,13 +2584,16 @@ function renderJerseyAdvisory() {
           ${fatiguedInA.length > 0 ? `
             <div class="space-y-1.5">
               ${fatiguedInA.map(f => `
-                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900 border ${f.stats.urgency === 'high' ? 'border-rose-500/40' : 'border-amber-500/30'} text-xs">
+                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900 border ${f.stats.priority === 1 ? 'border-rose-500/50 bg-rose-950/10' : 'border-amber-500/30'} text-xs">
                   <div class="flex items-center gap-1.5 min-w-0">
                     <span class="font-bold text-white truncate">${f.player.name}</span>
                     <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">${f.player.position}</span>
+                    <span class="text-[9px] px-1.5 py-0.2 rounded font-black uppercase ${f.stats.priority === 1 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'}">
+                      ${f.stats.priority === 1 ? '🚨 P1' : '⚠️ P2'}
+                    </span>
                   </div>
                   <div class="flex items-center gap-1.5 flex-shrink-0 text-right">
-                    <span class="text-[11px] font-medium ${f.stats.urgency === 'high' ? 'text-rose-400 font-bold' : 'text-amber-300'}">${f.reason}</span>
+                    <span class="text-[11px] font-medium ${f.stats.priority === 1 ? 'text-rose-400 font-bold' : 'text-amber-300'}">${f.reason}</span>
                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">Due for Boots &amp; Beers</span>
                   </div>
                 </div>
@@ -2612,13 +2619,16 @@ function renderJerseyAdvisory() {
           ${fatiguedInB.length > 0 ? `
             <div class="space-y-1.5">
               ${fatiguedInB.map(f => `
-                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900 border ${f.stats.urgency === 'high' ? 'border-rose-500/40' : 'border-amber-500/30'} text-xs">
+                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900 border ${f.stats.priority === 1 ? 'border-rose-500/50 bg-rose-950/10' : 'border-amber-500/30'} text-xs">
                   <div class="flex items-center gap-1.5 min-w-0">
                     <span class="font-bold text-white truncate">${f.player.name}</span>
                     <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">${f.player.position}</span>
+                    <span class="text-[9px] px-1.5 py-0.2 rounded font-black uppercase ${f.stats.priority === 1 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'}">
+                      ${f.stats.priority === 1 ? '🚨 P1' : '⚠️ P2'}
+                    </span>
                   </div>
                   <div class="flex items-center gap-1.5 flex-shrink-0 text-right">
-                    <span class="text-[11px] font-medium ${f.stats.urgency === 'high' ? 'text-rose-400 font-bold' : 'text-amber-300'}">${f.reason}</span>
+                    <span class="text-[11px] font-medium ${f.stats.priority === 1 ? 'text-rose-400 font-bold' : 'text-amber-300'}">${f.reason}</span>
                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Due for Voyagers</span>
                   </div>
                 </div>
@@ -2633,29 +2643,31 @@ function renderJerseyAdvisory() {
 
       </div>
 
-      <!-- League-Wide Toppers (Short: 2, Long: 4) Quick Summary -->
+      <!-- League-Wide Toppers Quick Summary -->
       <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
         <div class="flex items-center justify-between">
           <span class="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
             <span>📋</span>
-            <span>League-Wide Jersey Toppers (Combined Short: 2 &amp; Long: 4)</span>
+            <span>League-Wide Jersey Rotation Standings (Last 4 Matches)</span>
           </span>
-          <span class="text-[10px] text-slate-500 font-mono">Most due for a color change</span>
+          <span class="text-[10px] text-slate-500 font-mono">Ranked by Priority &amp; Streak</span>
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
           ${rotationStats.toppers.slice(0, 4).map(top => `
-            <div class="p-2 rounded-lg bg-slate-950 border border-slate-800/80 space-y-1">
+            <div class="p-2 rounded-lg bg-slate-950 border ${top.priority === 1 ? 'border-rose-500/40 bg-rose-950/10' : top.priority === 2 ? 'border-amber-500/40 bg-amber-950/10' : 'border-slate-800/80'} space-y-1">
               <div class="flex items-center justify-between">
                 <span class="font-bold text-white truncate">${top.name}</span>
-                <span class="text-[10px] ${top.urgency === 'high' ? 'text-rose-400 font-bold' : 'text-amber-400'}">${top.urgency === 'high' ? '🚨' : '⚠️'}</span>
+                <span class="text-[10px] ${top.priority === 1 ? 'text-rose-400 font-black' : top.priority === 2 ? 'text-amber-400 font-bold' : 'text-slate-400'}">
+                  ${top.priority === 1 ? '🚨 P1' : top.priority === 2 ? '⚠️ P2' : '🟢 P3'}
+                </span>
               </div>
               <div class="text-[10px] text-slate-400 font-mono">
-                Short: <span class="font-bold text-slate-200">${top.currentStreakCount}x in ${top.currentStreakTeam === 'A' ? 'Voyagers' : 'Boots & Beers'}</span>
+                Streak: <span class="font-bold text-slate-200">${top.currentStreakCount > 0 ? `${top.currentStreakCount}x in ${top.currentStreakTeam === 'A' ? 'Voyagers' : 'Boots & Beers'}` : 'None'}</span>
               </div>
               <div class="text-[10px] text-slate-400 font-mono">
-                Long: <span class="font-bold text-slate-200">${top.currentStreakTeam === 'A' ? top.longCountA : top.longCountB}/${top.longTotal}</span>
+                4M Split: <span class="font-bold text-slate-200">${top.windowCountA} Voy / ${top.windowCountB} B&amp;B</span>
               </div>
-              <div class="text-[10px] font-semibold ${top.recommendedTeam === 'B' ? 'text-amber-300' : 'text-blue-300'}">
+              <div class="text-[10px] font-semibold ${top.recommendedTeam === 'B' ? 'text-amber-300' : top.recommendedTeam === 'A' ? 'text-blue-300' : 'text-slate-400'} truncate" title="${top.recommendation}">
                 ${top.recommendation}
               </div>
             </div>
@@ -2718,7 +2730,7 @@ function renderTeamRosterList(elementId, players, teamTag) {
   const container = document.getElementById(elementId);
   if (!container) return;
 
-  const jerseyStats = computeJerseyRotationStats(state.leagueMatches, 2, 4);
+  const jerseyStats = computeJerseyRotationStats(state.leagueMatches);
 
   const sorted = [...players].sort((a, b) => {
     const posOrder = { GK: 1, DEF: 2, MID: 3, FWD: 4 };
@@ -2738,9 +2750,17 @@ function renderTeamRosterList(elementId, players, teamTag) {
     let jerseyPill = "";
     if (jStat && jStat.currentStreakCount >= 2) {
       if (teamTag === "A" && jStat.currentStreakTeam === "A") {
-        jerseyPill = `<span class="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30" title="${jStat.currentStreakCount}x consecutive matches in Voyagers">🎽 ${jStat.currentStreakCount}x Voyagers</span>`;
+        if (jStat.priority === 1) {
+          jerseyPill = `<span class="text-[9px] px-1 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold" title="Priority 1: ${jStat.currentStreakCount}x consecutive matches in Voyagers (Must switch)">🎽 P1: ${jStat.currentStreakCount}x Voyagers</span>`;
+        } else {
+          jerseyPill = `<span class="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30" title="Priority 2: 2x consecutive matches in Voyagers (Recommend switch)">🎽 P2: 2x Voyagers</span>`;
+        }
       } else if (teamTag === "B" && jStat.currentStreakTeam === "B") {
-        jerseyPill = `<span class="text-[9px] px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" title="${jStat.currentStreakCount}x consecutive matches in Boots & Beers">🎽 ${jStat.currentStreakCount}x Boots &amp; Beers</span>`;
+        if (jStat.priority === 1) {
+          jerseyPill = `<span class="text-[9px] px-1 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold" title="Priority 1: ${jStat.currentStreakCount}x consecutive matches in Boots & Beers (Must switch)">🎽 P1: ${jStat.currentStreakCount}x Boots &amp; Beers</span>`;
+        } else {
+          jerseyPill = `<span class="text-[9px] px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" title="Priority 2: 2x consecutive matches in Boots & Beers (Recommend switch)">🎽 P2: 2x Boots &amp; Beers</span>`;
+        }
       }
     }
 

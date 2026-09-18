@@ -1098,12 +1098,13 @@ export function computeJerseyRotationStats(matches = [], shortWindow = 2, longWi
     const totalMatches = history.length;
     if (totalMatches === 0) return;
 
-    // 1. Short Window Analysis
-    const shortSlice = history.slice(0, shortWindow);
-    const shortCountA = shortSlice.filter(h => h.isTeamA).length;
-    const shortCountB = shortSlice.filter(h => h.isTeamB).length;
+    // 1. Evaluate last 4 played matches for consecutive streaks (Newest to Oldest)
+    const windowSlice = history.slice(0, 4);
+    const windowTotal = windowSlice.length;
+    const windowCountA = windowSlice.filter(h => h.isTeamA).length;
+    const windowCountB = windowSlice.filter(h => h.isTeamB).length;
 
-    // Consecutive streak from the most recent match
+    // Calculate consecutive streak starting from the most recent match
     let currentStreakCount = 0;
     let currentStreakTeam = null; // 'A' or 'B'
     if (history.length > 0) {
@@ -1117,83 +1118,79 @@ export function computeJerseyRotationStats(matches = [], shortWindow = 2, longWi
       }
     }
 
-    // 2. Long Window Analysis
-    const longSlice = history.slice(0, longWindow);
-    const longTotal = longSlice.length;
-    const longCountA = longSlice.filter(h => h.isTeamA).length;
-    const longCountB = longSlice.filter(h => h.isTeamB).length;
-    const longPctA = longTotal > 0 ? Math.round((longCountA / longTotal) * 100) : 0;
-    const longPctB = longTotal > 0 ? Math.round((longCountB / longTotal) * 100) : 0;
-
-    // 3. Combined Bias Score & Recommendation
-    // Positive score = heavy Team A (Voyagers) exposure -> Due for Team B (Boots & Beers)
-    // Negative score = heavy Team B (Boots & Beers) exposure -> Due for Team A (Voyagers)
+    // 2. Priority Hierarchy:
+    // Prio 1: Streak >= 3 (High Fatigue -> Must Switch)
+    // Prio 2: Streak == 2 (Medium Fatigue -> Recommend Switch)
+    // Prio 3: Streak <= 1 (Neutral -> Can play for either)
+    let priority = 3;
+    let priorityLabel = "Priority 3 (Neutral)";
+    let urgency = "neutral";
     let biasScore = 0;
-    let urgency = "neutral"; // 'high' | 'medium' | 'neutral'
-    let recommendation = "Balanced (🟢)";
+    let recommendation = "🟢 Neutral (Can play for either)";
     let recommendedTeam = "any";
 
-    if (currentStreakTeam === "A" && currentStreakCount >= shortWindow) {
-      biasScore = 3.0 + (longCountA >= 3 ? 1.5 : 0);
-      urgency = currentStreakCount >= shortWindow && longCountA >= 3 ? "high" : "medium";
-      recommendation = urgency === "high" ? "🚨 Urgent: Due for Boots & Beers" : "⚠️ Recommend Boots & Beers";
-      recommendedTeam = "B";
-    } else if (currentStreakTeam === "B" && currentStreakCount >= shortWindow) {
-      biasScore = -3.0 - (longCountB >= 3 ? 1.5 : 0);
-      urgency = currentStreakCount >= shortWindow && longCountB >= 3 ? "high" : "medium";
-      recommendation = urgency === "high" ? "🚨 Urgent: Due for Voyagers" : "⚠️ Recommend Voyagers";
-      recommendedTeam = "A";
-    } else if (longCountA >= 3 && longTotal >= 3) {
-      biasScore = 2.0;
+    if (currentStreakCount >= 3) {
+      priority = 1;
+      priorityLabel = "Priority 1 (High Fatigue)";
+      urgency = "high";
+      if (currentStreakTeam === "A") {
+        biasScore = 4.0;
+        recommendation = "🚨 Priority 1: Must switch to Boots & Beers";
+        recommendedTeam = "B";
+      } else {
+        biasScore = -4.0;
+        recommendation = "🚨 Priority 1: Must switch to Voyagers";
+        recommendedTeam = "A";
+      }
+    } else if (currentStreakCount === 2) {
+      priority = 2;
+      priorityLabel = "Priority 2 (Medium Fatigue)";
       urgency = "medium";
-      recommendation = "⚠️ Recommend Boots & Beers";
-      recommendedTeam = "B";
-    } else if (longCountB >= 3 && longTotal >= 3) {
-      biasScore = -2.0;
-      urgency = "medium";
-      recommendation = "⚠️ Recommend Voyagers";
-      recommendedTeam = "A";
-    } else {
-      biasScore = Number(((longCountA - longCountB) * 0.5).toFixed(1));
-      urgency = "neutral";
-      recommendation = "🟢 Balanced (Either)";
-      recommendedTeam = "any";
+      if (currentStreakTeam === "A") {
+        biasScore = 2.0;
+        recommendation = "⚠️ Priority 2: Recommend Boots & Beers";
+        recommendedTeam = "B";
+      } else {
+        biasScore = -2.0;
+        recommendation = "⚠️ Priority 2: Recommend Voyagers";
+        recommendedTeam = "A";
+      }
     }
 
     const statObj = {
       name: data.displayName,
       totalMatches,
-      shortWindowSize: shortWindow,
-      longWindowSize: longWindow,
-      shortCountA,
-      shortCountB,
+      windowSize: 4,
       currentStreakTeam,
       currentStreakCount,
-      longTotal,
-      longCountA,
-      longCountB,
-      longPctA,
-      longPctB,
-      biasScore,
+      priority,
+      priorityLabel,
       urgency,
+      biasScore,
       recommendation,
       recommendedTeam,
+      windowCountA,
+      windowCountB,
+      windowTotal,
       lastPlayedTeam: history[0]?.teamName || "N/A",
-      recentHistory: history.slice(0, longWindow).map(h => h.teamType) // e.g. ['A', 'A', 'B', 'A']
+      recentHistory: history.slice(0, 4).map(h => h.teamType) // e.g. ['A', 'A', 'A', 'B']
     };
 
     playerJerseyStats[key] = statObj;
     allToppers.push(statObj);
   });
 
-  // Sort toppers by absolute bias intensity
-  const sortedToppers = [...allToppers].sort((a, b) => Math.abs(b.biasScore) - Math.abs(a.biasScore));
-  const toppersA = allToppers.filter(p => p.biasScore > 0).sort((a, b) => b.biasScore - a.biasScore);
-  const toppersB = allToppers.filter(p => p.biasScore < 0).sort((a, b) => a.biasScore - b.biasScore);
+  // Sort toppers: Priority 1 first, then Priority 2, then by streak count
+  const sortedToppers = [...allToppers].sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return b.currentStreakCount - a.currentStreakCount;
+  });
+
+  const toppersA = allToppers.filter(p => p.biasScore > 0).sort((a, b) => a.priority - b.priority || b.currentStreakCount - a.currentStreakCount);
+  const toppersB = allToppers.filter(p => p.biasScore < 0).sort((a, b) => a.priority - b.priority || b.currentStreakCount - a.currentStreakCount);
 
   return {
-    shortWindow,
-    longWindow,
+    windowSize: 4,
     playerJerseyStats,
     toppers: sortedToppers,
     toppersA,
@@ -1203,30 +1200,27 @@ export function computeJerseyRotationStats(matches = [], shortWindow = 2, longWi
 
 /**
  * Audits the Jersey Balance of the currently drafted Team A vs Team B.
- * Identifies active jersey fatigue on each team and suggests 1-to-1 balanced swaps.
+ * Identifies active jersey fatigue (Priority 1: >=3 streak, Priority 2: ==2 streak) on each team and suggests 1-to-1 balanced swaps.
  * @param {Array} teamA - Players drafted for Team A
  * @param {Array} teamB - Players drafted for Team B
  * @param {Array} matches - Historical match array
- * @param {number} shortWindow - Short window size (default 2)
- * @param {number} longWindow - Long window size (default 4)
  * @returns {Object} Jersey audit report with fatigue warnings, balance score, and advisory swaps.
  */
-export function auditJerseyBalance(teamA = [], teamB = [], matches = [], shortWindow = 2, longWindow = 4) {
-  const jerseyStats = computeJerseyRotationStats(matches, shortWindow, longWindow);
+export function auditJerseyBalance(teamA = [], teamB = [], matches = []) {
+  const jerseyStats = computeJerseyRotationStats(matches, 2, 4);
   const pStats = jerseyStats.playerJerseyStats;
 
   const getStats = (player) => {
     const key = (player.name || "").trim().toLowerCase();
     return pStats[key] || {
       name: player.name,
+      priority: 3,
+      priorityLabel: "Priority 3 (Neutral)",
       biasScore: 0,
       urgency: "neutral",
       currentStreakTeam: null,
       currentStreakCount: 0,
-      longCountA: 0,
-      longCountB: 0,
-      longTotal: 0,
-      recommendation: "🟢 Balanced (Either)",
+      recommendation: "🟢 Neutral (Can play for either)",
       recommendedTeam: "any",
       recentHistory: []
     };
@@ -1237,26 +1231,26 @@ export function auditJerseyBalance(teamA = [], teamB = [], matches = [], shortWi
 
   teamA.forEach(p => {
     const s = getStats(p);
-    if (s.biasScore > 0 && s.urgency !== "neutral") {
+    if (s.biasScore > 0 && s.priority < 3) {
       fatiguedInA.push({
         player: p,
         stats: s,
-        reason: s.currentStreakCount >= shortWindow 
-          ? `Played for Voyagers (${s.currentStreakCount}x in a row)`
-          : `Played for Voyagers (${s.longCountA}/${s.longTotal} in last ${s.longTotal} games)`
+        reason: s.priority === 1 
+          ? `Priority 1: Wore Voyagers ${s.currentStreakCount}x in a row`
+          : `Priority 2: Wore Voyagers ${s.currentStreakCount}x in a row`
       });
     }
   });
 
   teamB.forEach(p => {
     const s = getStats(p);
-    if (s.biasScore < 0 && s.urgency !== "neutral") {
+    if (s.biasScore < 0 && s.priority < 3) {
       fatiguedInB.push({
         player: p,
         stats: s,
-        reason: s.currentStreakCount >= shortWindow
-          ? `Played for Boots & Beers (${s.currentStreakCount}x in a row)`
-          : `Played for Boots & Beers (${s.longCountB}/${s.longTotal} in last ${s.longTotal} games)`
+        reason: s.priority === 1 
+          ? `Priority 1: Wore Boots & Beers ${s.currentStreakCount}x in a row`
+          : `Priority 2: Wore Boots & Beers ${s.currentStreakCount}x in a row`
       });
     }
   });

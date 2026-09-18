@@ -414,8 +414,35 @@ def test_audit_team_matchup():
   assert delta < 1.0  # Evenly matched firepower
   print(f"[x] Matchup Audit Parity verified: Team A Threat={threat_a:.2f} G/M vs Team B Threat={threat_b:.2f} G/M (Delta={delta:.2f})")
 
-def test_jersey_rotation_dual_window():
-  print("--- Testing Dual-Window (Short: 2, Long: 4) Jersey Rotation ---")
+def compute_jersey_fatigue_priority(history):
+  """
+  Calculates jersey fatigue priority based on 4-game window:
+  Priority 1: Consecutive streak >= 3 in the same team (High Fatigue -> Must Switch)
+  Priority 2: Consecutive streak == 2 in the same team (Medium Fatigue -> Recommend Switch)
+  Priority 3: Consecutive streak <= 1 (Neutral -> Can play for either)
+  """
+  if not history:
+    return {"priority": 3, "streak": 0, "team": None, "recommendation": "🟢 Neutral"}
+  
+  streak_team = history[0]
+  streak_count = 0
+  for t in history:
+    if t == streak_team:
+      streak_count += 1
+    else:
+      break
+
+  if streak_count >= 3:
+    rec = "🚨 Priority 1: Must switch to Boots & Beers" if streak_team == "A" else "🚨 Priority 1: Must switch to Voyagers"
+    return {"priority": 1, "streak": streak_count, "team": streak_team, "recommendation": rec}
+  elif streak_count == 2:
+    rec = "⚠️ Priority 2: Recommend Boots & Beers" if streak_team == "A" else "⚠️ Priority 2: Recommend Voyagers"
+    return {"priority": 2, "streak": streak_count, "team": streak_team, "recommendation": rec}
+  else:
+    return {"priority": 3, "streak": streak_count, "team": streak_team, "recommendation": "🟢 Neutral (Can play for either)"}
+
+def test_jersey_rotation_priority_logic():
+  print("--- Testing Jersey Fatigue Priority Logic (P1: >=3, P2: ==2, P3: <=1) ---")
   matches = sorted(SAMPLE_API_RESPONSE["matches"], key=lambda m: m["match_date"], reverse=True)
   
   # Build appearance history for players
@@ -428,30 +455,47 @@ def test_jersey_rotation_dual_window():
     for name in boots["members"]:
       appearances.setdefault(name, []).append("B")
 
-  # Mathai played in Voyagers (A) in all 4 matches: ['A', 'A', 'A', 'A']
-  mathai_hist = appearances["Mathai"]
-  assert mathai_hist[:2] == ["A", "A"]  # Short window = 2 in A
-  assert mathai_hist[:4].count("A") == 4  # Long window = 4 in A
-  print(f"[x] Mathai history: {mathai_hist} -> Due for Boots & Beers")
+  # Mathai played in Voyagers (A) in all 4 matches: ['A', 'A', 'A', 'A'] -> Streak 4 >= 3 -> Priority 1
+  mathai_res = compute_jersey_fatigue_priority(appearances["Mathai"][:4])
+  assert mathai_res["priority"] == 1
+  assert mathai_res["streak"] == 4
+  assert "Must switch to Boots & Beers" in mathai_res["recommendation"]
+  print(f"[x] Mathai (4x A): Priority {mathai_res['priority']} ({mathai_res['recommendation']})")
 
-  # Vinay played in Boots in last 3 matches: ['B', 'B', 'B', 'A']
-  vinay_hist = appearances["Vinay"]
-  assert vinay_hist[:2] == ["B", "B"]  # Short window = 2 in B
-  assert vinay_hist[:4].count("B") == 3  # Long window = 3 in B
-  print(f"[x] Vinay history: {vinay_hist} -> Due for Voyagers")
+  # Vinay played in Boots in last 3 matches: ['B', 'B', 'B', 'A'] -> Streak 3 >= 3 -> Priority 1
+  vinay_res = compute_jersey_fatigue_priority(appearances["Vinay"][:4])
+  assert vinay_res["priority"] == 1
+  assert vinay_res["streak"] == 3
+  assert "Must switch to Voyagers" in vinay_res["recommendation"]
+  print(f"[x] Vinay (3x B): Priority {vinay_res['priority']} ({vinay_res['recommendation']})")
 
-  # Akash played in Boots in all 4 matches: ['B', 'B', 'B', 'B']
-  akash_hist = appearances["Akash"]
-  assert akash_hist[:2] == ["B", "B"]
-  assert akash_hist[:4].count("B") == 4
-  print(f"[x] Akash history: {akash_hist} -> Due for Voyagers")
+  # Akash played in Boots in all 4 matches: ['B', 'B', 'B', 'B'] -> Streak 4 >= 3 -> Priority 1
+  akash_res = compute_jersey_fatigue_priority(appearances["Akash"][:4])
+  assert akash_res["priority"] == 1
+  assert akash_res["streak"] == 4
+  assert "Must switch to Voyagers" in akash_res["recommendation"]
+  print(f"[x] Akash (4x B): Priority {akash_res['priority']} ({akash_res['recommendation']})")
 
-  # Abey played: ['A', 'B', 'B', 'A'] -> Short window = 1 in A, 1 in B (no streak)
-  abey_hist = appearances["Abey"]
-  assert abey_hist[:2] == ["A", "B"]
-  assert abey_hist[:4].count("A") == 2
-  assert abey_hist[:4].count("B") == 2
-  print(f"[x] Abey history: {abey_hist} -> Balanced (Can play for either)")
+  # Abey played: ['A', 'B', 'B', 'A'] -> Streak = 1 in A -> Priority 3 (Neutral)
+  abey_res = compute_jersey_fatigue_priority(appearances["Abey"][:4])
+  assert abey_res["priority"] == 3
+  assert abey_res["streak"] == 1
+  assert "Neutral" in abey_res["recommendation"]
+  print(f"[x] Abey (1x A, 2x B, 1x A): Priority {abey_res['priority']} ({abey_res['recommendation']})")
+
+  # Simulated 2-game streak: ['A', 'A', 'B', 'B'] -> Streak = 2 in A -> Priority 2
+  sim_p2_a = compute_jersey_fatigue_priority(["A", "A", "B", "B"])
+  assert sim_p2_a["priority"] == 2
+  assert sim_p2_a["streak"] == 2
+  assert "Recommend Boots & Beers" in sim_p2_a["recommendation"]
+  print(f"[x] Simulated 2x Voyagers: Priority {sim_p2_a['priority']} ({sim_p2_a['recommendation']})")
+
+  # Simulated 2-game streak in Boots: ['B', 'B', 'A', 'A'] -> Streak = 2 in B -> Priority 2
+  sim_p2_b = compute_jersey_fatigue_priority(["B", "B", "A", "A"])
+  assert sim_p2_b["priority"] == 2
+  assert sim_p2_b["streak"] == 2
+  assert "Recommend Voyagers" in sim_p2_b["recommendation"]
+  print(f"[x] Simulated 2x Boots & Beers: Priority {sim_p2_b['priority']} ({sim_p2_b['recommendation']})")
 
 if __name__ == "__main__":
   test_h2h_calculation()
@@ -463,7 +507,7 @@ if __name__ == "__main__":
   test_defensive_leakage()
   test_clutch_scorers_and_derby_trends()
   test_audit_team_matchup()
-  test_jersey_rotation_dual_window()
+  test_jersey_rotation_priority_logic()
   test_ai_scout_analysis_and_calibration()
   print("\n>>> ALL LEAGUE SERVICE TESTS PASSED! <<<\n")
 
