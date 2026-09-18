@@ -401,6 +401,45 @@ def test_audit_team_matchup():
   assert delta < 1.0  # Evenly matched firepower
   print(f"[x] Matchup Audit Parity verified: Team A Threat={threat_a:.2f} G/M vs Team B Threat={threat_b:.2f} G/M (Delta={delta:.2f})")
 
+def test_jersey_rotation_dual_window():
+  print("--- Testing Dual-Window (Short: 2, Long: 4) Jersey Rotation ---")
+  matches = sorted(SAMPLE_API_RESPONSE["matches"], key=lambda m: m["match_date"], reverse=True)
+  
+  # Build appearance history for players
+  appearances = {}
+  for m in matches:
+    voy = next(t for t in m["teams"] if "voyager" in t["team"].lower())
+    boots = next(t for t in m["teams"] if "boot" in t["team"].lower())
+    for name in voy["members"]:
+      appearances.setdefault(name, []).append("A")
+    for name in boots["members"]:
+      appearances.setdefault(name, []).append("B")
+
+  # Mathai played in Voyagers (A) in all 4 matches: ['A', 'A', 'A', 'A']
+  mathai_hist = appearances["Mathai"]
+  assert mathai_hist[:2] == ["A", "A"]  # Short window = 2 in A
+  assert mathai_hist[:4].count("A") == 4  # Long window = 4 in A
+  print(f"[x] Mathai history: {mathai_hist} -> Due for Boots & Beers")
+
+  # Vinay played in Boots in last 3 matches: ['B', 'B', 'B', 'A']
+  vinay_hist = appearances["Vinay"]
+  assert vinay_hist[:2] == ["B", "B"]  # Short window = 2 in B
+  assert vinay_hist[:4].count("B") == 3  # Long window = 3 in B
+  print(f"[x] Vinay history: {vinay_hist} -> Due for Voyagers")
+
+  # Akash played in Boots in all 4 matches: ['B', 'B', 'B', 'B']
+  akash_hist = appearances["Akash"]
+  assert akash_hist[:2] == ["B", "B"]
+  assert akash_hist[:4].count("B") == 4
+  print(f"[x] Akash history: {akash_hist} -> Due for Voyagers")
+
+  # Abey played: ['A', 'B', 'B', 'A'] -> Short window = 1 in A, 1 in B (no streak)
+  abey_hist = appearances["Abey"]
+  assert abey_hist[:2] == ["A", "B"]
+  assert abey_hist[:4].count("A") == 2
+  assert abey_hist[:4].count("B") == 2
+  print(f"[x] Abey history: {abey_hist} -> Balanced (Can play for either)")
+
 if __name__ == "__main__":
   test_h2h_calculation()
   test_player_stats()
@@ -411,6 +450,8 @@ if __name__ == "__main__":
   test_defensive_leakage()
   test_clutch_scorers_and_derby_trends()
   test_audit_team_matchup()
+  test_jersey_rotation_dual_window()
   test_ai_scout_analysis_and_calibration()
   print("\n>>> ALL LEAGUE SERVICE TESTS PASSED! <<<\n")
+
 

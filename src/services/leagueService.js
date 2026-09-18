@@ -1029,3 +1029,278 @@ export function auditTeamMatchup(teamA = [], teamB = [], matches = [], sectorWei
     statsB
   };
 }
+
+/**
+ * Computes Dual-Window Jersey Rotation & Fatigue Statistics for all players.
+ * Analyzes short window (default 2 matches) for immediate streaks and long window (default 4 matches) for cumulative exposure.
+ * @param {Array} matches - Historical matches array
+ * @param {number} shortWindow - Short window size in matches (default 2)
+ * @param {number} longWindow - Long window size in matches (default 4)
+ * @returns {Object} Jersey rotation stats, streaks, window distributions, and topper rankings.
+ */
+export function computeJerseyRotationStats(matches = [], shortWindow = 2, longWindow = 4) {
+  const validMatches = (matches || [])
+    .filter(m => m && Array.isArray(m.teams) && m.teams.length >= 2)
+    .sort((a, b) => new Date(b.match_date || 0) - new Date(a.match_date || 0));
+
+  const playerAppearances = {}; // playerNameLower -> [{ date, teamName, isTeamA, isTeamB }]
+
+  validMatches.forEach(m => {
+    const voyTeam = (m.teams || []).find(t => (t.team || "").toLowerCase().includes("voyager")) || m.teams[0];
+    const bootsTeam = (m.teams || []).find(t => (t.team || "").toLowerCase().includes("boot")) || m.teams[1];
+
+    const teamAName = voyTeam.team || "Voyagers";
+    const teamBName = bootsTeam.team || "Boots & Beers";
+
+    (voyTeam.members || []).forEach(name => {
+      const trimmed = (name || "").trim();
+      if (!trimmed) return;
+      const key = trimmed.toLowerCase();
+      if (!playerAppearances[key]) {
+        playerAppearances[key] = { displayName: trimmed, history: [] };
+      }
+      playerAppearances[key].history.push({
+        date: m.match_date,
+        teamName: teamAName,
+        teamType: "A",
+        isTeamA: true,
+        isTeamB: false
+      });
+    });
+
+    (bootsTeam.members || []).forEach(name => {
+      const trimmed = (name || "").trim();
+      if (!trimmed) return;
+      const key = trimmed.toLowerCase();
+      if (!playerAppearances[key]) {
+        playerAppearances[key] = { displayName: trimmed, history: [] };
+      }
+      playerAppearances[key].history.push({
+        date: m.match_date,
+        teamName: teamBName,
+        teamType: "B",
+        isTeamA: false,
+        isTeamB: true
+      });
+    });
+  });
+
+  const playerJerseyStats = {};
+  const allToppers = [];
+
+  Object.entries(playerAppearances).forEach(([key, data]) => {
+    const history = data.history; // already newest first
+    const totalMatches = history.length;
+    if (totalMatches === 0) return;
+
+    // 1. Short Window Analysis
+    const shortSlice = history.slice(0, shortWindow);
+    const shortCountA = shortSlice.filter(h => h.isTeamA).length;
+    const shortCountB = shortSlice.filter(h => h.isTeamB).length;
+
+    // Consecutive streak from the most recent match
+    let currentStreakCount = 0;
+    let currentStreakTeam = null; // 'A' or 'B'
+    if (history.length > 0) {
+      currentStreakTeam = history[0].teamType;
+      for (const h of history) {
+        if (h.teamType === currentStreakTeam) {
+          currentStreakCount++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    // 2. Long Window Analysis
+    const longSlice = history.slice(0, longWindow);
+    const longTotal = longSlice.length;
+    const longCountA = longSlice.filter(h => h.isTeamA).length;
+    const longCountB = longSlice.filter(h => h.isTeamB).length;
+    const longPctA = longTotal > 0 ? Math.round((longCountA / longTotal) * 100) : 0;
+    const longPctB = longTotal > 0 ? Math.round((longCountB / longTotal) * 100) : 0;
+
+    // 3. Combined Bias Score & Recommendation
+    // Positive score = heavy Team A (Voyagers) exposure -> Due for Team B (Boots & Beers)
+    // Negative score = heavy Team B (Boots & Beers) exposure -> Due for Team A (Voyagers)
+    let biasScore = 0;
+    let urgency = "neutral"; // 'high' | 'medium' | 'neutral'
+    let recommendation = "Balanced (🟢)";
+    let recommendedTeam = "any";
+
+    if (currentStreakTeam === "A" && currentStreakCount >= shortWindow) {
+      biasScore = 3.0 + (longCountA >= 3 ? 1.5 : 0);
+      urgency = currentStreakCount >= shortWindow && longCountA >= 3 ? "high" : "medium";
+      recommendation = urgency === "high" ? "🚨 Urgent: Due for Boots & Beers" : "⚠️ Recommend Boots & Beers";
+      recommendedTeam = "B";
+    } else if (currentStreakTeam === "B" && currentStreakCount >= shortWindow) {
+      biasScore = -3.0 - (longCountB >= 3 ? 1.5 : 0);
+      urgency = currentStreakCount >= shortWindow && longCountB >= 3 ? "high" : "medium";
+      recommendation = urgency === "high" ? "🚨 Urgent: Due for Voyagers" : "⚠️ Recommend Voyagers";
+      recommendedTeam = "A";
+    } else if (longCountA >= 3 && longTotal >= 3) {
+      biasScore = 2.0;
+      urgency = "medium";
+      recommendation = "⚠️ Recommend Boots & Beers";
+      recommendedTeam = "B";
+    } else if (longCountB >= 3 && longTotal >= 3) {
+      biasScore = -2.0;
+      urgency = "medium";
+      recommendation = "⚠️ Recommend Voyagers";
+      recommendedTeam = "A";
+    } else {
+      biasScore = Number(((longCountA - longCountB) * 0.5).toFixed(1));
+      urgency = "neutral";
+      recommendation = "🟢 Balanced (Either)";
+      recommendedTeam = "any";
+    }
+
+    const statObj = {
+      name: data.displayName,
+      totalMatches,
+      shortWindowSize: shortWindow,
+      longWindowSize: longWindow,
+      shortCountA,
+      shortCountB,
+      currentStreakTeam,
+      currentStreakCount,
+      longTotal,
+      longCountA,
+      longCountB,
+      longPctA,
+      longPctB,
+      biasScore,
+      urgency,
+      recommendation,
+      recommendedTeam,
+      lastPlayedTeam: history[0]?.teamName || "N/A",
+      recentHistory: history.slice(0, longWindow).map(h => h.teamType) // e.g. ['A', 'A', 'B', 'A']
+    };
+
+    playerJerseyStats[key] = statObj;
+    allToppers.push(statObj);
+  });
+
+  // Sort toppers by absolute bias intensity
+  const sortedToppers = [...allToppers].sort((a, b) => Math.abs(b.biasScore) - Math.abs(a.biasScore));
+  const toppersA = allToppers.filter(p => p.biasScore > 0).sort((a, b) => b.biasScore - a.biasScore);
+  const toppersB = allToppers.filter(p => p.biasScore < 0).sort((a, b) => a.biasScore - b.biasScore);
+
+  return {
+    shortWindow,
+    longWindow,
+    playerJerseyStats,
+    toppers: sortedToppers,
+    toppersA,
+    toppersB
+  };
+}
+
+/**
+ * Audits the Jersey Balance of the currently drafted Team A vs Team B.
+ * Identifies active jersey fatigue on each team and suggests 1-to-1 balanced swaps.
+ * @param {Array} teamA - Players drafted for Team A
+ * @param {Array} teamB - Players drafted for Team B
+ * @param {Array} matches - Historical match array
+ * @param {number} shortWindow - Short window size (default 2)
+ * @param {number} longWindow - Long window size (default 4)
+ * @returns {Object} Jersey audit report with fatigue warnings, balance score, and advisory swaps.
+ */
+export function auditJerseyBalance(teamA = [], teamB = [], matches = [], shortWindow = 2, longWindow = 4) {
+  const jerseyStats = computeJerseyRotationStats(matches, shortWindow, longWindow);
+  const pStats = jerseyStats.playerJerseyStats;
+
+  const getStats = (player) => {
+    const key = (player.name || "").trim().toLowerCase();
+    return pStats[key] || {
+      name: player.name,
+      biasScore: 0,
+      urgency: "neutral",
+      currentStreakTeam: null,
+      currentStreakCount: 0,
+      longCountA: 0,
+      longCountB: 0,
+      longTotal: 0,
+      recommendation: "🟢 Balanced (Either)",
+      recommendedTeam: "any",
+      recentHistory: []
+    };
+  };
+
+  const fatiguedInA = []; // In Team A, but due for Team B
+  const fatiguedInB = []; // In Team B, but due for Team A
+
+  teamA.forEach(p => {
+    const s = getStats(p);
+    if (s.biasScore > 0 && s.urgency !== "neutral") {
+      fatiguedInA.push({
+        player: p,
+        stats: s,
+        reason: s.currentStreakCount >= shortWindow 
+          ? `Played for Voyagers (${s.currentStreakCount}x in a row)`
+          : `Played for Voyagers (${s.longCountA}/${s.longTotal} in last ${s.longTotal} games)`
+      });
+    }
+  });
+
+  teamB.forEach(p => {
+    const s = getStats(p);
+    if (s.biasScore < 0 && s.urgency !== "neutral") {
+      fatiguedInB.push({
+        player: p,
+        stats: s,
+        reason: s.currentStreakCount >= shortWindow
+          ? `Played for Boots & Beers (${s.currentStreakCount}x in a row)`
+          : `Played for Boots & Beers (${s.longCountB}/${s.longTotal} in last ${s.longTotal} games)`
+      });
+    }
+  });
+
+  // Calculate overall Jersey Balance Index (0 - 100)
+  const totalFatigued = fatiguedInA.length + fatiguedInB.length;
+  const highFatigued = fatiguedInA.filter(f => f.stats.urgency === "high").length + 
+                       fatiguedInB.filter(f => f.stats.urgency === "high").length;
+  
+  let jerseyParityIndex = Math.max(0, Math.min(100, Math.round(100 - (highFatigued * 20 + (totalFatigued - highFatigued) * 10))));
+
+  // Generate Suggested Advisory 1-to-1 Swaps
+  const suggestedSwaps = [];
+  fatiguedInA.forEach(itemA => {
+    fatiguedInB.forEach(itemB => {
+      const pA = itemA.player;
+      const pB = itemB.player;
+      const ovrDiff = Math.abs((pA.overall || 75) - (pB.overall || 75));
+      const posMatch = pA.position === pB.position;
+
+      // Good candidate swap if skill delta is small (<= 4 points) or same position
+      if (ovrDiff <= 5 || posMatch) {
+        const swapScore = (Math.abs(itemA.stats.biasScore) + Math.abs(itemB.stats.biasScore)) * 10 - ovrDiff * 3 + (posMatch ? 15 : 0);
+        suggestedSwaps.push({
+          playerA: pA,
+          playerB: pB,
+          statsA: itemA.stats,
+          statsB: itemB.stats,
+          ovrDiff,
+          posMatch,
+          swapScore,
+          rationale: `Swap ${pA.name} (${pA.position}, ${itemA.reason}) ↔ ${pB.name} (${pB.position}, ${itemB.reason})`
+        });
+      }
+    });
+  });
+
+  suggestedSwaps.sort((a, b) => b.swapScore - a.swapScore);
+
+  return {
+    shortWindow,
+    longWindow,
+    fatiguedInA,
+    fatiguedInB,
+    totalFatigued,
+    jerseyParityIndex,
+    bestSwap: suggestedSwaps[0] || null,
+    suggestedSwaps: suggestedSwaps.slice(0, 3),
+    getStats
+  };
+}
+

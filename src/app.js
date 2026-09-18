@@ -16,7 +16,9 @@ import {
   computeClutchScorers,
   computeDerbyTrends,
   buildScoutAnalysisPayload,
-  auditTeamMatchup
+  auditTeamMatchup,
+  computeJerseyRotationStats,
+  auditJerseyBalance
 } from "./services/leagueService.js";
 
 // Initialize Database instance
@@ -422,6 +424,7 @@ async function handleGenerateLeagueInsights() {
     const topLosers = computeTopConsistentLosers(state.leagueMatches, 3);
     const topChemistries = computeTopWinningChemistries(state.leagueMatches);
     const derbyTrends = computeDerbyTrends(state.leagueMatches);
+    const jerseyRotationStats = computeJerseyRotationStats(state.leagueMatches, 2, 4);
 
     // Call LLM / AI service with Grounded Hybrid context (matches + player DB + verified stats)
     const allDbPlayers = db.getAll();
@@ -586,7 +589,56 @@ async function handleGenerateLeagueInsights() {
 
         </div>
 
-        <!-- 4. Provider Model Attribution & Match Count -->
+        <!-- 4. Dual-Window Jersey Fatigue & Rotation Tracker (Short: 2, Long: 4) -->
+        <div class="p-3.5 rounded-xl bg-slate-900/90 border border-cyan-500/30 space-y-2.5">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span class="text-xs font-black text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span>🎽</span>
+              <span>Dual-Window Jersey Rotation &amp; Fatigue Tracker</span>
+            </span>
+            <span class="text-[10px] text-slate-400 font-mono">Short (Last 2M) • Long (Last 4M)</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead>
+                <tr class="border-b border-slate-800 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                  <th class="py-1.5 px-2">Player</th>
+                  <th class="py-1.5 px-2">Short Window (2M Streak)</th>
+                  <th class="py-1.5 px-2">Long Window (4M Exposure)</th>
+                  <th class="py-1.5 px-2">Status / Recommendation</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60 font-mono text-[11px]">
+                ${jerseyRotationStats.toppers.map(p => `
+                  <tr class="hover:bg-slate-800/40">
+                    <td class="py-1.5 px-2 font-sans font-bold text-white">${p.name}</td>
+                    <td class="py-1.5 px-2">
+                      <span class="${p.currentStreakCount >= 2 ? (p.currentStreakTeam === 'A' ? 'text-amber-400 font-bold' : 'text-indigo-400 font-bold') : 'text-slate-400'}">
+                        ${p.currentStreakCount}x in ${p.currentStreakTeam === 'A' ? 'Voyagers' : 'Boots & Beers'}
+                      </span>
+                    </td>
+                    <td class="py-1.5 px-2 text-slate-300">
+                      ${p.longCountA} Voyagers / ${p.longCountB} Boots &amp; Beers <span class="text-[10px] text-slate-500">(${p.longPctA}% / ${p.longPctB}%)</span>
+                    </td>
+                    <td class="py-1.5 px-2 font-sans">
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+                        p.urgency === 'high'
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                          : p.urgency === 'medium'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          : 'bg-slate-800 text-slate-400'
+                      }">
+                        ${p.recommendation}
+                      </span>
+                    </td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 5. Provider Model Attribution & Match Count -->
         <div class="flex items-center justify-between text-[10px] text-slate-500 font-mono px-1">
           <span>📊 Season 2026: ${derbyTrends.totalMatches} Matches Played • ${derbyTrends.totalGoals} Total Goals (${derbyTrends.avgGoalsPerMatch} G/M)</span>
           <span>⚡ Analyzed with ${state.aiConfig.provider === 'gemini' ? `Google Gemini (${state.aiConfig.geminiModel || 'gemini-3.6-flash'})` : `Local Ollama (${state.aiConfig.model})`}</span>
@@ -2219,6 +2271,7 @@ function renderTeamComparison() {
   renderTeamRosterList("team-a-roster-list", state.activeTeamA, "A");
   renderTeamRosterList("team-b-roster-list", state.activeTeamB, "B");
   renderMatchupAuditor();
+  renderJerseyAdvisory();
 }
 
 /**
@@ -2430,9 +2483,242 @@ function renderMatchupAuditor() {
   }
 }
 
+/**
+ * Renders the Dual-Window Jersey Rotation & Fatigue Advisory Card below the AI Matchup Auditor.
+ */
+function renderJerseyAdvisory() {
+  const container = document.getElementById("jersey-advisory-container");
+  if (!container) return;
+
+  if (!state.activeTeamA || !state.activeTeamB || state.activeTeamA.length === 0 || state.activeTeamB.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const shortWindow = 2;
+  const longWindow = 4;
+  const jerseyAudit = auditJerseyBalance(
+    state.activeTeamA,
+    state.activeTeamB,
+    state.leagueMatches,
+    shortWindow,
+    longWindow
+  );
+
+  const rotationStats = computeJerseyRotationStats(state.leagueMatches, shortWindow, longWindow);
+
+  const { fatiguedInA, fatiguedInB, totalFatigued, jerseyParityIndex, bestSwap } = jerseyAudit;
+  const isOptimal = totalFatigued === 0;
+  const isHighRisk = jerseyParityIndex < 70;
+
+  const teamAName = state.teamAName || "Voyagers";
+  const teamBName = state.teamBName || "Boots & Beers";
+
+  container.innerHTML = `
+    <div class="glass-panel p-5 sm:p-6 rounded-2xl border ${
+      isOptimal
+        ? "border-cyan-500/40 bg-gradient-to-b from-slate-900/95 to-slate-950 shadow-cyan-500/10"
+        : isHighRisk
+        ? "border-amber-500/50 bg-gradient-to-b from-amber-950/20 via-slate-900/95 to-slate-950 shadow-amber-500/10"
+        : "border-slate-800 bg-gradient-to-b from-slate-900/95 to-slate-950 shadow-indigo-500/10"
+    } space-y-4 shadow-2xl transition-all">
+      
+      <!-- Top Header & Parity Gauge -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3.5">
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xl">🎽</span>
+            <h3 class="text-base font-black text-white tracking-tight">Dual-Window Jersey Rotation &amp; Fatigue Advisory</h3>
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+              isOptimal
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                : isHighRisk
+                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse"
+                : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40"
+            }">
+              ${isOptimal ? "🟢 Perfect Rotation" : totalFatigued + " Player(s) Due for Switch"}
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">Short Window: <strong class="text-slate-200">2 Matches</strong> (Consecutive Streaks) • Long Window: <strong class="text-slate-200">4 Matches</strong> (Cumulative Exposure)</p>
+        </div>
+
+        <!-- Jersey Parity Index Badge -->
+        <div class="flex items-center gap-3">
+          <div class="text-right">
+            <div class="text-[10px] uppercase tracking-wider font-bold text-slate-400">Jersey Parity Index</div>
+            <div class="text-xl font-black font-mono ${
+              isOptimal ? "text-cyan-400" : isHighRisk ? "text-amber-400" : "text-indigo-400"
+            }">
+              ${jerseyParityIndex}%
+            </div>
+          </div>
+          <div class="w-11 h-11 rounded-2xl flex items-center justify-center font-black text-base border ${
+            isOptimal
+              ? "bg-cyan-950 border-cyan-500/50 text-cyan-300 shadow-lg shadow-cyan-500/20"
+              : isHighRisk
+              ? "bg-amber-950 border-amber-500/50 text-amber-300 shadow-lg shadow-amber-500/20"
+              : "bg-indigo-950 border-indigo-500/50 text-indigo-300 shadow-lg shadow-indigo-500/20"
+          }">
+            ${isOptimal ? "✨" : isHighRisk ? "⚠️" : "🔄"}
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Lineup Jersey Fatigue Status (2-Column Grid) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+        
+        <!-- Team A Jersey Status -->
+        <div class="p-3.5 rounded-xl bg-slate-950/80 border border-blue-500/30 space-y-2">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <span class="text-xs font-black text-blue-400 flex items-center gap-1.5">
+              <span>🔵</span>
+              <span>${teamAName}</span>
+            </span>
+            <span class="text-[10px] font-mono text-slate-400">${fatiguedInA.length} due for switch</span>
+          </div>
+
+          ${fatiguedInA.length > 0 ? `
+            <div class="space-y-1.5">
+              ${fatiguedInA.map(f => `
+                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900 border ${f.stats.urgency === 'high' ? 'border-rose-500/40' : 'border-amber-500/30'} text-xs">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="font-bold text-white truncate">${f.player.name}</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">${f.player.position}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 flex-shrink-0 text-right">
+                    <span class="text-[11px] font-medium ${f.stats.urgency === 'high' ? 'text-rose-400 font-bold' : 'text-amber-300'}">${f.reason}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">Due for Boots &amp; Beers</span>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          ` : `
+            <div class="p-3 text-center text-xs text-slate-400 font-medium">
+              🟢 No consecutive Voyagers streaks on this squad.
+            </div>
+          `}
+        </div>
+
+        <!-- Team B Jersey Status -->
+        <div class="p-3.5 rounded-xl bg-slate-950/80 border border-red-500/30 space-y-2">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <span class="text-xs font-black text-red-400 flex items-center gap-1.5">
+              <span>🔴</span>
+              <span>${teamBName}</span>
+            </span>
+            <span class="text-[10px] font-mono text-slate-400">${fatiguedInB.length} due for switch</span>
+          </div>
+
+          ${fatiguedInB.length > 0 ? `
+            <div class="space-y-1.5">
+              ${fatiguedInB.map(f => `
+                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900 border ${f.stats.urgency === 'high' ? 'border-rose-500/40' : 'border-amber-500/30'} text-xs">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="font-bold text-white truncate">${f.player.name}</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">${f.player.position}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 flex-shrink-0 text-right">
+                    <span class="text-[11px] font-medium ${f.stats.urgency === 'high' ? 'text-rose-400 font-bold' : 'text-amber-300'}">${f.reason}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Due for Voyagers</span>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          ` : `
+            <div class="p-3 text-center text-xs text-slate-400 font-medium">
+              🟢 No consecutive Boots &amp; Beers streaks on this squad.
+            </div>
+          `}
+        </div>
+
+      </div>
+
+      <!-- League-Wide Toppers (Short: 2, Long: 4) Quick Summary -->
+      <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+            <span>📋</span>
+            <span>League-Wide Jersey Toppers (Combined Short: 2 &amp; Long: 4)</span>
+          </span>
+          <span class="text-[10px] text-slate-500 font-mono">Most due for a color change</span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          ${rotationStats.toppers.slice(0, 4).map(top => `
+            <div class="p-2 rounded-lg bg-slate-950 border border-slate-800/80 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-white truncate">${top.name}</span>
+                <span class="text-[10px] ${top.urgency === 'high' ? 'text-rose-400 font-bold' : 'text-amber-400'}">${top.urgency === 'high' ? '🚨' : '⚠️'}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 font-mono">
+                Short: <span class="font-bold text-slate-200">${top.currentStreakCount}x in ${top.currentStreakTeam === 'A' ? 'Voyagers' : 'Boots & Beers'}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 font-mono">
+                Long: <span class="font-bold text-slate-200">${top.currentStreakTeam === 'A' ? top.longCountA : top.longCountB}/${top.longTotal}</span>
+              </div>
+              <div class="text-[10px] font-semibold ${top.recommendedTeam === 'B' ? 'text-amber-300' : 'text-blue-300'}">
+                ${top.recommendation}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+
+      <!-- Advisory 1-to-1 Balanced Swap Recommendation Banner (Non-intrusive) -->
+      ${bestSwap ? `
+        <div class="p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/60 via-slate-900 to-indigo-950/60 border border-cyan-500/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+          <div class="space-y-0.5 text-left">
+            <div class="flex items-center gap-1.5 text-xs font-black text-cyan-300 uppercase tracking-wider">
+              <span>💡</span>
+              <span>Advisory 1-to-1 Jersey Balance Swap</span>
+            </div>
+            <p class="text-xs text-slate-200 font-medium">${bestSwap.rationale}</p>
+            <p class="text-[11px] text-slate-400">Position Match: <span class="text-emerald-400 font-bold">${bestSwap.posMatch ? "Exact Match" : "Compatible"}</span> • Skill Delta: <span class="text-slate-200 font-bold">${bestSwap.ovrDiff} OVR</span> • Resolves streaks for both players without altering team balance.</p>
+          </div>
+          <button id="btn-apply-jersey-swap" class="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black transition-all shadow-md shadow-cyan-500/20 whitespace-nowrap flex-shrink-0 flex items-center gap-1.5 hover:scale-105 active:scale-95 cursor-pointer">
+            <span>Apply Jersey Swap</span>
+            <span>➜</span>
+          </button>
+        </div>
+      ` : ""}
+
+    </div>
+  `;
+
+  // Attach event listener for the jersey swap button
+  const jerseySwapBtn = document.getElementById("btn-apply-jersey-swap");
+  if (jerseySwapBtn && bestSwap) {
+    jerseySwapBtn.addEventListener("click", () => {
+      const { playerA, playerB } = bestSwap;
+
+      const idxA = state.activeTeamA.findIndex(p => p.id === playerA.id);
+      const idxB = state.activeTeamB.findIndex(p => p.id === playerB.id);
+
+      if (idxA !== -1 && idxB !== -1) {
+        state.activeTeamA[idxA] = playerB;
+        state.activeTeamB[idxB] = playerA;
+
+        const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
+        const formations = getFormationsForSize(sizeKey);
+        const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
+        const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
+
+        state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions);
+        state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions);
+        syncMatchdayPositions();
+
+        renderPitch();
+        renderTeamComparison();
+        showToast(`🎽 Applied jersey balance swap: ${playerA.name} ⇄ ${playerB.name}`, "success");
+      }
+    });
+  }
+}
+
 function renderTeamRosterList(elementId, players, teamTag) {
   const container = document.getElementById(elementId);
   if (!container) return;
+
+  const jerseyStats = computeJerseyRotationStats(state.leagueMatches, 2, 4);
 
   const sorted = [...players].sort((a, b) => {
     const posOrder = { GK: 1, DEF: 2, MID: 3, FWD: 4 };
@@ -2447,6 +2733,17 @@ function renderTeamRosterList(elementId, players, teamTag) {
     const activePos = p.matchdayPosition || p.position;
     const roleTag = p.matchdayRole ? `<span class="text-[9px] font-mono text-slate-400">(${p.matchdayRole})</span>` : "";
 
+    const key = (p.name || "").trim().toLowerCase();
+    const jStat = jerseyStats.playerJerseyStats[key];
+    let jerseyPill = "";
+    if (jStat && jStat.currentStreakCount >= 2) {
+      if (teamTag === "A" && jStat.currentStreakTeam === "A") {
+        jerseyPill = `<span class="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30" title="${jStat.currentStreakCount}x consecutive matches in Voyagers">🎽 ${jStat.currentStreakCount}x Voyagers</span>`;
+      } else if (teamTag === "B" && jStat.currentStreakTeam === "B") {
+        jerseyPill = `<span class="text-[9px] px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" title="${jStat.currentStreakCount}x consecutive matches in Boots & Beers">🎽 ${jStat.currentStreakCount}x Boots &amp; Beers</span>`;
+      }
+    }
+
     return `
       <div class="flex items-center justify-between p-2 rounded-lg glass-card border border-slate-800 text-xs">
         <div class="flex items-center gap-2 min-w-0">
@@ -2455,6 +2752,7 @@ function renderTeamRosterList(elementId, players, teamTag) {
           </span>
           <span class="font-bold text-white truncate">${p.name}</span>
           ${roleTag}
+          ${jerseyPill}
           <span class="text-[10px]">${eff.formMod.icon}</span>
         </div>
         <div class="flex items-center gap-1.5 flex-shrink-0">
