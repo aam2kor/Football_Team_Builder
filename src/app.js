@@ -424,7 +424,7 @@ async function handleGenerateLeagueInsights() {
     const topLosers = computeTopConsistentLosers(state.leagueMatches, 3);
     const topChemistries = computeTopWinningChemistries(state.leagueMatches);
     const derbyTrends = computeDerbyTrends(state.leagueMatches);
-    const jerseyRotationStats = computeJerseyRotationStats(state.leagueMatches, 2, 4);
+    const jerseyRotationStats = computeJerseyRotationStats(state.leagueMatches);
 
     // Call LLM / AI service with Grounded Hybrid context (matches + player DB + verified stats)
     const allDbPlayers = db.getAll();

@@ -1207,7 +1207,7 @@ export function computeJerseyRotationStats(matches = [], shortWindow = 2, longWi
  * @returns {Object} Jersey audit report with fatigue warnings, balance score, and advisory swaps.
  */
 export function auditJerseyBalance(teamA = [], teamB = [], matches = []) {
-  const jerseyStats = computeJerseyRotationStats(matches, 2, 4);
+  const jerseyStats = computeJerseyRotationStats(matches);
   const pStats = jerseyStats.playerJerseyStats;
 
   const getStats = (player) => {
@@ -1291,8 +1291,7 @@ export function auditJerseyBalance(teamA = [], teamB = [], matches = []) {
   suggestedSwaps.sort((a, b) => b.swapScore - a.swapScore);
 
   return {
-    shortWindow,
-    longWindow,
+    windowSize: 4,
     fatiguedInA,
     fatiguedInB,
     totalFatigued,
