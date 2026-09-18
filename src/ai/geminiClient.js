@@ -617,7 +617,7 @@ export async function generateGeminiScoutRecommendations(scoutData, aiConfig = {
   ).join("\n");
 
   const prompt = `You are the Lead Performance Scout & Chief Analyst for the Third Half United League.
-Your mission is to analyze players' real match history (goals scored, win rates, goal differences, teammate partnerships) and compare them with their current FIFA-style attributes (PAC, SHO, PAS, DRI, DEF, PHY, GK, OVR).
+Your mission is to analyze players' real match history (goals scored, win rates, goals conceded, goal differences, teammate partnerships) and compare them with their current FIFA-style attributes (PAC, SHO, PAS, DRI, DEF, PHY, GK, OVR).
 
 LEAGUE CONTEXT:
 Total Matches Recorded: ${h2h.totalMatches || 4}
@@ -629,18 +629,23 @@ ${playerRosterSummary}
 TOP WINNING TEAMMATE DUOS:
 ${duoSummary || "None recorded yet"}
 
-SCOUTING GUIDELINES:
-1. ATTRIBUTE CALIBRATIONS:
-   - Identify standout goalscorers (e.g. Vinay with 7 goals, Sreekanth with 5 goals) whose current SHO/PAC/DRI/OVR is underrated relative to their finishing impact. Recommend realistic upgrades (e.g. +4 to +10 SHO, +1 to +4 OVR).
-   - Identify high-win-rate anchors and defensive leaders (e.g. Anoop with 75% win rate, Sanjay) and recommend appropriate DEF/PHY/PAS boosts.
-   - For players with zero goals or struggling win rates, consider small recalibrations if appropriate.
-   - For each recommended player, provide a sharp 1-2 sentence scouting rationale, their currentOvr, suggestedOvr, attributeDiffs (e.g. { "sho": "+8", "pac": "+3" }), and complete suggestedAttributes object.
+SCOUTING GUIDELINES & TWO-WAY CALIBRATION:
+1. UPGRADE CANDIDATES (Underrated Performers):
+   - Standout Finishers: (e.g. Vinay with 7 goals, Sreekanth with 5 goals) whose current SHO/PAC/DRI/OVR is underrated relative to their finishing impact. Recommend realistic upgrades (+4 to +10 SHO, +1 to +4 OVR, calibrationType: "upgrade").
+   - Defensive & Midfield Anchors: (e.g. Anoop with 75% win rate, Sanjay) whose defensive solidity or playmaking warrants DEF/PHY/PAS boosts (+2 to +6, calibrationType: "upgrade").
 
-2. CHEMISTRY DUO RECOMMENDATIONS:
-   - Recommend new Chemistry Partner pairs for teammates who have proven high win rates when playing together (e.g. win rate >= 65% across multiple games).
-   - Provide a clear rationale explaining their on-pitch synergy.
+2. DOWNGRADE CANDIDATES (Overrated Underperformers):
+   - Cold Attackers: Listed with high SHO (>= 74) or as FWD, but has 0 goals across >= 2 matches and negative goal differential. Recommend realistic SHO/OVR downgrades (-3 to -6 SHO, -1 to -2 OVR, calibrationType: "downgrade").
+   - Leaky Defenders: Listed with high DEF (>= 75) or as DEF, but team regularly concedes high goals (>= 4.0 GA/M) with multiple losses. Recommend realistic DEF/PHY downgrades (-3 to -5 DEF, -1 to -2 OVR, calibrationType: "downgrade").
+   - Reputation vs Impact: High starting OVR (>= 76) but low win rate (<= 25%) across >= 3 matches. Recommend small downward adjustments across physical/pace/passing (-2 to -3, calibrationType: "downgrade").
 
-Be precise, realistic, and insightful.`;
+3. ATTRIBUTE CALIBRATION OUTPUT:
+   - For each recommended player, provide a sharp 1-2 sentence scouting rationale, their calibrationType ("upgrade" or "downgrade"), currentOvr, suggestedOvr, attributeDiffs (e.g. { "sho": "+8", "pac": "+3" } or { "sho": "-5", "def": "-3" }), and complete suggestedAttributes object.
+
+4. CHEMISTRY DUO RECOMMENDATIONS:
+   - Recommend new Chemistry Partner pairs for teammates who have proven high win rates when playing together (win rate >= 65% across multiple games).
+
+Be objective, statistically grounded, and realistic.`;
 
   const payload = {
     contents: [{ parts: [{ text: prompt }] }],
@@ -652,7 +657,7 @@ Be precise, realistic, and insightful.`;
         properties: {
           scoutSummary: {
             type: "STRING",
-            description: "2-3 sentence executive scout summary of the league's standout performers and key trends."
+            description: "2-3 sentence executive scout summary covering both standout performers and areas requiring downward calibration."
           },
           attributeRecommendations: {
             type: "ARRAY",
@@ -661,6 +666,7 @@ Be precise, realistic, and insightful.`;
               properties: {
                 playerId: { type: "STRING" },
                 playerName: { type: "STRING" },
+                calibrationType: { type: "STRING", enum: ["upgrade", "downgrade"] },
                 reason: { type: "STRING" },
                 currentOvr: { type: "NUMBER" },
                 suggestedOvr: { type: "NUMBER" },

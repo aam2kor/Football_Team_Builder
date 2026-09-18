@@ -608,14 +608,22 @@ export function generateHeuristicScoutRecommendations(scoutData) {
   const attributeRecommendations = [];
   const chemistryRecommendations = [];
 
-  // 1. Identify standout goalscorers to upgrade shooting/attack
+  // 1. Two-Way Calibration: Upgrades (Buffs) & Downgrades (Nerfs)
   playerProfiles.forEach(p => {
-    const goals = p.leagueStats?.goals || 0;
-    const matches = p.leagueStats?.matches || 1;
-    const winRate = p.leagueStats?.winRate || 0;
+    const s = p.leagueStats || {};
+    const goals = s.goals || 0;
+    const matches = s.matches || 0;
+    const winRate = s.winRate || 0;
+    const goalsAgainst = s.goalsAgainst || 0;
+    const goalDiff = s.goalDifference || 0;
+    const gaPerMatch = matches > 0 ? goalsAgainst / matches : 0;
     const a = p.attributes || { pac: 70, sho: 70, pas: 70, dri: 70, def: 70, phy: 70, gk: 20 };
 
-    if (goals >= 2 && goals / matches >= 0.60 && a.sho < 92) {
+    if (matches < 2) return; // Minimum 2 matches required for reliable calibration
+
+    // --- UPGRADES ---
+    if (goals >= 2 && (goals / matches) >= 0.60 && a.sho < 92) {
+      // Lethal Finisher
       const shoBoost = goals >= 5 ? 8 : goals >= 3 ? 6 : 4;
       const pacBoost = 3;
       const driBoost = 2;
@@ -623,7 +631,8 @@ export function generateHeuristicScoutRecommendations(scoutData) {
       attributeRecommendations.push({
         playerId: p.id,
         playerName: p.name,
-        reason: `Lethal finishing form: ${goals} goals scored in ${matches} matches (${(goals / matches).toFixed(2)} goals/game).`,
+        calibrationType: "upgrade",
+        reason: `Lethal finishing form: ${goals} goals in ${matches} matches (${(goals / matches).toFixed(2)} G/M).`,
         currentOvr: p.ovr,
         suggestedOvr,
         attributeDiffs: { sho: `+${shoBoost}`, pac: `+${pacBoost}`, dri: `+${driBoost}` },
@@ -637,7 +646,7 @@ export function generateHeuristicScoutRecommendations(scoutData) {
           gk: a.gk || 20
         }
       });
-    } else if (matches >= 2 && winRate >= 70 && (p.position === "DEF" || p.position === "MID") && a.def < 90) {
+    } else if (winRate >= 70 && (p.position === "DEF" || p.position === "MID") && a.def < 90) {
       // Defensive/Midfield winning anchor
       const defBoost = 4;
       const phyBoost = 4;
@@ -645,6 +654,7 @@ export function generateHeuristicScoutRecommendations(scoutData) {
       attributeRecommendations.push({
         playerId: p.id,
         playerName: p.name,
+        calibrationType: "upgrade",
         reason: `Defensive anchor with dominant ${winRate}% win rate across ${matches} matches.`,
         currentOvr: p.ovr,
         suggestedOvr,
@@ -656,6 +666,75 @@ export function generateHeuristicScoutRecommendations(scoutData) {
           dri: a.dri,
           def: Math.min(99, a.def + defBoost),
           phy: Math.min(99, a.phy + phyBoost),
+          gk: a.gk || 20
+        }
+      });
+    } 
+    // --- DOWNGRADES ---
+    else if ((p.position === "FWD" || a.sho >= 74) && goals === 0 && (goalDiff <= -1 || s.losses >= 1)) {
+      // Cold Attacker (0 goals despite high SHO)
+      const shoNerf = 5;
+      const pacNerf = 2;
+      const suggestedOvr = Math.max(65, p.ovr - 2);
+      attributeRecommendations.push({
+        playerId: p.id,
+        playerName: p.name,
+        calibrationType: "downgrade",
+        reason: `Underperforming finisher: 0 goals across ${matches} fixtures despite ${a.sho} starting SHO rating.`,
+        currentOvr: p.ovr,
+        suggestedOvr,
+        attributeDiffs: { sho: `-${shoNerf}`, pac: `-${pacNerf}` },
+        suggestedAttributes: {
+          pac: Math.max(50, a.pac - pacNerf),
+          sho: Math.max(50, a.sho - shoNerf),
+          pas: a.pas,
+          dri: a.dri,
+          def: a.def,
+          phy: a.phy,
+          gk: a.gk || 20
+        }
+      });
+    } else if ((p.position === "DEF" || a.def >= 75) && s.losses >= 2 && gaPerMatch >= 4.0) {
+      // Leaky Backline Defender
+      const defNerf = 4;
+      const phyNerf = 2;
+      const suggestedOvr = Math.max(65, p.ovr - 2);
+      attributeRecommendations.push({
+        playerId: p.id,
+        playerName: p.name,
+        calibrationType: "downgrade",
+        reason: `Defensive leakage: Team conceded ${gaPerMatch.toFixed(1)} GA/M with ${s.losses} losses across ${matches} fixtures.`,
+        currentOvr: p.ovr,
+        suggestedOvr,
+        attributeDiffs: { def: `-${defNerf}`, phy: `-${phyNerf}` },
+        suggestedAttributes: {
+          pac: a.pac,
+          sho: a.sho,
+          pas: a.pas,
+          dri: a.dri,
+          def: Math.max(50, a.def - defNerf),
+          phy: Math.max(50, a.phy - phyNerf),
+          gk: a.gk || 20
+        }
+      });
+    } else if (matches >= 3 && p.ovr >= 76 && winRate <= 25) {
+      // Reputation vs Impact Regression
+      const suggestedOvr = Math.max(65, p.ovr - 2);
+      attributeRecommendations.push({
+        playerId: p.id,
+        playerName: p.name,
+        calibrationType: "downgrade",
+        reason: `Rating regression: ${p.ovr} OVR rating exceeds empirical win impact (${winRate}% win rate over ${matches} fixtures).`,
+        currentOvr: p.ovr,
+        suggestedOvr,
+        attributeDiffs: { pac: "-2", pas: "-2", phy: "-2" },
+        suggestedAttributes: {
+          pac: Math.max(50, a.pac - 2),
+          sho: a.sho,
+          pas: Math.max(50, a.pas - 2),
+          dri: a.dri,
+          def: a.def,
+          phy: Math.max(50, a.phy - 2),
           gk: a.gk || 20
         }
       });
@@ -685,8 +764,8 @@ export function generateHeuristicScoutRecommendations(scoutData) {
   });
 
   return {
-    scoutSummary: `Scout analysis completed on recent fixtures. Standout performers and winning teammate chemistry identified.`,
-    attributeRecommendations: attributeRecommendations.slice(0, 6),
+    scoutSummary: `Scout analysis completed on recent fixtures. Evaluated both standout performers (upgrades) and overrated underperformers (downgrades).`,
+    attributeRecommendations: attributeRecommendations.slice(0, 10),
     chemistryRecommendations: chemistryRecommendations.slice(0, 4)
   };
 }
@@ -703,7 +782,7 @@ export async function generateOllamaScoutRecommendations(scoutData, aiConfig = {
   const playerRosterSummary = playerProfiles.map(p => {
     const s = p.leagueStats || {};
     const a = p.attributes || {};
-    return `• ${p.name} (ID: ${p.id}, Pos: ${p.position}, OVR: ${p.ovr}): ${s.matches}M (${s.wins}W-${s.losses}L, WinRate:${s.winRate}%), Goals:${s.goals} | Attr: PAC:${a.pac} SHO:${a.sho} PAS:${a.pas} DRI:${a.dri} DEF:${a.def} PHY:${a.phy}`;
+    return `• ${p.name} (ID: ${p.id}, Pos: ${p.position}, OVR: ${p.ovr}): ${s.matches}M (${s.wins}W-${s.losses}L, WinRate:${s.winRate}%), Goals:${s.goals}, Conceded:${s.goalsAgainst} | Attr: PAC:${a.pac} SHO:${a.sho} PAS:${a.pas} DRI:${a.dri} DEF:${a.def} PHY:${a.phy}`;
   }).join("\n");
 
   const duoSummary = duoList.slice(0, 8).map(d =>
@@ -711,7 +790,7 @@ export async function generateOllamaScoutRecommendations(scoutData, aiConfig = {
   ).join("\n");
 
   const prompt = `You are the Chief Scout for the Third Half United League.
-Analyze player performance from past league fixtures and recommend realistic attribute upgrades/downgrades and Chemistry Partner duos.
+Analyze player performance from past league fixtures and recommend realistic attribute upgrades (for standout performers) and downgrades (for overrated underperformers with 0 goals or high goals conceded), along with Chemistry Partner duos.
 
 PLAYER STATS:
 ${playerRosterSummary}
@@ -721,11 +800,12 @@ ${duoSummary || "None"}
 
 Respond strictly with valid JSON format:
 {
-  "scoutSummary": "2-3 sentences on standout performers and trends.",
+  "scoutSummary": "2-3 sentences covering standout performers and necessary downward recalibrations.",
   "attributeRecommendations": [
     {
       "playerId": "string",
       "playerName": "string",
+      "calibrationType": "upgrade",
       "reason": "Clear explanation",
       "currentOvr": 80,
       "suggestedOvr": 83,

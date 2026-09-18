@@ -233,11 +233,24 @@ def test_ai_scout_analysis_and_calibration():
   vinay_goals = goal_map.get("Vinay", 0)
   assert vinay_goals >= 3, f"Vinay expected >= 3 goals, got {vinay_goals}"
 
-  # Simulated Scout Recommendation logic
+  # Simulated Scout Recommendation logic: UPGRADES
   vinay_sho_base = 76
   vinay_sho_boost = 8
   vinay_sho_calibrated = vinay_sho_base + vinay_sho_boost
   assert vinay_sho_calibrated == 84
+  print(f"[x] Upgrade Calibration verified: Vinay ({vinay_goals} goals) SHO {vinay_sho_base} -> {vinay_sho_calibrated}")
+
+  # Simulated Scout Recommendation logic: DOWNGRADES
+  # Anup: 3 matches, 0 goals, 0 wins, high starting rating
+  anup_matches = p_stats["Anup"]["played"]
+  anup_wins = p_stats["Anup"]["wins"]
+  anup_goals = goal_map.get("Anup", 0)
+  assert anup_matches >= 2 and anup_goals == 0 and anup_wins == 0
+  anup_sho_base = 74
+  anup_sho_nerf = 5
+  anup_sho_calibrated = anup_sho_base - anup_sho_nerf
+  assert anup_sho_calibrated == 69
+  print(f"[x] Downgrade Calibration verified: Anup (0 goals in {anup_matches}M) SHO {anup_sho_base} -> {anup_sho_calibrated}")
 
   # Winning duo detection
   duo_stats = {}

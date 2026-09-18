@@ -3972,11 +3972,25 @@ function renderAiScoutUI(results) {
         const currentOvr = player ? player.ovr : (rec.currentOvr || 80);
         const suggestedOvr = rec.suggestedOvr || currentOvr;
         const ovrDelta = suggestedOvr - currentOvr;
+        const isDowngrade = rec.calibrationType === "downgrade" || ovrDelta < 0;
+
+        const typeBadge = isDowngrade
+          ? `<span class="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] font-black uppercase">📉 Downgrade</span>`
+          : `<span class="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase">📈 Upgrade</span>`;
+
         const ovrDeltaBadge = ovrDelta > 0
           ? `<span class="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">+${ovrDelta} OVR</span>`
           : ovrDelta < 0
-          ? `<span class="px-2 py-0.5 rounded-md bg-red-500/20 text-red-300 border border-red-500/30 text-xs font-bold">${ovrDelta} OVR</span>`
+          ? `<span class="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold">${ovrDelta} OVR</span>`
           : `<span class="px-2 py-0.5 rounded-md bg-slate-700 text-slate-300 text-xs font-bold">Same OVR</span>`;
+
+        const cardBorder = isDowngrade
+          ? "border-rose-500/30 hover:border-rose-500/50 bg-gradient-to-r from-rose-950/15 via-slate-900/70 to-slate-900/70"
+          : "border-emerald-500/30 hover:border-emerald-500/50 bg-gradient-to-r from-emerald-950/15 via-slate-900/70 to-slate-900/70";
+
+        const btnClass = isDowngrade
+          ? "bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/20"
+          : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20";
 
         // Generate stat diff badges
         const currentAttrs = player?.attributes || {};
@@ -3989,28 +4003,29 @@ function renderAiScoutUI(results) {
           const newVal = suggestedAttrs[k] ?? oldVal;
           const diff = newVal - oldVal;
           if (diff === 0) return "";
-          const color = diff > 0 ? "text-emerald-400 bg-emerald-950/40 border-emerald-500/30" : "text-red-400 bg-red-950/40 border-red-500/30";
+          const color = diff > 0 ? "text-emerald-400 bg-emerald-950/40 border-emerald-500/30" : "text-rose-400 bg-rose-950/40 border-rose-500/30";
           const sign = diff > 0 ? `+${diff}` : `${diff}`;
           return `<span class="px-2 py-0.5 rounded-lg border text-[11px] font-mono font-bold ${color}">${k.toUpperCase()}: ${oldVal} → ${newVal} (${sign})</span>`;
         }).filter(Boolean).join(" ");
 
         return `
-          <div class="p-4 rounded-xl bg-slate-900/70 border border-purple-500/20 hover:border-purple-500/40 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-3" data-scout-attr-card="${rec.playerId || idx}">
+          <div class="p-4 rounded-xl border ${cardBorder} transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-3" data-scout-attr-card="${rec.playerId || idx}">
             <div class="space-y-1.5 flex-1">
-              <div class="flex items-center gap-2.5 flex-wrap">
+              <div class="flex items-center gap-2 flex-wrap">
+                ${typeBadge}
                 <span class="font-bold text-white text-sm">${rec.playerName}</span>
                 <span class="text-[10px] px-2 py-0.5 rounded-md font-bold ${getPositionBadgeClass(player?.position || "MID")}">${player?.position || "MID"}</span>
                 <div class="flex items-center gap-1 font-mono text-xs">
                   <span class="text-slate-400">${currentOvr}</span>
                   <span class="text-slate-500">➔</span>
-                  <span class="text-purple-300 font-bold">${suggestedOvr}</span>
+                  <span class="${isDowngrade ? "text-rose-300" : "text-emerald-300"} font-bold">${suggestedOvr}</span>
                 </div>
                 ${ovrDeltaBadge}
               </div>
-              <p class="text-xs text-slate-400 leading-snug">${rec.reason}</p>
+              <p class="text-xs text-slate-300 leading-snug">${rec.reason}</p>
               ${statDeltasHtml ? `<div class="flex flex-wrap items-center gap-1.5 pt-1">${statDeltasHtml}</div>` : ""}
             </div>
-            <button class="btn-apply-attr-single px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 flex-shrink-0 flex items-center gap-1" data-attr-idx="${idx}">
+            <button class="btn-apply-attr-single px-3.5 py-1.5 rounded-xl ${btnClass} text-xs font-bold transition-all shadow-md flex-shrink-0 flex items-center gap-1" data-attr-idx="${idx}">
               <span>⚡</span>
               <span>Apply</span>
             </button>

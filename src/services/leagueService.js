@@ -811,7 +811,12 @@ export function buildScoutAnalysisPayload(players = [], matches = [], sectorWeig
         losses: stats.losses,
         winRate: stats.winRate,
         goals: goals,
-        goalDifference: stats.goalsFor - stats.goalsAgainst
+        goalsFor: stats.goalsFor,
+        goalsAgainst: stats.goalsAgainst,
+        goalsPerMatch: stats.matches > 0 ? Number((goals / stats.matches).toFixed(1)) : 0,
+        goalsAgainstPerMatch: stats.matches > 0 ? Number((stats.goalsAgainst / stats.matches).toFixed(1)) : 0,
+        goalDifference: stats.goalsFor - stats.goalsAgainst,
+        bayesianScore: stats.bayesianScore || 0
       }
     };
   });
