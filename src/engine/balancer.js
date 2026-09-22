@@ -350,8 +350,8 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
   const sw = sectorWeights || DEFAULT_SECTOR_WEIGHTS;
   const sizeKey = teamSizeKey || `${teamA.length}v${teamA.length}`;
 
-  const bestA = findBestFormationForTeam(teamA, sizeKey, sw, matchdaySettingsMap, calculateTeamStats, autoFormation ? formationA : (formationA || null), posConstraints);
-  const bestB = findBestFormationForTeam(teamB, sizeKey, sw, matchdaySettingsMap, calculateTeamStats, autoFormation ? formationB : (formationB || null), posConstraints);
+  const bestA = findBestFormationForTeam(teamA, sizeKey, sw, matchdaySettingsMap, calculateTeamStats, autoFormation ? null : (formationA || null), posConstraints);
+  const bestB = findBestFormationForTeam(teamB, sizeKey, sw, matchdaySettingsMap, calculateTeamStats, autoFormation ? null : (formationB || null), posConstraints);
 
   const assignedA = bestA.assignedPlayers;
   const assignedB = bestB.assignedPlayers;

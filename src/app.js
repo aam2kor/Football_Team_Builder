@@ -60,6 +60,7 @@ const state = {
   activeTeamB: [],
   formationTeamA: "1-3-3-1",
   formationTeamB: "1-3-3-1",
+  formationStrategy: "dynamic",
   teamAName: "Voyagers",
   teamBName: "Boots & Beers",
   balanceMode: "balanced",
@@ -223,6 +224,11 @@ function setupGeneratorEvents() {
   // Generator Mode
   document.getElementById("balance-mode-select")?.addEventListener("change", (e) => {
     state.balanceMode = e.target.value;
+  });
+
+  // Formation Strategy
+  document.getElementById("formation-strategy-select")?.addEventListener("change", (e) => {
+    state.formationStrategy = e.target.value;
   });
 
   // Build Teams Button
@@ -1043,13 +1049,19 @@ async function handleBuildAiTeams() {
     state.aiCoachBriefing = aiResult.coachBriefing;
     state.aiConstraints = aiResult.constraints;
 
-    // Run balancer with AI constraints
+    // Run balancer with AI constraints and formation strategy
+    const isDynamic = state.formationStrategy === "dynamic";
+    const fixedFormation = isDynamic ? null : state.formationStrategy;
+
     const solutions = buildBalancedTeams(selected, {
       mode: state.balanceMode,
       gkMode: state.gkMode,
       matchdaySettingsMap: state.matchdaySettings,
       sectorWeights: state.sectorWeights,
       constraints: aiResult.constraints,
+      autoFormation: isDynamic,
+      formationA: fixedFormation,
+      formationB: fixedFormation,
       topK: 3
     });
 
@@ -1100,11 +1112,17 @@ async function handleRefineDraftWithAi() {
 
   // Step 1: Ensure we have a balanced first draft baseline
   if (!state.activeTeamA || state.activeTeamA.length === 0 || !state.activeTeamB || state.activeTeamB.length === 0) {
+    const isDynamic = state.formationStrategy === "dynamic";
+    const fixedFormation = isDynamic ? null : state.formationStrategy;
+
     const initialSolutions = buildBalancedTeams(selected, {
       mode: state.balanceMode,
       gkMode: state.gkMode,
       matchdaySettingsMap: state.matchdaySettings,
       sectorWeights: state.sectorWeights,
+      autoFormation: isDynamic,
+      formationA: fixedFormation,
+      formationB: fixedFormation,
       topK: 1
     });
     if (!initialSolutions || initialSolutions.length === 0) {
@@ -1498,13 +1516,29 @@ function updateFormationOptions() {
 
   const selA = document.getElementById("formation-team-a");
   const selB = document.getElementById("formation-team-b");
-  if (!selA || !selB) return;
+  if (selA && selB) {
+    selA.innerHTML = keys.map(k => `<option value="${k}">${formations[k].name}</option>`).join("");
+    selB.innerHTML = keys.map(k => `<option value="${k}">${formations[k].name}</option>`).join("");
+    state.formationTeamA = keys[0] || "1-3-3-1";
+    state.formationTeamB = keys[0] || "1-3-3-1";
+  }
 
-  selA.innerHTML = keys.map(k => `<option value="${k}">${formations[k].name}</option>`).join("");
-  selB.innerHTML = keys.map(k => `<option value="${k}">${formations[k].name}</option>`).join("");
+  // Populate Formation Strategy Select
+  const stratSel = document.getElementById("formation-strategy-select");
+  if (stratSel) {
+    const prevVal = state.formationStrategy || "dynamic";
+    const dynamicOption = `<option value="dynamic">⚡ Dynamic (Auto-Detect Best Fit)</option>`;
+    const standardOptions = keys.map(k => `<option value="${k}">🛡️ ${formations[k].name}</option>`).join("");
+    stratSel.innerHTML = `${dynamicOption}${standardOptions}`;
 
-  state.formationTeamA = keys[0] || "1-3-3-1";
-  state.formationTeamB = keys[0] || "1-3-3-1";
+    if (prevVal === "dynamic" || keys.includes(prevVal)) {
+      stratSel.value = prevVal;
+      state.formationStrategy = prevVal;
+    } else {
+      stratSel.value = "dynamic";
+      state.formationStrategy = "dynamic";
+    }
+  }
 }
 
 function handleBuildTeams() {
@@ -1517,11 +1551,17 @@ function handleBuildTeams() {
   }
 
   try {
+    const isDynamic = state.formationStrategy === "dynamic";
+    const fixedFormation = isDynamic ? null : state.formationStrategy;
+
     const solutions = buildBalancedTeams(selected, {
       mode: state.balanceMode,
       gkMode: state.gkMode,
       matchdaySettingsMap: state.matchdaySettings,
       sectorWeights: state.sectorWeights,
+      autoFormation: isDynamic,
+      formationA: fixedFormation,
+      formationB: fixedFormation,
       topK: 3
     });
 

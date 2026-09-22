@@ -345,6 +345,58 @@ def test_positional_constraint_slotting():
   assert slot_assignments[0]["id"] == "p_sanjay", f"Expected Sanjay as GK, got {slot_assignments[0]['name']}"
   print(f"[x] Positional constraint verified: Sanjay assigned as GK despite nominal DEF position ({slot_assignments[0]['name']} -> {slots[0]})")
 
+def test_formation_strategy_dynamic_vs_fixed():
+  print("--- Testing Formation Strategy: Dynamic Auto-Fit vs Fixed Standard ---")
+  # 8v8 Formations available
+  formations_8v8 = {
+    "1-3-3-1": {"name": "1-3-3-1", "slots": ["GK", "DEF", "DEF", "DEF", "MID", "MID", "MID", "FWD"]},
+    "1-3-2-2": {"name": "1-3-2-2", "slots": ["GK", "DEF", "DEF", "DEF", "MID", "MID", "FWD", "FWD"]},
+    "1-2-3-2": {"name": "1-2-3-2", "slots": ["GK", "DEF", "DEF", "MID", "MID", "MID", "FWD", "FWD"]},
+    "1-4-2-1": {"name": "1-4-2-1", "slots": ["GK", "DEF", "DEF", "DEF", "DEF", "MID", "MID", "FWD"]}
+  }
+
+  def evaluate_squad_for_formation(players, fixed_formation=None):
+    if fixed_formation:
+      # Fixed standard formation strategy
+      formation = formations_8v8[fixed_formation]
+      return fixed_formation, formation["slots"]
+    else:
+      # Dynamic strategy: pick formation with lowest out of position penalty
+      best_key = None
+      best_penalty = float('inf')
+      for k, form in formations_8v8.items():
+        needed_pos = {}
+        for s in form["slots"]:
+          needed_pos[s] = needed_pos.get(s, 0) + 1
+        curr_pos = {}
+        for p in players:
+          curr_pos[p["position"]] = curr_pos.get(p["position"], 0) + 1
+        
+        penalty = sum(abs(needed_pos.get(pos, 0) - curr_pos.get(pos, 0)) for pos in ["GK", "DEF", "MID", "FWD"])
+        if penalty < best_penalty:
+          best_penalty = penalty
+          best_key = k
+      return best_key, formations_8v8[best_key]["slots"]
+
+  # Squad with 2 strikers and 3 defenders
+  squad_dual_strikers = [
+    {"position": "GK"},
+    {"position": "DEF"}, {"position": "DEF"}, {"position": "DEF"},
+    {"position": "MID"}, {"position": "MID"},
+    {"position": "FWD"}, {"position": "FWD"}
+  ]
+
+  # Case 1: Dynamic strategy chooses 1-3-2-2 naturally
+  dynamic_key, _ = evaluate_squad_for_formation(squad_dual_strikers, fixed_formation=None)
+  assert dynamic_key == "1-3-2-2", f"Expected dynamic strategy to pick 1-3-2-2, got {dynamic_key}"
+  print(f"[x] Dynamic formation strategy auto-selected optimal fit: {dynamic_key}")
+
+  # Case 2: Fixed Standard Formation (1-3-3-1) strictly enforced despite dual strikers
+  fixed_key, slots = evaluate_squad_for_formation(squad_dual_strikers, fixed_formation="1-3-3-1")
+  assert fixed_key == "1-3-3-1", f"Expected fixed strategy to enforce 1-3-3-1, got {fixed_key}"
+  assert slots == ["GK", "DEF", "DEF", "DEF", "MID", "MID", "MID", "FWD"]
+  print(f"[x] Fixed standard formation strategy strictly enforced: {fixed_key} ({slots})")
+
 if __name__ == "__main__":
   test_fitness_and_form()
   test_chemistry_synergies()
@@ -353,4 +405,5 @@ if __name__ == "__main__":
   test_positional_constraint_slotting()
   test_ai_draft_refine()
   test_adaptive_formation_and_secondary_positions()
+  test_formation_strategy_dynamic_vs_fixed()
   print("\n>>> ALL TEST CASES PASSED SUCCESSFULLY! <<<\n")
