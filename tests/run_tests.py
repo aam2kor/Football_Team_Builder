@@ -397,6 +397,59 @@ def test_formation_strategy_dynamic_vs_fixed():
   assert slots == ["GK", "DEF", "DEF", "DEF", "MID", "MID", "MID", "FWD"]
   print(f"[x] Fixed standard formation strategy strictly enforced: {fixed_key} ({slots})")
 
+def test_cross_sector_balancing():
+  print("--- Testing Cross-Sector Clashes Balancing (ATT vs Opposing DEF & Midfield) ---")
+  effective_players = [get_effective_player(p) for p in SAMPLE_PLAYERS]
+  n = len(effective_players)
+  team_size = n // 2
+  all_set = frozenset(range(n))
+
+  # Adjustable multipliers simulating user sliders
+  ovr_mult = 22.0
+  att_mult = 8.0
+  def_mult = 9.0
+  mid_mult = 7.0
+
+  def score_cross_sector(teamA, teamB):
+    sA = calculate_team_stats(teamA)
+    sB = calculate_team_stats(teamB)
+    ovr_diff = abs(sA["effective_avg_ovr"] - sB["effective_avg_ovr"])
+    clash_a = abs(sA["attack"] - sB["defense"])
+    clash_b = abs(sB["attack"] - sA["defense"])
+    mid_diff = abs(sA["midfield"] - sB["midfield"])
+    gk_diff = abs(sA["gks"] - sB["gks"])
+    pos_diff = abs(sA["defs"] - sB["defs"]) + abs(sA["mids"] - sB["mids"]) + abs(sA["fwds"] - sB["fwds"])
+
+    penalty = (ovr_diff * ovr_mult) + (clash_a * att_mult) + (clash_b * def_mult) + (mid_diff * mid_mult) + (gk_diff * 35.0) + (pos_diff * 2.0)
+    return penalty, sA, sB, clash_a, clash_b
+
+  best_penalty = float('inf')
+  best_teams = None
+
+  for c in itertools.combinations(range(1, n), team_size - 1):
+    idx_A = (0,) + c
+    idx_B = tuple(all_set.difference(idx_A))
+    teamA = [effective_players[i] for i in idx_A]
+    teamB = [effective_players[i] for i in idx_B]
+
+    penalty, sA, sB, clash_a, clash_b = score_cross_sector(teamA, teamB)
+    if penalty < best_penalty:
+      best_penalty = penalty
+      best_teams = (teamA, teamB, sA, sB, clash_a, clash_b)
+
+  assert best_teams is not None
+  teamA, teamB, sA, sB, clash_a, clash_b = best_teams
+
+  print(f"[x] Cross-Sector Clash Evaluation Succeeded:")
+  print(f"    Duel 1 (Team A ATT vs Team B DEF): {sA['attack']} vs {sB['defense']} (Delta: {clash_a})")
+  print(f"    Duel 2 (Team B ATT vs Team A DEF): {sB['attack']} vs {sA['defense']} (Delta: {clash_b})")
+  print(f"    Midfield Clash: {sA['midfield']} vs {sB['midfield']} (Delta: {abs(sA['midfield'] - sB['midfield'])})")
+  print(f"    OVR Parity: {sA['effective_avg_ovr']:.1f} vs {sB['effective_avg_ovr']:.1f}")
+
+  assert clash_a <= 4, f"Clash A delta too high: {clash_a}"
+  assert clash_b <= 4, f"Clash B delta too high: {clash_b}"
+  assert abs(sA["midfield"] - sB["midfield"]) <= 2
+
 if __name__ == "__main__":
   test_fitness_and_form()
   test_chemistry_synergies()
@@ -406,4 +459,5 @@ if __name__ == "__main__":
   test_ai_draft_refine()
   test_adaptive_formation_and_secondary_positions()
   test_formation_strategy_dynamic_vs_fixed()
+  test_cross_sector_balancing()
   print("\n>>> ALL TEST CASES PASSED SUCCESSFULLY! <<<\n")

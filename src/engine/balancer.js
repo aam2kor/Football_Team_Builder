@@ -386,8 +386,10 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
 
   const pacDelta = Math.abs(statsA.pace     - statsB.pace);
   const phyDelta = Math.abs(statsA.physical - statsB.physical);
+  const clashDeltaA = Math.abs(statsA.attack - statsB.defense);
+  const clashDeltaB = Math.abs(statsB.attack - statsA.defense);
 
-  // Use configurable penalty multipliers for balanced mode;
+  // Use configurable penalty multipliers for balanced and cross_sector modes;
   // other modes use fixed coefficients (overridable via sectorWeights.overall).
   const ovrMult = sw.overall?.penaltyMult ?? 22.0;
   const attMult = sw.attack?.penaltyMult  ?? 8.0;
@@ -407,6 +409,17 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
     case "pace_power":
       penalty = (ovrDelta * 18) + (attDelta * 6.0) + (defDelta * 7.0) +
                 (pacDelta * 5.0) + (phyDelta * 4.0) + (gkPenalty * 1.5) + outOfPosPenalty;
+      break;
+    case "cross_sector":
+      penalty = (ovrDelta * ovrMult) +
+                (clashDeltaA * attMult) +
+                (clashDeltaB * defMult) +
+                (midDelta * midMult) +
+                (gkPenalty * 2.0)   +
+                (posPenalty * 2.0)  +
+                (pacDelta * 0.8)    +
+                (phyDelta * 0.7)    +
+                outOfPosPenalty;
       break;
     case "balanced":
     default:
@@ -440,6 +453,8 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
       attack:   attDelta,
       midfield: midDelta,
       defense:  defDelta,
+      clashA:   clashDeltaA,
+      clashB:   clashDeltaB,
       pace:     pacDelta,
       physical: phyDelta,
       gk:       Math.abs(statsA.goalkeeping - statsB.goalkeeping),
