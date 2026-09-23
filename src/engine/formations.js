@@ -262,10 +262,22 @@ export function assignPlayersToFormation(players, formation, positionConstraints
 
   slotPriorityOrder.forEach(targetPos => {
     remainingSlots.filter(s => s.pos === targetPos && slotAssignments[s.index] === null).forEach(s => {
-      // Find highest OVR player whose primary matches targetPos
-      let idx = unassigned.findIndex(p => isPrimaryMatch(p, targetPos));
-      if (idx !== -1) {
-        slotAssignments[s.index] = unassigned.splice(idx, 1)[0];
+      // Find matching primary players, prioritizing pure specialists first
+      const matches = unassigned
+        .map((p, idx) => ({ p, idx }))
+        .filter(item => isPrimaryMatch(item.p, targetPos));
+
+      if (matches.length > 0) {
+        // Prioritize pure specialists over versatile players who can fill scarce secondary slots
+        matches.sort((a, b) => {
+          const aIsPure = !a.p.secondaryPosition || a.p.secondaryPosition === a.p.position;
+          const bIsPure = !b.p.secondaryPosition || b.p.secondaryPosition === b.p.position;
+          if (aIsPure !== bIsPure) return aIsPure ? -1 : 1;
+          return (b.p.ovr || 75) - (a.p.ovr || 75);
+        });
+
+        const chosenIdx = matches[0].idx;
+        slotAssignments[s.index] = unassigned.splice(chosenIdx, 1)[0];
       }
     });
   });
@@ -303,7 +315,8 @@ export function assignPlayersToFormation(players, formation, positionConstraints
     const isPinned = Boolean(positionConstraints && positionConstraints[rawPlayer.id] === slot.pos);
     const isPrimary = rawPlayer.position === slot.pos;
     const isSecondary = !isPrimary && rawPlayer.secondaryPosition === slot.pos;
-    const isOutOfPosition = !isPrimary && !isSecondary && rawPlayer.position !== "GK" && !isPinned;
+    const isEmergencyGk = slot.pos === "GK" && rawPlayer.position !== "GK" && rawPlayer.secondaryPosition !== "GK";
+    const isOutOfPosition = (!isPrimary && !isSecondary && !isPinned) || isEmergencyGk;
 
     const assignedPlayer = {
       ...rawPlayer,
@@ -311,6 +324,7 @@ export function assignPlayersToFormation(players, formation, positionConstraints
       matchdayRole: slot.role || slot.label,
       isSecondaryRole: isSecondary,
       isOutOfPosition: isOutOfPosition,
+      isEmergencyGk: isEmergencyGk,
       isPinnedRole: isPinned
     };
 
@@ -342,6 +356,7 @@ export function findBestFormationForTeam(players, teamSizeKey = "8v8", sectorWei
       assignedPlayers,
       stats,
       outOfPositionCount: assignedPlayers.filter(p => p.isOutOfPosition).length,
+      emergencyGkCount: assignedPlayers.filter(p => p.isEmergencyGk).length,
       secondaryCount: assignedPlayers.filter(p => p.isSecondaryRole).length
     };
   }
@@ -355,6 +370,7 @@ export function findBestFormationForTeam(players, teamSizeKey = "8v8", sectorWei
     const assignedPlayers = assignedSlots.map(s => s.player);
 
     const outOfPositionCount = assignedPlayers.filter(p => p.isOutOfPosition).length;
+    const emergencyGkCount = assignedPlayers.filter(p => p.isEmergencyGk).length;
     const secondaryCount = assignedPlayers.filter(p => p.isSecondaryRole).length;
 
     let stats = null;
@@ -368,8 +384,8 @@ export function findBestFormationForTeam(players, teamSizeKey = "8v8", sectorWei
       cohesionScore = (stats.effectiveAvgOvr * 2) + (sectorMin * 0.5) - (sectorSpread * 0.3);
     }
 
-    // Heavy penalty for unnatural out-of-position players; slight preference for natural primary
-    const fitScore = 1000 - (outOfPositionCount * 250) - (secondaryCount * 2) + cohesionScore;
+    // Heavy penalty for unnatural out-of-position players and emergency GK; slight preference for natural primary
+    const fitScore = 1000 - (emergencyGkCount * 1000) - (outOfPositionCount * 250) - (secondaryCount * 2) + cohesionScore;
 
     if (fitScore > bestScore || !bestResult) {
       bestScore = fitScore;
@@ -380,6 +396,7 @@ export function findBestFormationForTeam(players, teamSizeKey = "8v8", sectorWei
         assignedPlayers,
         stats,
         outOfPositionCount,
+        emergencyGkCount,
         secondaryCount,
         fitScore
       };

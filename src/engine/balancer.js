@@ -365,24 +365,42 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
   const midDelta = Math.abs(statsA.midfield - statsB.midfield);
   const defDelta = Math.abs(statsA.defense  - statsB.defense);
 
-  // Goalkeeper penalty
+  // Natural squad roster positions (from actual player database positions)
+  const countRosterPositions = (team) => {
+    const counts = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+    team.forEach(p => {
+      const pos = p.position || "MID";
+      if (counts[pos] !== undefined) counts[pos]++;
+      else counts.MID++;
+    });
+    return counts;
+  };
+  const rosterA = countRosterPositions(teamA);
+  const rosterB = countRosterPositions(teamB);
+
+  // Goalkeeper penalty based on natural squad goalkeepers
   let gkPenalty = 0;
   if (gkMode === "fixed") {
-    const gkDelta = Math.abs(statsA.positions.GK - statsB.positions.GK);
-    gkPenalty = gkDelta > 1 ? gkDelta * 35 : gkDelta * 18;
+    const rawGkDelta = Math.abs(rosterA.GK - rosterB.GK);
+    gkPenalty = rawGkDelta > 0 ? rawGkDelta * 250 : 0;
   } else {
     gkPenalty = Math.abs(statsA.avgGkReflex - statsB.avgGkReflex) * 0.4;
   }
 
-  // Positional count disparity
+  // Positional count disparity based on true roster positions
   const posPenalty = (
-    Math.abs(statsA.positions.DEF - statsB.positions.DEF) +
-    Math.abs(statsA.positions.MID - statsB.positions.MID) +
-    Math.abs(statsA.positions.FWD - statsB.positions.FWD)
-  ) * 3.5;
+    Math.abs(rosterA.DEF - rosterB.DEF) +
+    Math.abs(rosterA.MID - rosterB.MID) +
+    Math.abs(rosterA.FWD - rosterB.FWD)
+  ) * 10.0;
+
+  // Emergency Goalkeeper penalty: An outfield player forced into GK when dedicated GKs exist
+  const emergencyGkCount = (bestA.emergencyGkCount || assignedA.filter(p => p.isEmergencyGk).length) +
+                           (bestB.emergencyGkCount || assignedB.filter(p => p.isEmergencyGk).length);
+  const emergencyGkPenalty = emergencyGkCount * 1000.0;
 
   // Out-of-position penalty for players placed in unnatural roles (neither primary nor secondary)
-  const outOfPosPenalty = ((bestA.outOfPositionCount || 0) + (bestB.outOfPositionCount || 0)) * 25.0;
+  const outOfPosPenalty = (((bestA.outOfPositionCount || 0) + (bestB.outOfPositionCount || 0)) * 75.0) + emergencyGkPenalty;
 
   const pacDelta = Math.abs(statsA.pace     - statsB.pace);
   const phyDelta = Math.abs(statsA.physical - statsB.physical);
@@ -549,51 +567,115 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
   const solutions = [];
   const fallbackSolutions = [];
 
+  const dedicatedGKs = cleanPlayers.filter(p => p.position === "GK");
+  const outfieldPlayers = cleanPlayers.filter(p => p.position !== "GK");
+  const pinnedA = constraints?.pinnedA || constraints?.pinnedTeamA;
+  const pinnedB = constraints?.pinnedB || constraints?.pinnedTeamB;
+
+  const bothGKsPinnedSame = dedicatedGKs.length === 2 && (
+    (pinnedA && pinnedA.has(dedicatedGKs[0].id) && pinnedA.has(dedicatedGKs[1].id)) ||
+    (pinnedB && pinnedB.has(dedicatedGKs[0].id) && pinnedB.has(dedicatedGKs[1].id))
+  );
+
+  const shouldPartitionGKs = gkMode === "fixed" && dedicatedGKs.length === 2 && !bothGKsPinnedSame;
+  let gkA = dedicatedGKs[0];
+  let gkB = dedicatedGKs[1];
+  if (shouldPartitionGKs && ((pinnedB && pinnedB.has(gkA.id)) || (pinnedA && pinnedA.has(gkB.id)))) {
+    gkA = dedicatedGKs[1];
+    gkB = dedicatedGKs[0];
+  }
+
   if (n <= 18) {
-    const firstPlayer = cleanPlayers[0];
-    const restPlayers = cleanPlayers.slice(1);
-    const combos = getCombinations(restPlayers, teamSize - 1);
+    if (shouldPartitionGKs) {
+      const combos = getCombinations(outfieldPlayers, teamSize - 1);
 
-    combos.forEach(combo => {
-      const teamA = [firstPlayer, ...combo];
-      const teamAIds = new Set(teamA.map(p => p.id));
-      const teamB = cleanPlayers.filter(p => !teamAIds.has(p.id));
+      combos.forEach(combo => {
+        const teamA = [gkA, ...combo];
+        const teamAIds = new Set(teamA.map(p => p.id));
+        const teamB = [gkB, ...outfieldPlayers.filter(p => !teamAIds.has(p.id))];
 
-      const evaluation = scoreTeamBalance(teamA, teamB, {
-        mode,
-        gkMode,
-        matchdaySettingsMap,
-        sectorWeights,
-        formationA,
-        formationB,
-        autoFormation,
-        constraints
+        const evaluation = scoreTeamBalance(teamA, teamB, {
+          mode,
+          gkMode,
+          matchdaySettingsMap,
+          sectorWeights,
+          formationA,
+          formationB,
+          autoFormation,
+          constraints
+        });
+
+        const sol = {
+          teamA,
+          teamB,
+          formationA: evaluation.formationA,
+          formationB: evaluation.formationB,
+          assignedSlotsA: evaluation.assignedSlotsA,
+          assignedSlotsB: evaluation.assignedSlotsB,
+          assignedTeamA: evaluation.assignedTeamA,
+          assignedTeamB: evaluation.assignedTeamB,
+          ...evaluation
+        };
+
+        if (satisfiesConstraints(teamA, teamB, constraints)) {
+          solutions.push(sol);
+        } else {
+          fallbackSolutions.push(sol);
+        }
       });
+    } else {
+      const firstPlayer = cleanPlayers[0];
+      const restPlayers = cleanPlayers.slice(1);
+      const combos = getCombinations(restPlayers, teamSize - 1);
 
-      const sol = {
-        teamA,
-        teamB,
-        formationA: evaluation.formationA,
-        formationB: evaluation.formationB,
-        assignedSlotsA: evaluation.assignedSlotsA,
-        assignedSlotsB: evaluation.assignedSlotsB,
-        assignedTeamA: evaluation.assignedTeamA,
-        assignedTeamB: evaluation.assignedTeamB,
-        ...evaluation
-      };
+      combos.forEach(combo => {
+        const teamA = [firstPlayer, ...combo];
+        const teamAIds = new Set(teamA.map(p => p.id));
+        const teamB = cleanPlayers.filter(p => !teamAIds.has(p.id));
 
-      if (satisfiesConstraints(teamA, teamB, constraints)) {
-        solutions.push(sol);
-      } else {
-        fallbackSolutions.push(sol);
-      }
-    });
+        const evaluation = scoreTeamBalance(teamA, teamB, {
+          mode,
+          gkMode,
+          matchdaySettingsMap,
+          sectorWeights,
+          formationA,
+          formationB,
+          autoFormation,
+          constraints
+        });
+
+        const sol = {
+          teamA,
+          teamB,
+          formationA: evaluation.formationA,
+          formationB: evaluation.formationB,
+          assignedSlotsA: evaluation.assignedSlotsA,
+          assignedSlotsB: evaluation.assignedSlotsB,
+          assignedTeamA: evaluation.assignedTeamA,
+          assignedTeamB: evaluation.assignedTeamB,
+          ...evaluation
+        };
+
+        if (satisfiesConstraints(teamA, teamB, constraints)) {
+          solutions.push(sol);
+        } else {
+          fallbackSolutions.push(sol);
+        }
+      });
+    }
   } else {
     const seenCombos = new Set();
     for (let i = 0; i < 5000; i++) {
-      const shuffled = [...cleanPlayers].sort(() => Math.random() - 0.5);
-      const teamA = shuffled.slice(0, teamSize);
-      const teamB = shuffled.slice(teamSize);
+      let teamA, teamB;
+      if (shouldPartitionGKs) {
+        const shuffledOutfield = [...outfieldPlayers].sort(() => Math.random() - 0.5);
+        teamA = [gkA, ...shuffledOutfield.slice(0, teamSize - 1)];
+        teamB = [gkB, ...shuffledOutfield.slice(teamSize - 1)];
+      } else {
+        const shuffled = [...cleanPlayers].sort(() => Math.random() - 0.5);
+        teamA = shuffled.slice(0, teamSize);
+        teamB = shuffled.slice(teamSize);
+      }
       const hash = teamA.map(p => p.id).sort().join(",");
       if (seenCombos.has(hash)) continue;
       seenCombos.add(hash);
