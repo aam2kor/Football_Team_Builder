@@ -1616,29 +1616,33 @@ function handleBuildTeams() {
  * from their currently assigned formation slots.
  */
 function syncMatchdayPositions() {
+  const updatePlayerSlot = (player, slot) => {
+    if (!player || !slot) return;
+    const isPrimary = player.position === slot.pos;
+    const isSecondary = !isPrimary && player.secondaryPosition === slot.pos;
+    const isEmergencyGk = slot.pos === "GK" && player.position !== "GK" && player.secondaryPosition !== "GK";
+    const isOutOfPosition = (!isPrimary && !isSecondary) || isEmergencyGk;
+
+    player.matchdayPosition = slot.pos;
+    player.matchdayRole = slot.role || slot.label;
+    player.isSecondaryRole = isSecondary;
+    player.isOutOfPosition = isOutOfPosition;
+    player.isEmergencyGk = isEmergencyGk;
+  };
+
   if (state.assignedSlotsA && state.assignedSlotsA.length > 0) {
-    state.assignedSlotsA.forEach(({ slot, player }) => {
-      if (player && slot) {
-        player.matchdayPosition = slot.pos;
-        player.matchdayRole = slot.role || slot.label;
-      }
-    });
-    state.activeTeamA = state.assignedSlotsA.map(s => s.player);
+    state.assignedSlotsA.forEach(({ slot, player }) => updatePlayerSlot(player, slot));
+    state.activeTeamA = state.assignedSlotsA.map(s => ({ ...s.player }));
   }
   if (state.assignedSlotsB && state.assignedSlotsB.length > 0) {
-    state.assignedSlotsB.forEach(({ slot, player }) => {
-      if (player && slot) {
-        player.matchdayPosition = slot.pos;
-        player.matchdayRole = slot.role || slot.label;
-      }
-    });
-    state.activeTeamB = state.assignedSlotsB.map(s => s.player);
+    state.assignedSlotsB.forEach(({ slot, player }) => updatePlayerSlot(player, slot));
+    state.activeTeamB = state.assignedSlotsB.map(s => ({ ...s.player }));
   }
 }
 
 function applySolution(solution) {
-  state.activeTeamA = [...solution.teamA];
-  state.activeTeamB = [...solution.teamB];
+  state.activeTeamA = solution.teamA.map(p => ({ ...p }));
+  state.activeTeamB = solution.teamB.map(p => ({ ...p }));
   state.selectedSwapPlayerId = null;
   state.selectedSwapTeam = null;
 
@@ -1661,11 +1665,11 @@ function applySolution(solution) {
   const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
 
   state.assignedSlotsA = (solution.assignedSlotsA && solution.assignedSlotsA.length === state.activeTeamA.length)
-    ? solution.assignedSlotsA
+    ? solution.assignedSlotsA.map(s => ({ slot: { ...s.slot }, player: { ...s.player } }))
     : assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions);
 
   state.assignedSlotsB = (solution.assignedSlotsB && solution.assignedSlotsB.length === state.activeTeamB.length)
-    ? solution.assignedSlotsB
+    ? solution.assignedSlotsB.map(s => ({ slot: { ...s.slot }, player: { ...s.player } }))
     : assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions);
 
   syncMatchdayPositions();
@@ -1680,23 +1684,44 @@ function renderSolutionPicker() {
   const container = document.getElementById("solution-picker-container");
   if (!container) return;
 
-  if (state.generatedSolutions.length <= 1) {
-    container.innerHTML = "";
+  if (!state.generatedSolutions || state.generatedSolutions.length === 0) {
+    container.innerHTML = `
+      <div class="flex items-center gap-2 text-xs text-slate-400">
+        <span class="w-2 h-2 rounded-full bg-slate-600"></span>
+        <span>Select players and click <strong class="text-blue-400">Build Teams</strong> to generate balanced options.</span>
+      </div>
+    `;
     return;
   }
 
   container.innerHTML = `
-    <div class="flex items-center gap-2 flex-wrap">
-      <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Balanced Options:</span>
-      ${state.generatedSolutions.map((sol, idx) => `
-        <button class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-          state.currentSolutionIndex === idx
-            ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30"
-            : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-        }" data-solution-idx="${idx}">
-          Option ${idx + 1} (${sol.fairnessScore}% Match)
-        </button>
-      `).join("")}
+    <div class="flex items-center gap-2.5 flex-wrap">
+      <div class="flex items-center gap-1.5 mr-1">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-300">⚖️ Balanced Options:</span>
+      </div>
+      <div class="inline-flex rounded-xl p-1 bg-slate-900 border border-slate-700/80 shadow-inner gap-1">
+        ${state.generatedSolutions.map((sol, idx) => {
+          const isActive = state.currentSolutionIndex === idx;
+          return `
+            <button class="px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+              isActive
+                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md shadow-amber-500/30 scale-102"
+                : "text-slate-300 hover:text-white hover:bg-slate-800"
+            }" data-solution-idx="${idx}" title="Option ${idx + 1}: ${sol.fairnessScore}% Match (Penalty: ${Math.round(sol.penalty || 0)})">
+              <span>Option ${idx + 1}</span>
+              <span class="px-1.5 py-0.2 rounded text-[10px] font-mono ${
+                isActive ? "bg-slate-950/30 text-slate-950 font-bold" : "bg-slate-800 text-amber-400 font-semibold"
+              }">${sol.fairnessScore}%</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+      ${state.currentSolutionIndex === -1 ? `
+        <span class="text-[11px] px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-semibold flex items-center gap-1">
+          <span>✏️</span>
+          <span>Custom Pitch Lineup</span>
+        </span>
+      ` : ""}
     </div>
   `;
 
