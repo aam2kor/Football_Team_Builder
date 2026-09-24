@@ -21,20 +21,29 @@ SAMPLE_PLAYERS = [
   {"id": "p20", "name": "Antoine Griezmann", "position": "FWD", "ovr": 85, "attributes": {"pac": 80, "sho": 85, "pas": 86, "dri": 86, "def": 62, "phy": 75, "gk": 15}}
 ]
 
-def calculate_option_fairness(penalty):
-  return max(0, min(100, round(100 - (penalty * 0.9))))
+import math
+
+def calculate_option_fairness(penalty, total_weight=47.5):
+  weighted_avg_delta = penalty / max(1.0, total_weight)
+  return max(50, min(100, round(50 + 50 * math.exp(-0.18 * weighted_avg_delta))))
 
 def test_option_ranking_and_fairness():
-  print("--- Testing Option Ranking & Fairness Calculations ---")
-  simulated_penalties = [2.4, 5.1, 8.7]
+  print("--- Testing Option Ranking & Fairness Calculations (Option B) ---")
+  simulated_penalties = [12.0, 25.0, 45.0]
   fairness_scores = [calculate_option_fairness(p) for p in simulated_penalties]
   
-  assert fairness_scores[0] == 98, f"Expected 98% for penalty 2.4, got {fairness_scores[0]}"
-  assert fairness_scores[1] == 95, f"Expected 95% for penalty 5.1, got {fairness_scores[1]}"
-  assert fairness_scores[2] == 92, f"Expected 92% for penalty 8.7, got {fairness_scores[2]}"
+  assert fairness_scores[0] == 98, f"Expected 98% for penalty 12.0, got {fairness_scores[0]}"
+  assert fairness_scores[1] == 95, f"Expected 95% for penalty 25.0, got {fairness_scores[1]}"
+  assert fairness_scores[2] == 92, f"Expected 92% for penalty 45.0, got {fairness_scores[2]}"
   
   assert fairness_scores[0] >= fairness_scores[1] >= fairness_scores[2], "Options must be ranked monotonically by fairness score"
   print(f"[x] Option rankings verified: Option 1={fairness_scores[0]}%, Option 2={fairness_scores[1]}%, Option 3={fairness_scores[2]}%")
+
+  # Test Slider Invariance: If total weights double and penalty doubles (same underlying delta), percentage stays identical!
+  score_normal = calculate_option_fairness(25.0, total_weight=47.5)
+  score_doubled = calculate_option_fairness(50.0, total_weight=95.0)
+  assert score_normal == score_doubled, f"Expected slider invariance ({score_normal} == {score_doubled})"
+  print(f"[x] Slider Invariance verified: normal {score_normal}% == doubled sliders {score_doubled}%")
 
 def test_solution_immutability():
   print("--- Testing Solution Immutability on Pitch Modification ---")

@@ -476,7 +476,9 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
       break;
   }
 
-  const fairnessScore = Math.max(50, Math.min(100, Math.round(100 - (penalty * 0.25))));
+  const totalWeight = Math.max(1.0, ovrMult + attMult + midMult + defMult + pacMult + phyMult);
+  const weightedAvgDelta = penalty / totalWeight;
+  const fairnessScore = Math.max(50, Math.min(100, Math.round(50 + 50 * Math.exp(-0.18 * weightedAvgDelta))));
 
   return {
     penalty,
