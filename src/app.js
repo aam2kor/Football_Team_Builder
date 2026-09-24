@@ -1496,12 +1496,12 @@ function initSectorWeightsPanel() {
     if (!btn) return;
     const sector = btn.dataset.swResetSector;
     const defaults = cloneSectorWeights(DEFAULT_SECTOR_WEIGHTS);
-    state.sectorWeights[sector] = defaults[sector];
-    if (sector === "midfield") {
-      state.sectorWeights.pace = defaults.pace;
-    } else if (sector === "defense") {
-      state.sectorWeights.physical = defaults.physical;
+    if (sector === "overall") {
       state.sectorWeights.overall = defaults.overall;
+      state.sectorWeights.pace = defaults.pace;
+      state.sectorWeights.physical = defaults.physical;
+    } else {
+      state.sectorWeights[sector] = defaults[sector];
     }
     saveSectorWeights(state.sectorWeights);
     populateSectorSliders();
@@ -1509,7 +1509,8 @@ function initSectorWeightsPanel() {
       renderTeamComparison();
     }
     renderRosterView();
-    showToast(`↺ ${sector.charAt(0).toUpperCase() + sector.slice(1)} weights reset to defaults`, "info");
+    const label = sector === "overall" ? "Overall & Athletic" : (sector.charAt(0).toUpperCase() + sector.slice(1));
+    showToast(`↺ ${label} weights reset to defaults`, "info");
   });
 
   // Global reset button

@@ -258,7 +258,7 @@
           </button>
 
           <!-- Collapsible Body — hidden by default -->
-          <div id="sector-weights-panel" class="hidden mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div id="sector-weights-panel" class="hidden mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
 
             <!-- ── ATTACK CARD ─────────────────────────────── -->
             <div class="rounded-xl bg-slate-900/80 border border-blue-500/20 p-3 space-y-2">
@@ -318,7 +318,7 @@
 
               <div class="border-t border-slate-800 pt-2 mt-2">
                 <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5">Penalty Multiplier</p>
-                <div class="flex items-center gap-2"><span class="w-8 text-[11px] text-slate-400 font-mono">×</span><input type="range" min="0" max="30" step="0.5" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="attack" data-sw-group="penaltyMult" data-sw-key="value"><span id="sw-readout-attack-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">8.00</span></div>
+                <div class="flex items-center gap-2"><span class="w-8 text-[11px] text-slate-400 font-mono">ATT ×</span><input type="range" min="0" max="30" step="0.5" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="attack" data-sw-group="penaltyMult" data-sw-key="value"><span id="sw-readout-attack-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">8.00</span></div>
               </div>
             </div>
 
@@ -348,16 +348,11 @@
               </div>
 
               <div class="border-t border-slate-800 pt-2 mt-2 space-y-1.5">
-                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Penalty Multipliers</p>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Penalty Multiplier</p>
                 <div class="flex items-center gap-2">
                   <span class="w-8 text-[11px] text-slate-400 font-mono">MID ×</span>
                   <input type="range" min="0" max="30" step="0.5" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="midfield" data-sw-group="penaltyMult" data-sw-key="value">
                   <span id="sw-readout-midfield-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">7.00</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="w-8 text-[11px] text-slate-400 font-mono">PAC ×</span>
-                  <input type="range" min="0" max="10" step="0.1" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="pace" data-sw-group="penaltyMult" data-sw-key="value">
-                  <span id="sw-readout-pace-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">0.80</span>
                 </div>
               </div>
             </div>
@@ -398,21 +393,61 @@
               </div>
 
               <div class="border-t border-slate-800 pt-2 mt-2 space-y-1.5">
-                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Penalty Multipliers</p>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Penalty Multiplier</p>
                 <div class="flex items-center gap-2">
                   <span class="w-8 text-[11px] text-slate-400 font-mono">DEF ×</span>
                   <input type="range" min="0" max="30" step="0.5" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="defense" data-sw-group="penaltyMult" data-sw-key="value">
                   <span id="sw-readout-defense-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">9.00</span>
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="w-8 text-[11px] text-slate-400 font-mono">PHY ×</span>
-                  <input type="range" min="0" max="10" step="0.1" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="physical" data-sw-group="penaltyMult" data-sw-key="value">
-                  <span id="sw-readout-physical-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">0.70</span>
+              </div>
+            </div>
+
+            <!-- ── OVERALL & ATHLETIC CARD ────────────────── -->
+            <div class="rounded-xl bg-slate-900/80 border border-amber-500/20 p-3 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-black text-amber-400 uppercase tracking-wider">⚡ Overall &amp; Athletic</span>
+                <button data-sw-reset-sector="overall" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-500 hover:text-amber-400 hover:border-amber-500 transition-colors">↺ Reset</button>
+              </div>
+
+              <p class="text-[10px] text-slate-400 leading-relaxed">
+                Cross-squad balance factors comparing total team power, athletic pace, and physical strength.
+              </p>
+
+              <div class="space-y-3 pt-1">
+                <!-- Team OVR Penalty -->
+                <div class="space-y-1 bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-slate-300">Team OVR Penalty</span>
+                    <span id="sw-readout-overall-penaltyMult-value" class="text-[11px] text-amber-300 font-mono font-bold">22.00</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-10 text-[10px] text-slate-500 font-mono">OVR ×</span>
+                    <input type="range" min="0" max="50" step="1" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="overall" data-sw-group="penaltyMult" data-sw-key="value">
+                  </div>
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="w-8 text-[11px] text-slate-400 font-mono">OVR ×</span>
-                  <input type="range" min="0" max="50" step="1" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="overall" data-sw-group="penaltyMult" data-sw-key="value">
-                  <span id="sw-readout-overall-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">22.00</span>
+
+                <!-- Pace Penalty -->
+                <div class="space-y-1 bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-slate-300">Team PAC Penalty</span>
+                    <span id="sw-readout-pace-penaltyMult-value" class="text-[11px] text-amber-300 font-mono font-bold">0.80</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-10 text-[10px] text-slate-500 font-mono">PAC ×</span>
+                    <input type="range" min="0" max="30" step="0.5" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="pace" data-sw-group="penaltyMult" data-sw-key="value">
+                  </div>
+                </div>
+
+                <!-- Physical Penalty -->
+                <div class="space-y-1 bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-slate-300">Team PHY Penalty</span>
+                    <span id="sw-readout-physical-penaltyMult-value" class="text-[11px] text-amber-300 font-mono font-bold">0.70</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-10 text-[10px] text-slate-500 font-mono">PHY ×</span>
+                    <input type="range" min="0" max="30" step="0.5" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="physical" data-sw-group="penaltyMult" data-sw-key="value">
+                  </div>
                 </div>
               </div>
             </div>
