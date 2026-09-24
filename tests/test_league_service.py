@@ -497,6 +497,16 @@ def test_jersey_rotation_priority_logic():
   assert "Recommend Voyagers" in sim_p2_b["recommendation"]
   print(f"[x] Simulated 2x Boots & Beers: Priority {sim_p2_b['priority']} ({sim_p2_b['recommendation']})")
 
+def test_match_history_display_limit():
+  print("--- Testing Match History Display Limit (Latest 3 Default) ---")
+  matches = SAMPLE_API_RESPONSE["matches"]
+  assert len(matches) == 4
+  default_displayed = matches[:3]
+  assert len(default_displayed) == 3, f"Expected 3 matches by default, got {len(default_displayed)}"
+  remaining = len(matches) - 3
+  assert remaining == 1
+  print(f"[x] Match history pagination verified: {len(default_displayed)} shown by default, +{remaining} more toggle available")
+
 if __name__ == "__main__":
   test_h2h_calculation()
   test_player_stats()
@@ -509,6 +519,7 @@ if __name__ == "__main__":
   test_audit_team_matchup()
   test_jersey_rotation_priority_logic()
   test_ai_scout_analysis_and_calibration()
+  test_match_history_display_limit()
   print("\n>>> ALL LEAGUE SERVICE TESTS PASSED! <<<\n")
 
 

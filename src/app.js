@@ -84,6 +84,7 @@ const state = {
   leagueH2H: null,
   leagueSummaryText: "",
   isLeagueLoading: false,
+  showAllLeagueMatches: false,
 
   // Swap State
   selectedSwapPlayerId: null,
@@ -366,7 +367,10 @@ function renderLeagueHistoryUI() {
       return;
     }
 
-    listEl.innerHTML = h2h.matchHistory.map(m => {
+    const totalMatches = h2h.matchHistory.length;
+    const matchesToDisplay = state.showAllLeagueMatches ? h2h.matchHistory : h2h.matchHistory.slice(0, 3);
+
+    const matchesHtml = matchesToDisplay.map(m => {
       let badgeBg = "bg-slate-800 text-slate-300 border-slate-700";
       if (m.result === "voyagers_win") badgeBg = "bg-blue-950/70 text-blue-300 border-blue-500/40";
       else if (m.result === "boots_win") badgeBg = "bg-red-950/70 text-red-300 border-red-500/40";
@@ -381,6 +385,30 @@ function renderLeagueHistoryUI() {
         </div>
       `;
     }).join("");
+
+    let toggleBtnHtml = "";
+    if (totalMatches > 3) {
+      if (state.showAllLeagueMatches) {
+        toggleBtnHtml = `
+          <button id="btn-toggle-league-matches" type="button" class="px-2 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-[10px] font-bold text-slate-400 hover:text-slate-200 border border-slate-700 whitespace-nowrap transition-colors flex items-center gap-1 cursor-pointer flex-shrink-0" title="Show fewer matches">
+            <span>Show less ▴</span>
+          </button>
+        `;
+      } else {
+        toggleBtnHtml = `
+          <button id="btn-toggle-league-matches" type="button" class="px-2 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-[10px] font-bold text-slate-400 hover:text-slate-200 border border-slate-700 whitespace-nowrap transition-colors flex items-center gap-1 cursor-pointer flex-shrink-0" title="Show all ${totalMatches} matches">
+            <span>+${totalMatches - 3} more ▾</span>
+          </button>
+        `;
+      }
+    }
+
+    listEl.innerHTML = matchesHtml + toggleBtnHtml;
+
+    document.getElementById("btn-toggle-league-matches")?.addEventListener("click", () => {
+      state.showAllLeagueMatches = !state.showAllLeagueMatches;
+      renderLeagueHistoryUI();
+    });
   }
 }
 
