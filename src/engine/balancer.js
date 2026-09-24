@@ -394,13 +394,25 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
     Math.abs(rosterA.FWD - rosterB.FWD)
   ) * 10.0;
 
-  // Emergency Goalkeeper penalty: An outfield player forced into GK when dedicated GKs exist
+  // Emergency Goalkeeper penalty: An outfield player forced into GK when dedicated GKs exist in Fixed mode
+  const poolDedicatedGkCount = (rosterA.GK || 0) + (rosterB.GK || 0);
   const emergencyGkCount = (bestA.emergencyGkCount || assignedA.filter(p => p.isEmergencyGk).length) +
                            (bestB.emergencyGkCount || assignedB.filter(p => p.isEmergencyGk).length);
-  const emergencyGkPenalty = emergencyGkCount * 1000.0;
+  
+  // In Rotating GK mode or when no dedicated GKs exist in the selected pool, emergency GK penalty is 0
+  const emergencyGkPenalty = (gkMode === "fixed" && poolDedicatedGkCount > 0)
+    ? emergencyGkCount * 1000.0
+    : 0.0;
+
+  // Pure outfield out-of-position count (excluding intended GK rotation when in rotating mode)
+  const rawOutOfPosA = bestA.outOfPositionCount !== undefined ? bestA.outOfPositionCount : assignedA.filter(p => p.isOutOfPosition).length;
+  const rawOutOfPosB = bestB.outOfPositionCount !== undefined ? bestB.outOfPositionCount : assignedB.filter(p => p.isOutOfPosition).length;
+  const effectiveOutOfPosCount = (gkMode === "rotating" || poolDedicatedGkCount === 0)
+    ? Math.max(0, (rawOutOfPosA + rawOutOfPosB) - emergencyGkCount)
+    : (rawOutOfPosA + rawOutOfPosB);
 
   // Out-of-position penalty for players placed in unnatural roles (neither primary nor secondary)
-  const outOfPosPenalty = (((bestA.outOfPositionCount || 0) + (bestB.outOfPositionCount || 0)) * 75.0) + emergencyGkPenalty;
+  const outOfPosPenalty = (effectiveOutOfPosCount * 75.0) + emergencyGkPenalty;
 
   const pacDelta = Math.abs(statsA.pace     - statsB.pace);
   const phyDelta = Math.abs(statsA.physical - statsB.physical);

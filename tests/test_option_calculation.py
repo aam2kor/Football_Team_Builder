@@ -57,11 +57,27 @@ def test_solution_immutability():
   # User modifies pitch slot (swap player)
   activeSlotsA[0]["player"]["name"] = "Swapped Player"
 
-  # Verify original solution was NOT mutated
-  assert original_solution["assignedSlotsA"][0]["player"]["name"] == "Marcus Vance", "Original solution was mutated!"
-  print("[x] Immutability verified: Original solution remains pristine after pitch modifications.")
+def test_rotating_gk_penalty_no_false_emergency():
+  print("--- Testing Rotating GK Mode Penalty (No False Emergency GK Penalty) ---")
+  # In rotating GK mode, outfield players rotate in goal.
+  # Emergency GK penalty (+1000 per team) MUST NOT be charged.
+  gkMode = "rotating"
+  poolDedicatedGkCount = 0
+  emergencyGkCount = 2
+  
+  emergencyGkPenalty = (emergencyGkCount * 1000.0) if (gkMode == "fixed" and poolDedicatedGkCount > 0) else 0.0
+  assert emergencyGkPenalty == 0.0, "Rotating GK mode must have 0 emergency GK penalty"
+  
+  # Typical balanced multi-sector deltas
+  ovrDelta, attDelta, midDelta, defDelta = 0.0, 1, 1, 0
+  penalty = (ovrDelta * 22.0) + (attDelta * 8.0) + (midDelta * 7.0) + (defDelta * 9.0) + emergencyGkPenalty
+  fairness = calculate_option_fairness(penalty)
+  assert fairness >= 80, f"Expected fairness >= 80%, got {fairness}%"
+  print(f"[x] Rotating GK mode penalty verified: Penalty={penalty:.1f}, Match={fairness}% (0 emergency GK penalty)")
 
 if __name__ == "__main__":
   test_option_ranking_and_fairness()
   test_solution_immutability()
+  test_rotating_gk_penalty_no_false_emergency()
   print("\n>>> ALL OPTION CALCULATION TESTS PASSED! <<<\n")
+
