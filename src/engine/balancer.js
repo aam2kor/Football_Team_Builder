@@ -42,6 +42,12 @@ export const DEFAULT_SECTOR_WEIGHTS = {
   },
   overall: {
     penaltyMult: 22.0
+  },
+  pace: {
+    penaltyMult: 0.8
+  },
+  physical: {
+    penaltyMult: 0.7
   }
 };
 
@@ -421,24 +427,29 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
 
   // Use configurable penalty multipliers for balanced and cross_sector modes;
   // other modes use fixed coefficients (overridable via sectorWeights.overall).
-  const ovrMult = sw.overall?.penaltyMult ?? 22.0;
-  const attMult = sw.attack?.penaltyMult  ?? 8.0;
+  const ovrMult = sw.overall?.penaltyMult  ?? 22.0;
+  const attMult = sw.attack?.penaltyMult   ?? 8.0;
   const midMult = sw.midfield?.penaltyMult ?? 7.0;
   const defMult = sw.defense?.penaltyMult  ?? 9.0;
+  const pacMult = sw.pace?.penaltyMult     ?? 0.8;
+  const phyMult = sw.physical?.penaltyMult ?? 0.7;
 
   let penalty = 0;
   switch (mode) {
     case "ratings_first":
       penalty = (ovrDelta * 40) + (attDelta * 5.0) + (midDelta * 5.0) +
-                (defDelta * 6.0) + (gkPenalty * 1.5) + (posPenalty * 0.8) + outOfPosPenalty;
+                (defDelta * 6.0) + (gkPenalty * 1.5) + (posPenalty * 0.8) +
+                (pacDelta * pacMult) + (phyDelta * phyMult) + outOfPosPenalty;
       break;
     case "tactical":
       penalty = (attDelta * 12.0) + (midDelta * 10.0) + (defDelta * 12.0) +
-                (gkPenalty * 2.0) + (posPenalty * 4.0) + (ovrDelta * 12.0) + outOfPosPenalty;
+                (gkPenalty * 2.0) + (posPenalty * 4.0) + (ovrDelta * 12.0) +
+                (pacDelta * pacMult) + (phyDelta * phyMult) + outOfPosPenalty;
       break;
     case "pace_power":
       penalty = (ovrDelta * 18) + (attDelta * 6.0) + (defDelta * 7.0) +
-                (pacDelta * 5.0) + (phyDelta * 4.0) + (gkPenalty * 1.5) + outOfPosPenalty;
+                (pacDelta * Math.max(5.0, pacMult * 5.0)) + (phyDelta * Math.max(4.0, phyMult * 4.0)) +
+                (gkPenalty * 1.5) + outOfPosPenalty;
       break;
     case "cross_sector":
       penalty = (ovrDelta * ovrMult) +
@@ -447,8 +458,8 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
                 (midDelta * midMult) +
                 (gkPenalty * 2.0)   +
                 (posPenalty * 2.0)  +
-                (pacDelta * 0.8)    +
-                (phyDelta * 0.7)    +
+                (pacDelta * pacMult) +
+                (phyDelta * phyMult) +
                 outOfPosPenalty;
       break;
     case "balanced":
@@ -459,13 +470,13 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
                 (defDelta * defMult) +
                 (gkPenalty * 2.0)   +
                 (posPenalty * 2.0)  +
-                (pacDelta * 0.8)    +
-                (phyDelta * 0.7)    +
+                (pacDelta * pacMult) +
+                (phyDelta * phyMult) +
                 outOfPosPenalty;
       break;
   }
 
-  const fairnessScore = Math.max(0, Math.min(100, Math.round(100 - (penalty * 0.9))));
+  const fairnessScore = Math.max(50, Math.min(100, Math.round(100 - (penalty * 0.25))));
 
   return {
     penalty,

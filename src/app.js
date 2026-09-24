@@ -30,7 +30,16 @@ const db = new PlayerDatabase();
 function loadSectorWeights() {
   try {
     const saved = localStorage.getItem("ftb_sector_weights");
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        ...cloneSectorWeights(DEFAULT_SECTOR_WEIGHTS),
+        ...parsed,
+        pace: parsed.pace || { penaltyMult: DEFAULT_SECTOR_WEIGHTS.pace.penaltyMult },
+        physical: parsed.physical || { penaltyMult: DEFAULT_SECTOR_WEIGHTS.physical.penaltyMult },
+        overall: parsed.overall || { penaltyMult: DEFAULT_SECTOR_WEIGHTS.overall.penaltyMult }
+      };
+    }
   } catch (e) { /* ignore */ }
   return cloneSectorWeights(DEFAULT_SECTOR_WEIGHTS);
 }
@@ -1462,8 +1471,11 @@ function initSectorWeightsPanel() {
     const val    = parseFloat(el.value);
 
     if (group === "gkBlend" || group === "penaltyMult") {
+      if (!state.sectorWeights[sector]) state.sectorWeights[sector] = {};
       state.sectorWeights[sector][group] = val;
     } else {
+      if (!state.sectorWeights[sector]) state.sectorWeights[sector] = {};
+      if (!state.sectorWeights[sector][group]) state.sectorWeights[sector][group] = {};
       state.sectorWeights[sector][group][key] = val;
     }
 
@@ -1483,7 +1495,14 @@ function initSectorWeightsPanel() {
     const btn = e.target.closest("[data-sw-reset-sector]");
     if (!btn) return;
     const sector = btn.dataset.swResetSector;
-    state.sectorWeights[sector] = cloneSectorWeights(DEFAULT_SECTOR_WEIGHTS)[sector];
+    const defaults = cloneSectorWeights(DEFAULT_SECTOR_WEIGHTS);
+    state.sectorWeights[sector] = defaults[sector];
+    if (sector === "midfield") {
+      state.sectorWeights.pace = defaults.pace;
+    } else if (sector === "defense") {
+      state.sectorWeights.physical = defaults.physical;
+      state.sectorWeights.overall = defaults.overall;
+    }
     saveSectorWeights(state.sectorWeights);
     populateSectorSliders();
     if (state.activeTeamA && state.activeTeamA.length > 0) {
@@ -1522,18 +1541,18 @@ function populateSectorSliders() {
   ["GK","DEF","MID","FWD"].forEach(k  => setSlider("attack", "positions", k, sw.attack.positions[k] ?? 1));
   setSlider("attack", "penaltyMult", "value", sw.attack.penaltyMult ?? 8.0);
 
-  // Midfield
+  // Midfield & Pace
   ["sho","dri","pac","pas","def","phy"].forEach(k => setSlider("midfield", "attributes", k, sw.midfield.attributes[k] ?? 0));
   ["GK","DEF","MID","FWD"].forEach(k  => setSlider("midfield", "positions", k, sw.midfield.positions[k] ?? 1));
   setSlider("midfield", "penaltyMult", "value", sw.midfield.penaltyMult ?? 7.0);
+  setSlider("pace", "penaltyMult", "value", sw.pace?.penaltyMult ?? 0.8);
 
-  // Defense
+  // Defense, Physical & Overall
   ["sho","dri","pac","pas","def","phy"].forEach(k => setSlider("defense", "attributes", k, sw.defense.attributes[k] ?? 0));
   ["GK","DEF","MID","FWD"].forEach(k  => setSlider("defense", "positions", k, sw.defense.positions[k] ?? 1));
   setSlider("defense", "gkBlend",      "value", sw.defense.gkBlend ?? 0.35);
   setSlider("defense", "penaltyMult",  "value", sw.defense.penaltyMult ?? 9.0);
-
-  // Overall
+  setSlider("physical", "penaltyMult", "value", sw.physical?.penaltyMult ?? 0.7);
   setSlider("overall", "penaltyMult", "value", sw.overall?.penaltyMult ?? 22.0);
 }
 

@@ -347,9 +347,18 @@
                 <div class="flex items-center gap-2"><span class="w-8 text-[11px] text-slate-400 font-mono">FWD</span><input type="range" min="0" max="3" step="0.1" class="flex-1 h-1.5 accent-purple-500" data-sw-sector="midfield" data-sw-group="positions" data-sw-key="FWD"><span id="sw-readout-midfield-positions-FWD" class="w-8 text-right text-[11px] text-purple-300 font-mono">1.00</span></div>
               </div>
 
-              <div class="border-t border-slate-800 pt-2 mt-2">
-                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5">Penalty Multiplier</p>
-                <div class="flex items-center gap-2"><span class="w-8 text-[11px] text-slate-400 font-mono">×</span><input type="range" min="0" max="30" step="0.5" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="midfield" data-sw-group="penaltyMult" data-sw-key="value"><span id="sw-readout-midfield-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">7.00</span></div>
+              <div class="border-t border-slate-800 pt-2 mt-2 space-y-1.5">
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Penalty Multipliers</p>
+                <div class="flex items-center gap-2">
+                  <span class="w-8 text-[11px] text-slate-400 font-mono">MID ×</span>
+                  <input type="range" min="0" max="30" step="0.5" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="midfield" data-sw-group="penaltyMult" data-sw-key="value">
+                  <span id="sw-readout-midfield-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">7.00</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-8 text-[11px] text-slate-400 font-mono">PAC ×</span>
+                  <input type="range" min="0" max="10" step="0.1" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="pace" data-sw-group="penaltyMult" data-sw-key="value">
+                  <span id="sw-readout-pace-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">0.80</span>
+                </div>
               </div>
             </div>
 
@@ -388,15 +397,23 @@
                 <p class="text-[10px] text-slate-600">DEF score = outfield×(1−GK%) + best_GK×GK%</p>
               </div>
 
-              <div class="border-t border-slate-800 pt-2 mt-2">
-                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5">Penalty Multiplier</p>
-                <div class="flex items-center gap-2"><span class="w-8 text-[11px] text-slate-400 font-mono">×</span><input type="range" min="0" max="30" step="0.5" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="defense" data-sw-group="penaltyMult" data-sw-key="value"><span id="sw-readout-defense-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">9.00</span></div>
-              </div>
-
-              <!-- Overall OVR penalty multiplier lives here as the natural home for the 4th item -->
-              <div class="border-t border-slate-800 pt-2 mt-2">
-                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5">Overall OVR Penalty ×</p>
-                <div class="flex items-center gap-2"><span class="w-8 text-[11px] text-slate-400 font-mono">OVR</span><input type="range" min="0" max="50" step="1" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="overall" data-sw-group="penaltyMult" data-sw-key="value"><span id="sw-readout-overall-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">22.00</span></div>
+              <div class="border-t border-slate-800 pt-2 mt-2 space-y-1.5">
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Penalty Multipliers</p>
+                <div class="flex items-center gap-2">
+                  <span class="w-8 text-[11px] text-slate-400 font-mono">DEF ×</span>
+                  <input type="range" min="0" max="30" step="0.5" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="defense" data-sw-group="penaltyMult" data-sw-key="value">
+                  <span id="sw-readout-defense-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">9.00</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-8 text-[11px] text-slate-400 font-mono">PHY ×</span>
+                  <input type="range" min="0" max="10" step="0.1" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="physical" data-sw-group="penaltyMult" data-sw-key="value">
+                  <span id="sw-readout-physical-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">0.70</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-8 text-[11px] text-slate-400 font-mono">OVR ×</span>
+                  <input type="range" min="0" max="50" step="1" class="flex-1 h-1.5 accent-amber-500" data-sw-sector="overall" data-sw-group="penaltyMult" data-sw-key="value">
+                  <span id="sw-readout-overall-penaltyMult-value" class="w-8 text-right text-[11px] text-amber-300 font-mono">22.00</span>
+                </div>
               </div>
             </div>
 
