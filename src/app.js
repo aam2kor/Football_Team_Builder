@@ -18,7 +18,10 @@ import {
   buildScoutAnalysisPayload,
   auditTeamMatchup,
   computeJerseyRotationStats,
-  auditJerseyBalance
+  auditJerseyBalance,
+  computePlayerFormTrajectory,
+  generateFormMountainSvg,
+  generateMiniSparklineSvg
 } from "./services/leagueService.js";
 
 // Initialize Database instance
@@ -130,6 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupRosterEvents();
   setupBackupEvents();
   setupPlayerModalEvents();
+  setupPlayerDossierEvents();
   setupAiScoutModal();
 
   // Initial render
@@ -3037,10 +3041,33 @@ function renderRosterView() {
     return;
   }
 
-  cardsContainer.innerHTML = players.map(p => {
+    cardsContainer.innerHTML = players.map(p => {
     const cardClass = getFifaCardTierClass(p.ovr);
     const a = p.attributes || { pac: 70, sho: 70, pas: 70, dri: 70, def: 70, phy: 70 };
     
+    // Form Trajectory (Option 3 Step Mountain)
+    const trajectory = computePlayerFormTrajectory(p.name, state.leagueMatches);
+    const miniSparkline = generateMiniSparklineSvg(trajectory);
+    const momentumBadge = trajectory && trajectory.totalMatches > 0
+      ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${
+          trajectory.currentMomentum > 0 
+            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+            : trajectory.currentMomentum < 0 
+            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' 
+            : 'bg-slate-800 text-slate-400 border border-slate-700'
+        }" title="Form Net Momentum: ${trajectory.currentMomentum > 0 ? '+' + trajectory.currentMomentum : trajectory.currentMomentum} (${trajectory.wins}W - ${trajectory.draws}D - ${trajectory.losses}L)">📈 ${trajectory.currentMomentum > 0 ? '+' + trajectory.currentMomentum : trajectory.currentMomentum}</span>`
+      : `<span class="text-[9px] text-slate-500 font-mono">0 Matches</span>`;
+
+    const recentPills = trajectory && trajectory.history.length > 0
+      ? trajectory.history.slice(-4).map(h => `<span class="px-1 py-0.2 rounded text-[9px] font-bold ${
+          h.outcome === 'W' 
+            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+            : h.outcome === 'D' 
+            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' 
+            : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+        }">${h.outcome}</span>`).join(" ")
+      : "";
+
     // Chemistry names
     const partnerNames = (p.chemistryPartners || [])
       .map(id => db.getById(id)?.name || id)
@@ -3052,12 +3079,13 @@ function renderRosterView() {
           <!-- Header info -->
           <div class="flex items-start justify-between">
             <div class="flex items-center gap-3">
-              <div class="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg ${cardClass} shadow-md">
+              <div class="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg ${cardClass} shadow-md cursor-pointer" data-open-dossier="${p.id}" title="Click to view full player dossier &amp; form trajectory">
                 ${p.ovr}
               </div>
               <div>
-                <h4 class="font-bold text-white text-base leading-tight group-hover:text-blue-400 transition-colors">
-                  ${p.name}
+                <h4 class="font-bold text-white text-base leading-tight group-hover:text-sky-400 transition-colors cursor-pointer flex items-center gap-1.5" data-open-dossier="${p.id}" title="Click to inspect player dossier">
+                  <span>${p.name}</span>
+                  <span class="text-[10px] text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity">🔍</span>
                 </h4>
                 <div class="flex items-center gap-1.5 mt-1">
                   <span class="px-2 py-0.5 rounded text-[10px] font-bold ${getPositionBadgeClass(p.position)}">
@@ -3075,6 +3103,9 @@ function renderRosterView() {
             
             <!-- Actions -->
             <div class="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+              <button class="p-1.5 hover:bg-sky-500/20 rounded-lg text-slate-400 hover:text-sky-300 transition-colors" title="Inspect Form Dossier" data-open-dossier="${p.id}">
+                📈
+              </button>
               <button class="p-1.5 hover:bg-slate-700/80 rounded-lg text-slate-400 hover:text-white transition-colors" title="Edit" data-edit-player="${p.id}">
                 ✏️
               </button>
@@ -3102,6 +3133,18 @@ function renderRosterView() {
             <div><div class="text-[9px] text-slate-400 font-bold">PHY</div><div class="text-xs font-black text-white">${a.phy}</div></div>
           </div>
 
+          <!-- Form Step Mountain Mini Sparkline Ribbon -->
+          <div class="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              ${momentumBadge}
+              ${miniSparkline}
+              <div class="hidden sm:flex items-center gap-0.5">${recentPills}</div>
+            </div>
+            <button class="px-2 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/25 border border-sky-500/30 text-sky-300 hover:text-white text-[11px] font-bold transition-all flex items-center gap-1 flex-shrink-0" data-open-dossier="${p.id}" title="Inspect Form Trajectory">
+              <span>📈 Dossier</span>
+            </button>
+          </div>
+
           ${p.notes ? `
             <p class="text-xs text-slate-400 italic mt-2.5 truncate" title="${p.notes}">
               💬 "${p.notes}"
@@ -3111,6 +3154,13 @@ function renderRosterView() {
       </div>
     `;
   }).join("");
+
+  cardsContainer.querySelectorAll("[data-open-dossier]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openPlayerDossier(btn.dataset.openDossier);
+    });
+  });
 
   cardsContainer.querySelectorAll("[data-edit-player]").forEach(btn => {
     btn.addEventListener("click", () => openPlayerModal(btn.dataset.editPlayer));
@@ -3504,6 +3554,161 @@ function updateCardPreview() {
       <div class="flex justify-between"><span>PHY</span><span>${phy}</span></div>
     </div>
   `;
+}
+
+// ============================================================
+// Player Performance Dossier Modal (Option 3 Form Step Mountain)
+// ============================================================
+function setupPlayerDossierEvents() {
+  const modal = document.getElementById("modal-player-dossier");
+  const closeBtn = document.getElementById("btn-close-player-dossier");
+  const closeBottomBtn = document.getElementById("btn-dossier-close-bottom");
+
+  const close = () => closePlayerDossier();
+
+  closeBtn?.addEventListener("click", close);
+  closeBottomBtn?.addEventListener("click", close);
+
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) close();
+    });
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && modal && !modal.classList.contains("hidden")) {
+      close();
+    }
+  });
+}
+
+function openPlayerDossier(playerId) {
+  const player = typeof playerId === "string" ? db.getById(playerId) : playerId;
+  if (!player) return;
+
+  const modal = document.getElementById("modal-player-dossier");
+  if (!modal) return;
+
+  const trajectory = computePlayerFormTrajectory(player.name, state.leagueMatches);
+  const cardClass = getFifaCardTierClass(player.ovr);
+
+  // Header
+  const ovrBadge = document.getElementById("dossier-ovr-badge");
+  if (ovrBadge) {
+    ovrBadge.className = `w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg ${cardClass} shadow-md`;
+    ovrBadge.textContent = player.ovr;
+  }
+
+  const nameEl = document.getElementById("dossier-player-name");
+  if (nameEl) nameEl.textContent = player.name;
+
+  const posBadge = document.getElementById("dossier-pos-badge");
+  if (posBadge) {
+    posBadge.className = `px-2 py-0.5 rounded text-[10px] font-bold ${getPositionBadgeClass(player.position)}`;
+    posBadge.textContent = player.position;
+  }
+
+  const secPosBadge = document.getElementById("dossier-sec-pos-badge");
+  if (secPosBadge) {
+    if (player.secondaryPosition && player.secondaryPosition !== player.position) {
+      secPosBadge.textContent = `SEC: ${player.secondaryPosition}`;
+      secPosBadge.classList.remove("hidden");
+    } else {
+      secPosBadge.classList.add("hidden");
+    }
+  }
+
+  const subtitleEl = document.getElementById("dossier-subtitle");
+  if (subtitleEl) {
+    const foot = player.preferredFoot || 'Right';
+    const a = player.attributes || {};
+    subtitleEl.textContent = `Foot: ${foot} • Attributes: PAC ${a.pac || 70} | SHO ${a.sho || 70} | DRI ${a.dri || 70} | DEF ${a.def || 70} | PHY ${a.phy || 70}`;
+  }
+
+  // Summary Ribbon
+  const recordText = document.getElementById("dossier-record-text");
+  if (recordText) recordText.textContent = `${trajectory.wins}W - ${trajectory.draws}D - ${trajectory.losses}L (${trajectory.totalMatches}M)`;
+
+  const winRateText = document.getElementById("dossier-winrate-text");
+  if (winRateText) winRateText.textContent = `${trajectory.winRate}%`;
+
+  const momentumText = document.getElementById("dossier-momentum-text");
+  if (momentumText) {
+    const m = trajectory.currentMomentum;
+    momentumText.className = `text-sm font-black ${m > 0 ? 'text-emerald-400' : m < 0 ? 'text-rose-400' : 'text-slate-300'}`;
+    momentumText.textContent = m > 0 ? `+${m}` : `${m}`;
+  }
+
+  const goalsStreakText = document.getElementById("dossier-goals-streak-text");
+  if (goalsStreakText) {
+    goalsStreakText.textContent = `${trajectory.totalGoals}⚽ • ${trajectory.streak || '-'}`;
+  }
+
+  // SVG Mountain Graph
+  const mountainContainer = document.getElementById("dossier-mountain-chart-container");
+  if (mountainContainer) {
+    mountainContainer.innerHTML = generateFormMountainSvg(trajectory);
+  }
+
+  // Match Count Badge
+  const countBadge = document.getElementById("dossier-match-count-badge");
+  if (countBadge) countBadge.textContent = `${trajectory.totalMatches} Matches Recorded`;
+
+  // Matches List
+  const listEl = document.getElementById("dossier-matches-list");
+  if (listEl) {
+    if (!trajectory.history || trajectory.history.length === 0) {
+      listEl.innerHTML = `<div class="p-3 text-center text-xs text-slate-500">No match records found for this player.</div>`;
+    } else {
+      listEl.innerHTML = trajectory.history.map((h, i) => {
+        const isVoy = h.team === "voyagers";
+        const resClass = h.outcome === "W"
+          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+          : h.outcome === "D"
+          ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+          : "bg-rose-500/20 text-rose-300 border-rose-500/40";
+
+        return `
+          <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 hover:border-slate-700 transition-colors flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-5 text-[10px] text-slate-500 font-mono">#${i + 1}</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-black border font-mono ${resClass}">
+                ${h.outcome}
+              </span>
+              <span class="text-xs font-bold text-white">${h.date}</span>
+              <span class="text-[10px] px-1.5 py-0.2 rounded font-mono ${isVoy ? 'bg-blue-500/20 text-blue-300' : 'bg-red-500/20 text-red-300'}">
+                ${isVoy ? '🔵 Voyagers' : '🔴 Boots & Beers'}
+              </span>
+            </div>
+            <div class="flex items-center gap-2 font-mono flex-shrink-0">
+              ${h.goals > 0 ? `<span class="text-amber-300 font-bold text-[11px]">⚽ ${h.goals}</span>` : ''}
+              <span class="text-xs font-bold text-slate-200">${h.myScore} - ${h.oppScore}</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-900 border border-slate-700 ${h.cumulativeMomentum >= 0 ? 'text-emerald-400' : 'text-rose-400'}">
+                Net: ${h.cumulativeMomentum >= 0 ? '+' + h.cumulativeMomentum : h.cumulativeMomentum}
+              </span>
+            </div>
+          </div>
+        `;
+      }).reverse().join("");
+    }
+  }
+
+  // Jersey Split
+  const voyWinrate = document.getElementById("dossier-voyagers-winrate");
+  if (voyWinrate) voyWinrate.textContent = `${trajectory.jerseyStats.voyagers.winRate}%`;
+  const voyRecord = document.getElementById("dossier-voyagers-record");
+  if (voyRecord) voyRecord.textContent = `${trajectory.jerseyStats.voyagers.matches} matches (${trajectory.jerseyStats.voyagers.wins}W - ${trajectory.jerseyStats.voyagers.draws}D - ${trajectory.jerseyStats.voyagers.losses}L • ${trajectory.jerseyStats.voyagers.goals}⚽)`;
+
+  const bootsWinrate = document.getElementById("dossier-boots-winrate");
+  if (bootsWinrate) bootsWinrate.textContent = `${trajectory.jerseyStats.boots.winRate}%`;
+  const bootsRecord = document.getElementById("dossier-boots-record");
+  if (bootsRecord) bootsRecord.textContent = `${trajectory.jerseyStats.boots.matches} matches (${trajectory.jerseyStats.boots.wins}W - ${trajectory.jerseyStats.boots.draws}D - ${trajectory.jerseyStats.boots.losses}L • ${trajectory.jerseyStats.boots.goals}⚽)`;
+
+  modal.classList.remove("hidden");
+}
+
+function closePlayerDossier() {
+  document.getElementById("modal-player-dossier")?.classList.add("hidden");
 }
 
 // ============================================================

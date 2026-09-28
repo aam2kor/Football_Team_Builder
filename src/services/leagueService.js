@@ -1302,3 +1302,305 @@ export function auditJerseyBalance(teamA = [], teamB = [], matches = []) {
   };
 }
 
+/**
+ * Option 3: Computes player form step trajectory (+1 Win, 0 Draw, -1 Loss)
+ * across chronological match history.
+ *
+ * @param {string} playerName
+ * @param {Array} matches
+ * @returns {Object|null}
+ */
+export function computePlayerFormTrajectory(playerName, matches = []) {
+  if (!playerName) return null;
+  const cleanName = playerName.trim().toLowerCase();
+
+  // Chronological sorting (oldest match to newest)
+  const chronMatches = [...matches].sort((a, b) => new Date(a.match_date) - new Date(b.match_date));
+
+  const history = [];
+  let cumulativeMomentum = 0;
+  let wins = 0, draws = 0, losses = 0, totalGoals = 0;
+  const jerseyStats = {
+    voyagers: { matches: 0, wins: 0, draws: 0, losses: 0, goals: 0 },
+    boots:    { matches: 0, wins: 0, draws: 0, losses: 0, goals: 0 }
+  };
+
+  chronMatches.forEach(m => {
+    const voyTeam = (m.teams || []).find(t => t.team?.toLowerCase().includes("voyager"));
+    const bootsTeam = (m.teams || []).find(t => t.team?.toLowerCase().includes("boot"));
+    if (!voyTeam || !bootsTeam) return;
+
+    const isVoy = (voyTeam.members || []).some(n => n.trim().toLowerCase() === cleanName);
+    const isBoots = (bootsTeam.members || []).some(n => n.trim().toLowerCase() === cleanName);
+    if (!isVoy && !isBoots) return;
+
+    const myTeamObj = isVoy ? voyTeam : bootsTeam;
+    const oppTeamObj = isVoy ? bootsTeam : voyTeam;
+    const myScore = Number(myTeamObj.score) || 0;
+    const oppScore = Number(oppTeamObj.score) || 0;
+    const teamKey = isVoy ? "voyagers" : "boots";
+
+    let outcome = "D";
+    let delta = 0;
+    if (myScore > oppScore) {
+      outcome = "W";
+      delta = 1;
+      wins++;
+      jerseyStats[teamKey].wins++;
+    } else if (myScore < oppScore) {
+      outcome = "L";
+      delta = -1;
+      losses++;
+      jerseyStats[teamKey].losses++;
+    } else {
+      outcome = "D";
+      delta = 0;
+      draws++;
+      jerseyStats[teamKey].draws++;
+    }
+
+    jerseyStats[teamKey].matches++;
+    cumulativeMomentum += delta;
+
+    // Count individual goals scored in this match
+    let goals = 0;
+    if (Array.isArray(myTeamObj.scorers)) {
+      myTeamObj.scorers.forEach(s => {
+        const sName = (typeof s === "string" ? s : s.name || "").trim().toLowerCase();
+        if (sName === cleanName) {
+          goals += (typeof s === "object" && s.goals ? Number(s.goals) : 1);
+        }
+      });
+    }
+    totalGoals += goals;
+    jerseyStats[teamKey].goals += goals;
+
+    history.push({
+      date: m.match_date,
+      season: m.season,
+      team: teamKey,
+      teamLabel: isVoy ? "Voyagers" : "Boots & Beers",
+      myScore,
+      oppScore,
+      scoreText: `${myScore} - ${oppScore}`,
+      outcome,
+      delta,
+      cumulativeMomentum,
+      goals
+    });
+  });
+
+  const totalMatches = history.length;
+  const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
+
+  // Compute current streak from most recent match backwards
+  let streakType = "";
+  let streakCount = 0;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (!streakType) {
+      streakType = history[i].outcome;
+      streakCount = 1;
+    } else if (history[i].outcome === streakType) {
+      streakCount++;
+    } else {
+      break;
+    }
+  }
+
+  // Win rates per jersey
+  if (jerseyStats.voyagers.matches > 0) {
+    jerseyStats.voyagers.winRate = Math.round((jerseyStats.voyagers.wins / jerseyStats.voyagers.matches) * 100);
+  } else {
+    jerseyStats.voyagers.winRate = 0;
+  }
+
+  if (jerseyStats.boots.matches > 0) {
+    jerseyStats.boots.winRate = Math.round((jerseyStats.boots.wins / jerseyStats.boots.matches) * 100);
+  } else {
+    jerseyStats.boots.winRate = 0;
+  }
+
+  return {
+    name: playerName,
+    totalMatches,
+    wins,
+    draws,
+    losses,
+    totalGoals,
+    winRate,
+    currentMomentum: cumulativeMomentum,
+    streak: streakType ? `${streakCount}${streakType}` : "-",
+    streakType,
+    streakCount,
+    jerseyStats,
+    history
+  };
+}
+
+/**
+ * Generates an SVG string for Option 3: Form Step Mountain (+1 Win / 0 Draw / -1 Loss)
+ * @param {Object} trajectory Result of computePlayerFormTrajectory
+ * @returns {string} SVG HTML string
+ */
+export function generateFormMountainSvg(trajectory) {
+  if (!trajectory || !trajectory.history || trajectory.history.length === 0) {
+    return `
+      <div class="h-44 flex flex-col items-center justify-center text-slate-500 text-xs bg-slate-950/60 rounded-xl border border-slate-800/80">
+        <span>📉 No historical matches recorded yet for this player.</span>
+      </div>
+    `;
+  }
+
+  const history = trajectory.history;
+  const n = history.length;
+  
+  // Dimensions
+  const W = 520;
+  const H = 190;
+  const padL = 45;
+  const padR = 30;
+  const padT = 30;
+  const padB = 40;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  // Calculate momentum range
+  const momentums = [0, ...history.map(h => h.cumulativeMomentum)];
+  const minM = Math.min(-1, ...momentums) - 0.5;
+  const maxM = Math.max(1, ...momentums) + 0.5;
+  const rangeM = maxM - minM;
+
+  const getX = (idx) => padL + (idx / n) * plotW;
+  const getY = (val) => padT + plotH - ((val - minM) / rangeM) * plotH;
+  const yZero = getY(0);
+
+  // Points starting at origin (Match 0 at momentum 0)
+  const pts = [{ x: getX(0), y: yZero, momentum: 0, isOrigin: true }];
+  history.forEach((h, i) => {
+    pts.push({
+      x: getX(i + 1),
+      y: getY(h.cumulativeMomentum),
+      momentum: h.cumulativeMomentum,
+      data: h,
+      matchIdx: i + 1
+    });
+  });
+
+  // Build SVG Path (step/mountain line)
+  let linePath = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 1; i < pts.length; i++) {
+    linePath += ` L ${pts[i].x} ${pts[i].y}`;
+  }
+
+  // Build Area Path under line to yZero
+  const areaPath = `${linePath} L ${pts[pts.length - 1].x} ${yZero} L ${pts[0].x} ${yZero} Z`;
+
+  // Colors based on latest momentum
+  const isPositive = trajectory.currentMomentum > 0;
+  const isNegative = trajectory.currentMomentum < 0;
+  const strokeColor = isPositive ? "#10b981" : isNegative ? "#f43f5e" : "#38bdf8";
+
+  // Build Marker Nodes
+  const nodesSvg = pts.slice(1).map((pt) => {
+    const h = pt.data;
+    const nodeColor = h.outcome === "W" ? "#10b981" : h.outcome === "D" ? "#f59e0b" : "#ef4444";
+    const badgeText = h.cumulativeMomentum > 0 ? `+${h.cumulativeMomentum}` : `${h.cumulativeMomentum}`;
+    const textYOffset = h.cumulativeMomentum >= 0 ? -12 : 16;
+    const cleanDate = h.date ? h.date.slice(5) : `M${pt.matchIdx}`;
+
+    return `
+      <g class="transition-transform group cursor-pointer">
+        <!-- Vertical connector to baseline -->
+        <line x1="${pt.x}" y1="${yZero}" x2="${pt.x}" y2="${pt.y}" stroke="${nodeColor}" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
+        
+        <!-- Interactive node circle -->
+        <circle cx="${pt.x}" cy="${pt.y}" r="6" fill="#0f172a" stroke="${nodeColor}" stroke-width="2.5" class="hover:r-8 transition-all"/>
+        <circle cx="${pt.x}" cy="${pt.y}" r="2.5" fill="${nodeColor}"/>
+        
+        <!-- Momentum Badge Text above/below node -->
+        <text x="${pt.x}" y="${pt.y + textYOffset}" fill="${nodeColor}" font-size="10" font-weight="900" font-family="monospace" text-anchor="middle">
+          ${badgeText}
+        </text>
+
+        <!-- X-Axis Match Label & Result -->
+        <text x="${pt.x}" y="${H - 20}" fill="#94a3b8" font-size="9" font-weight="bold" font-family="monospace" text-anchor="middle">
+          ${cleanDate}
+        </text>
+        <text x="${pt.x}" y="${H - 8}" fill="${nodeColor}" font-size="9" font-weight="black" font-family="monospace" text-anchor="middle">
+          ${h.outcome} (${h.myScore}-${h.oppScore})
+        </text>
+      </g>
+    `;
+  }).join("");
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto overflow-visible select-none">
+      <defs>
+        <linearGradient id="formAreaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${strokeColor}" stop-opacity="0.35"/>
+          <stop offset="100%" stop-color="${strokeColor}" stop-opacity="0.0"/>
+        </linearGradient>
+      </defs>
+
+      <!-- Background Grid & Zero Baseline -->
+      <line x1="${padL}" y1="${yZero}" x2="${W - padR}" y2="${yZero}" stroke="#475569" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.6"/>
+      <text x="${padL - 6}" y="${yZero + 3}" fill="#64748b" font-size="9" font-weight="bold" font-family="monospace" text-anchor="end">0 (Base)</text>
+
+      <!-- Area fill under mountain -->
+      <path d="${areaPath}" fill="url(#formAreaGrad)"/>
+
+      <!-- Mountain Step Line -->
+      <path d="${linePath}" fill="none" stroke="${strokeColor}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+      <!-- Starting Origin Dot -->
+      <circle cx="${pts[0].x}" cy="${pts[0].y}" r="3.5" fill="#64748b"/>
+
+      <!-- Match Points & Labels -->
+      ${nodesSvg}
+    </svg>
+  `;
+}
+
+/**
+ * Generates a compact mini sparkline SVG for Roster Cards (Option 3 Step Mountain)
+ * @param {Object} trajectory
+ * @returns {string} SVG HTML string
+ */
+export function generateMiniSparklineSvg(trajectory) {
+  if (!trajectory || !trajectory.history || trajectory.history.length === 0) {
+    return `<span class="text-[10px] text-slate-500 font-mono">No History</span>`;
+  }
+
+  const history = trajectory.history;
+  const n = history.length;
+  const W = 54;
+  const H = 18;
+  const pad = 3;
+
+  const momentums = [0, ...history.map(h => h.cumulativeMomentum)];
+  const minM = Math.min(-1, ...momentums);
+  const maxM = Math.max(1, ...momentums);
+  const rangeM = maxM - minM || 1;
+
+  const getX = (i) => pad + (i / n) * (W - pad * 2);
+  const getY = (val) => pad + (H - pad * 2) - ((val - minM) / rangeM) * (H - pad * 2);
+  const yZero = getY(0);
+
+  let d = `M ${getX(0)} ${yZero}`;
+  history.forEach((h, i) => {
+    d += ` L ${getX(i + 1)} ${getY(h.cumulativeMomentum)}`;
+  });
+
+  const isPositive = trajectory.currentMomentum > 0;
+  const isNegative = trajectory.currentMomentum < 0;
+  const strokeColor = isPositive ? "#10b981" : isNegative ? "#f43f5e" : "#38bdf8";
+
+  return `
+    <svg width="${W}" height="${H}" class="overflow-visible inline-block align-middle">
+      <line x1="${pad}" y1="${yZero}" x2="${W - pad}" y2="${yZero}" stroke="#475569" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
+      <path d="${d}" fill="none" stroke="${strokeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${getX(n)}" cy="${getY(trajectory.currentMomentum)}" r="2.5" fill="${strokeColor}"/>
+    </svg>
+  `;
+}
+
