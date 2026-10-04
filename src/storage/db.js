@@ -46,6 +46,7 @@ export class PlayerDatabase {
   constructor() {
     this.players = [];
     this.init();
+    this.syncWithServer();
   }
 
   init() {
@@ -54,7 +55,12 @@ export class PlayerDatabase {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          this.players = parsed;
+          const hasLegacyPlaceholders = parsed.some(p => p.name === "Marcus Vance" || p.name === "Lucas Romero" || p.name === "Carlos Mendoza");
+          if (hasLegacyPlaceholders) {
+            this.resetToDefaults();
+          } else {
+            this.players = parsed;
+          }
         } else {
           this.resetToDefaults();
         }
@@ -67,11 +73,49 @@ export class PlayerDatabase {
     }
   }
 
+  /**
+   * Fetches latest players from data/players.json via server API.
+   */
+  async syncWithServer() {
+    try {
+      const res = await fetch("/api/players", { method: "GET" });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.players) && data.players.length > 0) {
+          this.players = data.players;
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.players));
+          } catch (e) {}
+          return true;
+        }
+      }
+    } catch (err) {
+      // Offline / standalone fallback
+    }
+    return false;
+  }
+
+  /**
+   * Saves players to localStorage and asynchronously writes to data/players.json on disk.
+   */
   save() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.players));
     } catch (e) {
       console.error("Failed to save to localStorage:", e);
+    }
+    this.persistToServer();
+  }
+
+  async persistToServer() {
+    try {
+      await fetch("/api/players", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ players: this.players })
+      });
+    } catch (err) {
+      // Offline / server unavailable
     }
   }
 

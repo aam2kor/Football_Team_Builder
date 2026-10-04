@@ -1,0 +1,578 @@
+[
+  {
+    "id": "p_anoop",
+    "name": "Anoop",
+    "position": "GK",
+    "secondaryPosition": "DEF",
+    "ovr": 82,
+    "attributes": {
+      "pac": 72,
+      "sho": 65,
+      "pas": 76,
+      "dri": 70,
+      "def": 82,
+      "phy": 85,
+      "gk": 84
+    },
+    "avatar": "🧤",
+    "preferredFoot": "Right",
+    "notes": "Vocal organizer, physical shot-stopper, solid command of the box",
+    "chemistryPartners": [
+      "p_prasanth",
+      "p_vinay",
+      "p_sanjay"
+    ]
+  },
+  {
+    "id": "p_george",
+    "name": "George",
+    "position": "GK",
+    "secondaryPosition": "DEF",
+    "ovr": 78,
+    "attributes": {
+      "pac": 68,
+      "sho": 50,
+      "pas": 70,
+      "dri": 65,
+      "def": 76,
+      "phy": 78,
+      "gk": 80
+    },
+    "avatar": "🧤",
+    "preferredFoot": "Right",
+    "notes": "Reliable reflex keeper and solid outfield coverage",
+    "chemistryPartners": [
+      "p_mathai",
+      "p_abey"
+    ]
+  },
+  {
+    "id": "p_abey",
+    "name": "Abey",
+    "position": "DEF",
+    "secondaryPosition": "MID",
+    "ovr": 82,
+    "attributes": {
+      "pac": 74,
+      "sho": 60,
+      "pas": 76,
+      "dri": 72,
+      "def": 84,
+      "phy": 82,
+      "gk": 20
+    },
+    "avatar": "🛡️",
+    "preferredFoot": "Right",
+    "notes": "Dominant center back, strong in aerial duels and tackles",
+    "chemistryPartners": [
+      "p_mathai",
+      "p_ajith",
+      "p_sanjay"
+    ]
+  },
+  {
+    "id": "p_mathai",
+    "name": "Mathai",
+    "position": "DEF",
+    "secondaryPosition": "MID",
+    "ovr": 81,
+    "attributes": {
+      "pac": 78,
+      "sho": 68,
+      "pas": 75,
+      "dri": 72,
+      "def": 82,
+      "phy": 80,
+      "gk": 20
+    },
+    "avatar": "⚡",
+    "preferredFoot": "Right",
+    "notes": "Attacking wing-back with goal-scoring instincts",
+    "chemistryPartners": [
+      "p_abey",
+      "p_rajeev"
+    ]
+  },
+  {
+    "id": "p_ajith",
+    "name": "Ajith",
+    "position": "DEF",
+    "secondaryPosition": "MID",
+    "ovr": 79,
+    "attributes": {
+      "pac": 76,
+      "sho": 58,
+      "pas": 72,
+      "dri": 70,
+      "def": 80,
+      "phy": 78,
+      "gk": 20
+    },
+    "avatar": "🏃",
+    "preferredFoot": "Left",
+    "notes": "Tenacious left-back with solid recovery pace",
+    "chemistryPartners": [
+      "p_abey",
+      "p_varun"
+    ]
+  },
+  {
+    "id": "p_pradeep",
+    "name": "Pradeep",
+    "position": "DEF",
+    "secondaryPosition": "DEF",
+    "ovr": 80,
+    "attributes": {
+      "pac": 75,
+      "sho": 55,
+      "pas": 74,
+      "dri": 70,
+      "def": 82,
+      "phy": 82,
+      "gk": 20
+    },
+    "avatar": "🛡️",
+    "preferredFoot": "Right",
+    "notes": "Disciplined center back, shields the box and organizes line",
+    "chemistryPartners": [
+      "p_sanjay",
+      "p_ratheesh"
+    ]
+  },
+  {
+    "id": "p_ratheesh",
+    "name": "Ratheesh",
+    "position": "DEF",
+    "secondaryPosition": "DEF",
+    "ovr": 79,
+    "attributes": {
+      "pac": 72,
+      "sho": 50,
+      "pas": 72,
+      "dri": 68,
+      "def": 81,
+      "phy": 84,
+      "gk": 20
+    },
+    "avatar": "🧱",
+    "preferredFoot": "Right",
+    "notes": "Physical no-nonsense center back",
+    "chemistryPartners": [
+      "p_pradeep",
+      "p_jibin"
+    ]
+  },
+  {
+    "id": "p_jibin",
+    "name": "Jibin",
+    "position": "DEF",
+    "secondaryPosition": "DEF",
+    "ovr": 78,
+    "attributes": {
+      "pac": 74,
+      "sho": 52,
+      "pas": 70,
+      "dri": 68,
+      "def": 79,
+      "phy": 80,
+      "gk": 20
+    },
+    "avatar": "🛡️",
+    "preferredFoot": "Right",
+    "notes": "Reliable positional defender",
+    "chemistryPartners": [
+      "p_ratheesh"
+    ]
+  },
+  {
+    "id": "p_somu",
+    "name": "Somu",
+    "position": "DEF",
+    "secondaryPosition": "DEF",
+    "ovr": 77,
+    "attributes": {
+      "pac": 72,
+      "sho": 50,
+      "pas": 70,
+      "dri": 66,
+      "def": 78,
+      "phy": 80,
+      "gk": 20
+    },
+    "avatar": "🛡️",
+    "preferredFoot": "Right",
+    "notes": "Composed defensive cover",
+    "chemistryPartners": [
+      "p_ajith"
+    ]
+  },
+  {
+    "id": "p_arun",
+    "name": "Arun",
+    "position": "DEF",
+    "secondaryPosition": "MID",
+    "ovr": 78,
+    "attributes": {
+      "pac": 75,
+      "sho": 65,
+      "pas": 74,
+      "dri": 72,
+      "def": 78,
+      "phy": 78,
+      "gk": 20
+    },
+    "avatar": "🏃",
+    "preferredFoot": "Right",
+    "notes": "Active two-way fullback, regular goalscorer",
+    "chemistryPartners": [
+      "p_varun",
+      "p_vignesh"
+    ]
+  },
+  {
+    "id": "p_sanjay",
+    "name": "Sanjay",
+    "position": "MID",
+    "secondaryPosition": "DEF",
+    "ovr": 86,
+    "attributes": {
+      "pac": 84,
+      "sho": 80,
+      "pas": 83,
+      "dri": 82,
+      "def": 80,
+      "phy": 86,
+      "gk": 20
+    },
+    "avatar": "🔥",
+    "preferredFoot": "Right",
+    "notes": "Box-to-box powerhouse, clutch scorer, high defensive workrate",
+    "chemistryPartners": [
+      "p_pradeep",
+      "p_anoop",
+      "p_vignesh"
+    ]
+  },
+  {
+    "id": "p_vignesh",
+    "name": "Vignesh",
+    "position": "MID",
+    "secondaryPosition": "MID",
+    "ovr": 82,
+    "attributes": {
+      "pac": 82,
+      "sho": 74,
+      "pas": 80,
+      "dri": 79,
+      "def": 76,
+      "phy": 82,
+      "gk": 20
+    },
+    "avatar": "⚡",
+    "preferredFoot": "Right",
+    "notes": "High-stamina dynamic midfielder, energetic pressing",
+    "chemistryPartners": [
+      "p_sanjay",
+      "p_prasanth"
+    ]
+  },
+  {
+    "id": "p_prasanth",
+    "name": "Prasanth",
+    "position": "MID",
+    "secondaryPosition": "DEF",
+    "ovr": 81,
+    "attributes": {
+      "pac": 79,
+      "sho": 72,
+      "pas": 82,
+      "dri": 80,
+      "def": 75,
+      "phy": 80,
+      "gk": 20
+    },
+    "avatar": "⚙️",
+    "preferredFoot": "Right",
+    "notes": "Midfield engine, excellent ball distribution and pressing",
+    "chemistryPartners": [
+      "p_anoop",
+      "p_vignesh"
+    ]
+  },
+  {
+    "id": "p_rajeev",
+    "name": "Rajeev",
+    "position": "MID",
+    "secondaryPosition": "FWD",
+    "ovr": 84,
+    "attributes": {
+      "pac": 68,
+      "sho": 82,
+      "pas": 86,
+      "dri": 84,
+      "def": 68,
+      "phy": 74,
+      "gk": 20
+    },
+    "avatar": "🎯",
+    "preferredFoot": "Right",
+    "notes": "Playmaker maestro, vision, passing, and long-range shooting",
+    "chemistryPartners": [
+      "p_varun",
+      "p_mathai",
+      "p_cp"
+    ]
+  },
+  {
+    "id": "p_varun",
+    "name": "Varun",
+    "position": "MID",
+    "secondaryPosition": "FWD",
+    "ovr": 82,
+    "attributes": {
+      "pac": 70,
+      "sho": 78,
+      "pas": 85,
+      "dri": 85,
+      "def": 65,
+      "phy": 72,
+      "gk": 20
+    },
+    "avatar": "🪄",
+    "preferredFoot": "Right",
+    "notes": "Silky creative playmaker with close control and dribbling",
+    "chemistryPartners": [
+      "p_rajeev",
+      "p_arun",
+      "p_blesson"
+    ]
+  },
+  {
+    "id": "p_sreekanth",
+    "name": "Sreekanth",
+    "position": "MID",
+    "secondaryPosition": "FWD",
+    "ovr": 83,
+    "attributes": {
+      "pac": 80,
+      "sho": 84,
+      "pas": 80,
+      "dri": 81,
+      "def": 68,
+      "phy": 78,
+      "gk": 20
+    },
+    "avatar": "💥",
+    "preferredFoot": "Right",
+    "notes": "Deadly goalscoring midfielder with sharp runs into the box",
+    "chemistryPartners": [
+      "p_vinay",
+      "p_akash"
+    ]
+  },
+  {
+    "id": "p_akash",
+    "name": "Akash",
+    "position": "MID",
+    "secondaryPosition": "FWD",
+    "ovr": 80,
+    "attributes": {
+      "pac": 80,
+      "sho": 79,
+      "pas": 76,
+      "dri": 78,
+      "def": 65,
+      "phy": 75,
+      "gk": 20
+    },
+    "avatar": "⚡",
+    "preferredFoot": "Right",
+    "notes": "Direct attack-minded midfielder, clinical in transitions",
+    "chemistryPartners": [
+      "p_sreekanth",
+      "p_vinay"
+    ]
+  },
+  {
+    "id": "p_sudhi",
+    "name": "Sudhi",
+    "position": "MID",
+    "secondaryPosition": "FWD",
+    "ovr": 79,
+    "attributes": {
+      "pac": 78,
+      "sho": 76,
+      "pas": 77,
+      "dri": 76,
+      "def": 66,
+      "phy": 76,
+      "gk": 20
+    },
+    "avatar": "🏃",
+    "preferredFoot": "Right",
+    "notes": "Hardworking attacking link, reliable positioning",
+    "chemistryPartners": [
+      "p_vinay",
+      "p_cp"
+    ]
+  },
+  {
+    "id": "p_tom",
+    "name": "Tom",
+    "position": "MID",
+    "secondaryPosition": "MID",
+    "ovr": 78,
+    "attributes": {
+      "pac": 76,
+      "sho": 75,
+      "pas": 77,
+      "dri": 76,
+      "def": 66,
+      "phy": 74,
+      "gk": 20
+    },
+    "avatar": "🎯",
+    "preferredFoot": "Right",
+    "notes": "Composed passing midfielder with goal threat",
+    "chemistryPartners": [
+      "p_mithun",
+      "p_anup"
+    ]
+  },
+  {
+    "id": "p_anup",
+    "name": "Anup",
+    "position": "MID",
+    "secondaryPosition": "DEF",
+    "ovr": 78,
+    "attributes": {
+      "pac": 74,
+      "sho": 70,
+      "pas": 78,
+      "dri": 76,
+      "def": 72,
+      "phy": 76,
+      "gk": 20
+    },
+    "avatar": "⚙️",
+    "preferredFoot": "Right",
+    "notes": "Balanced midfielder, links defense and attack",
+    "chemistryPartners": [
+      "p_tom",
+      "p_rajeev"
+    ]
+  },
+  {
+    "id": "p_cp",
+    "name": "CP",
+    "position": "FWD",
+    "secondaryPosition": "MID",
+    "ovr": 88,
+    "attributes": {
+      "pac": 87,
+      "sho": 92,
+      "pas": 78,
+      "dri": 85,
+      "def": 45,
+      "phy": 82,
+      "gk": 15
+    },
+    "avatar": "🚀",
+    "preferredFoot": "Right",
+    "notes": "Elite clinical striker, hat-trick specialist and explosive speed",
+    "chemistryPartners": [
+      "p_rajeev",
+      "p_sudhi"
+    ]
+  },
+  {
+    "id": "p_vinay",
+    "name": "Vinay",
+    "position": "FWD",
+    "secondaryPosition": "MID",
+    "ovr": 88,
+    "attributes": {
+      "pac": 88,
+      "sho": 91,
+      "pas": 79,
+      "dri": 86,
+      "def": 45,
+      "phy": 83,
+      "gk": 15
+    },
+    "avatar": "🚀",
+    "preferredFoot": "Right",
+    "notes": "Top league goalscorer, lethal finisher in 1v1 situations",
+    "chemistryPartners": [
+      "p_sreekanth",
+      "p_anoop",
+      "p_akash"
+    ]
+  },
+  {
+    "id": "p_blesson",
+    "name": "Blesson",
+    "position": "FWD",
+    "secondaryPosition": "MID",
+    "ovr": 78,
+    "attributes": {
+      "pac": 78,
+      "sho": 76,
+      "pas": 72,
+      "dri": 75,
+      "def": 48,
+      "phy": 76,
+      "gk": 15
+    },
+    "avatar": "⚽",
+    "preferredFoot": "Right",
+    "notes": "Energetic striker, presses high and creates space",
+    "chemistryPartners": [
+      "p_varun"
+    ]
+  },
+  {
+    "id": "p_mithun",
+    "name": "Mithun",
+    "position": "FWD",
+    "secondaryPosition": "FWD",
+    "ovr": 80,
+    "attributes": {
+      "pac": 82,
+      "sho": 81,
+      "pas": 74,
+      "dri": 78,
+      "def": 45,
+      "phy": 78,
+      "gk": 15
+    },
+    "avatar": "💥",
+    "preferredFoot": "Right",
+    "notes": "Direct goal-poacher with powerful shot",
+    "chemistryPartners": [
+      "p_tom"
+    ]
+  },
+  {
+    "id": "p_aadi",
+    "name": "Aadi",
+    "position": "FWD",
+    "secondaryPosition": "MID",
+    "ovr": 79,
+    "attributes": {
+      "pac": 80,
+      "sho": 79,
+      "pas": 73,
+      "dri": 77,
+      "def": 44,
+      "phy": 75,
+      "gk": 15
+    },
+    "avatar": "⚡",
+    "preferredFoot": "Right",
+    "notes": "Agile forward, finds pockets of space and converts chances",
+    "chemistryPartners": [
+      "p_sreekanth"
+    ]
+  }
+]

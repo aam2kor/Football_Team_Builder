@@ -26,6 +26,32 @@ _league_cache = {
     "lock": threading.Lock()
 }
 
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+PLAYERS_FILE = os.path.join(DATA_DIR, "players.json")
+SECTOR_WEIGHTS_FILE = os.path.join(DATA_DIR, "sector_weights.json")
+
+def read_json_file(filepath, default_val=None):
+    try:
+        if os.path.exists(filepath):
+            with open(filepath, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"[Storage Error] Failed reading {filepath}: {e}", file=sys.stderr)
+    return default_val
+
+def write_json_file(filepath, data):
+    try:
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        temp_path = filepath + ".tmp"
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        os.replace(temp_path, filepath)
+        return True
+    except Exception as e:
+        print(f"[Storage Error] Failed writing {filepath}: {e}", file=sys.stderr)
+        return False
+
 def fetch_upstream_matches():
     """Fetches latest matches from the live Lovable API with browser headers."""
     req = urllib.request.Request(
@@ -119,17 +145,99 @@ class FastProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         if self.path.startswith("/api/gemini"):
             return self._proxy_gemini_request(method="GET")
 
+        # 4. File-Backed Players API (GET /api/players)
+        if self.path.startswith("/api/players"):
+            players = read_json_file(PLAYERS_FILE, [])
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors_headers()
+            self.end_headers()
+            self.wfile.write(json.dumps({"players": players, "count": len(players)}).encode("utf-8"))
+            return
+
+        # 5. File-Backed Sector Weights API (GET /api/sector-weights)
+        if self.path.startswith("/api/sector-weights"):
+            weights = read_json_file(SECTOR_WEIGHTS_FILE, None)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors_headers()
+            self.end_headers()
+            self.wfile.write(json.dumps({"sectorWeights": weights}).encode("utf-8"))
+            return
+
         return super().do_GET()
 
     def do_POST(self):
-        # 2. Ollama Proxy (POST, e.g. /api/ollama/api/chat)
+        # 1. File-Backed Players API (POST /api/players)
+        if self.path.startswith("/api/players"):
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_length)
+                parsed = json.loads(body.decode("utf-8"))
+                players = parsed.get("players") if isinstance(parsed, dict) and "players" in parsed else parsed
+                if not isinstance(players, list):
+                    raise ValueError("Payload must contain a list of players")
+
+                success = write_json_file(PLAYERS_FILE, players)
+                if success:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self._send_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"success": True, "count": len(players)}).encode("utf-8"))
+                else:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "application/json")
+                    self._send_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Failed to write players to disk"}).encode("utf-8"))
+            except Exception as e:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        # 2. File-Backed Sector Weights API (POST /api/sector-weights)
+        if self.path.startswith("/api/sector-weights"):
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_length)
+                parsed = json.loads(body.decode("utf-8"))
+                weights = parsed.get("sectorWeights") if isinstance(parsed, dict) and "sectorWeights" in parsed else parsed
+                if not isinstance(weights, dict):
+                    raise ValueError("Payload must contain sectorWeights object")
+
+                success = write_json_file(SECTOR_WEIGHTS_FILE, weights)
+                if success:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self._send_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"success": True}).encode("utf-8"))
+                else:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "application/json")
+                    self._send_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Failed to write sector weights to disk"}).encode("utf-8"))
+            except Exception as e:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        # 3. Ollama Proxy (POST, e.g. /api/ollama/api/chat)
         if self.path.startswith("/api/ollama"):
             subpath = self.path[len("/api/ollama"):]
             if not subpath.startswith("/"): subpath = "/" + subpath
             target_url = f"{OLLAMA_TARGET_BASE}{subpath}"
             return self._proxy_ollama_request(target_url, method="POST")
 
-        # 3. Gemini Proxy (POST, e.g. /api/gemini/gemini-2.5-flash:generateContent)
+        # 4. Gemini Proxy (POST, e.g. /api/gemini/gemini-2.5-flash:generateContent)
         if self.path.startswith("/api/gemini"):
             return self._proxy_gemini_request(method="POST")
 

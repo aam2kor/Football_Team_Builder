@@ -28,7 +28,7 @@ import {
 const db = new PlayerDatabase();
 
 // ============================================================
-// Sector Weights — Load from localStorage or use defaults
+// Sector Weights — Load from localStorage/Server or use defaults
 // ============================================================
 function loadSectorWeights() {
   try {
@@ -47,10 +47,47 @@ function loadSectorWeights() {
   return cloneSectorWeights(DEFAULT_SECTOR_WEIGHTS);
 }
 
+async function syncSectorWeightsFromServer() {
+  try {
+    const res = await fetch("/api/sector-weights");
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.sectorWeights && typeof data.sectorWeights === "object") {
+        state.sectorWeights = {
+          ...cloneSectorWeights(DEFAULT_SECTOR_WEIGHTS),
+          ...data.sectorWeights,
+          pace: data.sectorWeights.pace || { penaltyMult: DEFAULT_SECTOR_WEIGHTS.pace.penaltyMult },
+          physical: data.sectorWeights.physical || { penaltyMult: DEFAULT_SECTOR_WEIGHTS.physical.penaltyMult },
+          overall: data.sectorWeights.overall || { penaltyMult: DEFAULT_SECTOR_WEIGHTS.overall.penaltyMult }
+        };
+        try {
+          localStorage.setItem("ftb_sector_weights", JSON.stringify(state.sectorWeights));
+        } catch (e) {}
+        updateSectorWeightsUI();
+      }
+    }
+  } catch (err) {
+    // Offline / fallback
+  }
+}
+
 function saveSectorWeights(weights) {
   try {
     localStorage.setItem("ftb_sector_weights", JSON.stringify(weights));
   } catch (e) { /* ignore */ }
+  persistSectorWeightsToServer(weights);
+}
+
+async function persistSectorWeightsToServer(weights) {
+  try {
+    await fetch("/api/sector-weights", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sectorWeights: weights })
+    });
+  } catch (err) {
+    // Offline / server unavailable
+  }
 }
 
 // Application State
@@ -140,6 +177,18 @@ document.addEventListener("DOMContentLoaded", () => {
   renderApp();
   updateColorSwatchActiveState("A", state.teamAColor);
   updateColorSwatchActiveState("B", state.teamBColor);
+
+  // Sync latest data from data/players.json and data/sector_weights.json on startup
+  syncSectorWeightsFromServer();
+  db.syncWithServer().then(synced => {
+    if (synced) {
+      // Re-initialize selection if empty
+      if (state.selectedPlayerIds.size === 0) {
+        db.getAll().slice(0, 16).forEach(p => state.selectedPlayerIds.add(p.id));
+      }
+      renderApp();
+    }
+  });
 });
 
 // ============================================================
