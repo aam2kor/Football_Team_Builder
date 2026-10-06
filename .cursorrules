@@ -1,3 +1,0 @@
-# Workspace Rules
-- Always commit and push to remote (origin/main) after every feature/phase completion.
-- Maintain documentation and tests for all new modules.
