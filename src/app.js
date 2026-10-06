@@ -438,12 +438,26 @@ function renderLeagueHistoryUI() {
       else if (m.result === "boots_win") badgeBg = "bg-red-950/70 text-red-300 border-red-500/40";
       else badgeBg = "bg-amber-950/70 text-amber-300 border-amber-500/40";
 
+      const balanceTooltip = m.balanceSummary?.hasBalance 
+        ? `\n⚖️ Pre-Match Balance: ATT (${m.balanceSummary.attack.label}) | MID (${m.balanceSummary.midfield.label}) | DEF (${m.balanceSummary.defense.label})` 
+        : "";
+
       return `
-        <div class="px-2.5 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1.5 whitespace-nowrap ${badgeBg}" title="${m.date} - Voyagers: ${m.voyagersMembers.join(', ')} vs Boots: ${m.bootsMembers.join(', ')}">
+        <div class="px-2.5 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1.5 whitespace-nowrap ${badgeBg}" title="${m.date} - Voyagers: ${m.voyagersMembers.join(', ')} vs Boots: ${m.bootsMembers.join(', ')}${balanceTooltip}">
           <span class="text-[10px] text-slate-400 font-mono">${m.date.slice(5)}</span>
           <span class="font-black text-blue-400">V ${m.voyagersScore}</span>
           <span class="text-slate-500 font-mono">:</span>
           <span class="font-black text-red-400">${m.bootsScore} B</span>
+          ${m.balanceSummary?.hasBalance ? `
+            <span class="hidden sm:inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-950/70 border border-slate-800 text-slate-300 ml-1" title="Pre-Match Balance: ATT ${m.balanceSummary.attack.diffStr} | MID ${m.balanceSummary.midfield.diffStr} | DEF ${m.balanceSummary.defense.diffStr}">
+              <span class="text-amber-400 font-sans">⚖️</span>
+              <span class="${m.balanceSummary.attack.value < 0 ? 'text-blue-300 font-bold' : m.balanceSummary.attack.value > 0 ? 'text-red-300 font-bold' : 'text-slate-400'}" title="Attack: ${m.balanceSummary.attack.label}">A ${m.balanceSummary.attack.diffStr}</span>
+              <span class="text-slate-600">·</span>
+              <span class="${m.balanceSummary.midfield.value < 0 ? 'text-blue-300 font-bold' : m.balanceSummary.midfield.value > 0 ? 'text-red-300 font-bold' : 'text-slate-400'}" title="Midfield: ${m.balanceSummary.midfield.label}">M ${m.balanceSummary.midfield.diffStr}</span>
+              <span class="text-slate-600">·</span>
+              <span class="${m.balanceSummary.defense.value < 0 ? 'text-blue-300 font-bold' : m.balanceSummary.defense.value > 0 ? 'text-red-300 font-bold' : 'text-slate-400'}" title="Defense: ${m.balanceSummary.defense.label}">D ${m.balanceSummary.defense.diffStr}</span>
+            </span>
+          ` : ''}
         </div>
       `;
     }).join("");

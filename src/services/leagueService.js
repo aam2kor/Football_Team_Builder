@@ -381,6 +381,8 @@ export function computeHeadToHeadSummary(matches = []) {
         voyagersScore: vScore,
         bootsScore: bScore,
         result,
+        balance: m.balance || null,
+        balanceSummary: getMatchBalanceSummary(m),
         voyagersMembers: voyTeam.members || [],
         bootsMembers: bootsTeam.members || [],
         voyagersScorers: voyTeam.scorers || [],
