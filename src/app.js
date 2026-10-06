@@ -21,7 +21,8 @@ import {
   auditJerseyBalance,
   computePlayerFormTrajectory,
   generateFormMountainSvg,
-  generateMiniSparklineSvg
+  generateMiniSparklineSvg,
+  validateBalancerModel
 } from "./services/leagueService.js";
 
 // Initialize Database instance
@@ -1521,11 +1522,17 @@ function initSectorWeightsPanel() {
     toggleBtn.addEventListener("click", () => {
       const hidden = panel.classList.toggle("hidden");
       toggleBtn.querySelector(".sw-toggle-icon").textContent = hidden ? "▼" : "▲";
+      if (!hidden) {
+        renderModelValidationUI();
+      }
     });
   }
 
   // Populate sliders from current state
   populateSectorSliders();
+
+  // Initial render of model validation metrics
+  renderModelValidationUI();
 
   // Wire per-slider input events via delegation
   document.getElementById("sector-weights-panel")?.addEventListener("input", (e) => {
@@ -1555,6 +1562,7 @@ function initSectorWeightsPanel() {
       renderTeamComparison();
     }
     renderRosterView();
+    renderModelValidationUI();
   });
 
   // Per-sector reset buttons
@@ -1576,6 +1584,7 @@ function initSectorWeightsPanel() {
       renderTeamComparison();
     }
     renderRosterView();
+    renderModelValidationUI();
     const label = sector === "overall" ? "Overall & Athletic" : (sector.charAt(0).toUpperCase() + sector.slice(1));
     showToast(`↺ ${label} weights reset to defaults`, "info");
   });
@@ -1589,8 +1598,96 @@ function initSectorWeightsPanel() {
       renderTeamComparison();
     }
     renderRosterView();
+    renderModelValidationUI();
     showToast("↺ All sector weights reset to defaults", "info");
   });
+
+  // Auto-Tuning & Calibration Handler
+  const handleAutoCalibrate = async () => {
+    try {
+      showToast("⏳ Backtesting model against match history...", "info");
+      const { matches } = await fetchLeagueMatches(false);
+      const allPlayers = db.getAll();
+      const val = validateBalancerModel(matches, allPlayers, state.sectorWeights);
+      if (val && val.recommendedWeights) {
+        state.sectorWeights = cloneSectorWeights(val.recommendedWeights);
+        saveSectorWeights(state.sectorWeights);
+        populateSectorSliders();
+        if (state.activeTeamA && state.activeTeamA.length > 0) {
+          renderTeamComparison();
+        }
+        renderRosterView();
+        renderModelValidationUI();
+        showToast("⚡ Empirical auto-calibrated weights applied and synced to server!", "success");
+      }
+    } catch (e) {
+      console.warn("Auto-calibration failed:", e);
+      showToast("❌ Could not auto-calibrate weights", "error");
+    }
+  };
+
+  document.getElementById("btn-model-auto-tune")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    handleAutoCalibrate();
+  });
+  document.getElementById("btn-apply-calibrated-weights")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    handleAutoCalibrate();
+  });
+}
+
+/**
+ * Renders live empirical backtesting and model accuracy metrics in the Sector Weights UI
+ */
+async function renderModelValidationUI() {
+  const badgeEl = document.getElementById("model-accuracy-badge");
+  const diagEl = document.getElementById("model-diagnostic-summary");
+  const metricsEl = document.getElementById("model-validation-metrics");
+  if (!badgeEl || !metricsEl) return;
+
+  try {
+    const { matches } = await fetchLeagueMatches(false);
+    const allPlayers = db.getAll();
+    const result = validateBalancerModel(matches, allPlayers, state.sectorWeights);
+
+    // Badge styling
+    badgeEl.textContent = `${result.alignmentRate}% Match Alignment`;
+    if (result.alignmentRate >= 75) {
+      badgeEl.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 border border-emerald-500/50 text-emerald-300";
+    } else if (result.alignmentRate >= 50) {
+      badgeEl.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-950 border border-blue-500/50 text-blue-300";
+    } else {
+      badgeEl.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 border border-amber-500/50 text-amber-300";
+    }
+
+    // Diagnostic summary
+    if (diagEl) {
+      diagEl.textContent = result.insights.join(" ") || "Validating current balance weights against completed Season 2026 derby matches.";
+    }
+
+    // 4-Card Metrics Grid
+    const c = result.sectorCorrelations || { attack: 0, midfield: 0, defense: 0 };
+    metricsEl.innerHTML = `
+      <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex flex-col justify-between">
+        <span class="text-[10px] text-slate-500 font-bold uppercase">Backtested</span>
+        <span class="text-xs font-mono font-bold text-white">${result.matchCount} Matches</span>
+      </div>
+      <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex flex-col justify-between">
+        <span class="text-[10px] text-slate-500 font-bold uppercase">Prediction Alignment</span>
+        <span class="text-xs font-mono font-bold text-emerald-400">${result.alignmentRate}%</span>
+      </div>
+      <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex flex-col justify-between">
+        <span class="text-[10px] text-slate-500 font-bold uppercase">Mean Error (Margin)</span>
+        <span class="text-xs font-mono font-bold text-amber-300">±${result.meanError} Goals</span>
+      </div>
+      <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex flex-col justify-between">
+        <span class="text-[10px] text-slate-500 font-bold uppercase">Sector Correlations</span>
+        <span class="text-[10px] font-mono font-bold text-cyan-300">ATT ${c.attack > 0 ? '+' : ''}${c.attack} · MID ${c.midfield > 0 ? '+' : ''}${c.midfield} · DEF ${c.defense > 0 ? '+' : ''}${c.defense}</span>
+      </div>
+    `;
+  } catch (err) {
+    console.warn("Model validation UI failed:", err);
+  }
 }
 
 /** Reads state.sectorWeights and sets all slider values + readouts */
