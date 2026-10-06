@@ -1628,12 +1628,214 @@ function initSectorWeightsPanel() {
 
   document.getElementById("btn-model-auto-tune")?.addEventListener("click", (e) => {
     e.stopPropagation();
-    handleAutoCalibrate();
+    openAutoTunePreviewModal();
+  });
+  document.getElementById("btn-preview-calibrated-weights")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openAutoTunePreviewModal();
   });
   document.getElementById("btn-apply-calibrated-weights")?.addEventListener("click", (e) => {
     e.stopPropagation();
     handleAutoCalibrate();
   });
+
+  // Preview Modal Close / Confirm Bindings
+  document.getElementById("btn-close-autotune-preview")?.addEventListener("click", closeAutoTunePreviewModal);
+  document.getElementById("btn-cancel-autotune-preview")?.addEventListener("click", closeAutoTunePreviewModal);
+  document.getElementById("btn-confirm-apply-calibrated-weights")?.addEventListener("click", async () => {
+    await handleAutoCalibrate();
+    closeAutoTunePreviewModal();
+  });
+}
+
+function closeAutoTunePreviewModal() {
+  const modal = document.getElementById("modal-autotune-preview");
+  if (modal) modal.classList.add("hidden");
+}
+
+function formatWeightDiff(curr, rec) {
+  const c = Number(curr ?? 0);
+  const r = Number(rec ?? 0);
+  const diff = Math.round((r - c) * 100) / 100;
+  if (Math.abs(diff) < 0.001) {
+    return `<span class="text-slate-300 font-mono">${c.toFixed(2)}</span> <span class="text-[10px] text-slate-500">(Same)</span>`;
+  }
+  const isUp = diff > 0;
+  const color = isUp ? "text-emerald-400" : "text-amber-400";
+  const sign = isUp ? "+" : "";
+  return `<span class="text-slate-400 font-mono line-through text-[10px] mr-1">${c.toFixed(2)}</span> <span class="${color} font-mono font-bold">${r.toFixed(2)}</span> <span class="${color} text-[10px] font-bold">(${sign}${diff.toFixed(2)})</span>`;
+}
+
+/**
+ * Opens and renders the Auto-Tuning Calibration Preview Modal
+ */
+async function openAutoTunePreviewModal() {
+  const modal = document.getElementById("modal-autotune-preview");
+  const contentEl = document.getElementById("autotune-preview-content");
+  if (!modal || !contentEl) return;
+
+  modal.classList.remove("hidden");
+  contentEl.innerHTML = `
+    <div class="p-8 text-center text-slate-400 space-y-3">
+      <div class="inline-block animate-spin text-2xl">⚙️</div>
+      <p class="text-xs font-bold uppercase tracking-wider">Backtesting match history & calculating calibrated weights...</p>
+    </div>
+  `;
+
+  try {
+    const { matches } = await fetchLeagueMatches(false);
+    const allPlayers = db.getAll();
+    const result = validateBalancerModel(matches, allPlayers, state.sectorWeights);
+    const curr = state.sectorWeights;
+    const rec = result.recommendedWeights;
+    const c = result.sectorCorrelations || { attack: 0, midfield: 0, defense: 0 };
+
+    contentEl.innerHTML = `
+      <!-- 1. Top Diagnostic Highlights & Alignment -->
+      <div class="p-4 rounded-xl bg-gradient-to-r from-indigo-950/60 via-slate-900 to-indigo-950/60 border border-indigo-500/30 space-y-3">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="text-base">📊</span>
+            <span class="text-xs font-black text-white uppercase tracking-wider">Empirical Match Alignment:</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold ${result.alignmentRate >= 75 ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50' : 'bg-blue-950 text-blue-300 border border-blue-500/50'}">
+              ${result.alignmentRate}% Accuracy
+            </span>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">Backtested on ${result.matchCount} completed derby matches</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+          <div class="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80">
+            <span class="text-[10px] text-slate-500 uppercase font-bold block">Attack Correlation</span>
+            <span class="text-xs font-mono font-bold text-blue-400">${c.attack > 0 ? '+' : ''}${c.attack} with goal margin</span>
+          </div>
+          <div class="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80">
+            <span class="text-[10px] text-slate-500 uppercase font-bold block">Midfield Correlation</span>
+            <span class="text-xs font-mono font-bold text-purple-400">${c.midfield > 0 ? '+' : ''}${c.midfield} with goal margin</span>
+          </div>
+          <div class="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80">
+            <span class="text-[10px] text-slate-500 uppercase font-bold block">Defense &amp; GK Correlation</span>
+            <span class="text-xs font-mono font-bold text-red-400">${c.defense > 0 ? '+' : ''}${c.defense} with goal margin</span>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-300 leading-relaxed bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+          💡 <span class="font-bold text-indigo-300">Calibration Rationale:</span> ${result.insights.join(" ")}
+        </p>
+      </div>
+
+      <!-- 2. Detailed 4-Column Side-by-Side Comparison -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        
+        <!-- ATTACK -->
+        <div class="p-3 rounded-xl bg-slate-900/80 border border-blue-500/30 space-y-2 text-xs">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <span class="font-black text-blue-400 uppercase tracking-wider text-[11px]">⚔️ Attack Sector</span>
+          </div>
+          <div class="space-y-1 text-[11px]">
+            <span class="text-[10px] text-slate-500 font-bold uppercase block">Attribute Weights</span>
+            <div class="flex justify-between"><span>SHO:</span> ${formatWeightDiff(curr.attack.attributes.sho, rec.attack.attributes.sho)}</div>
+            <div class="flex justify-between"><span>DRI:</span> ${formatWeightDiff(curr.attack.attributes.dri, rec.attack.attributes.dri)}</div>
+            <div class="flex justify-between"><span>PAC:</span> ${formatWeightDiff(curr.attack.attributes.pac, rec.attack.attributes.pac)}</div>
+            <div class="flex justify-between"><span>PAS:</span> ${formatWeightDiff(curr.attack.attributes.pas, rec.attack.attributes.pas)}</div>
+          </div>
+          <div class="border-t border-slate-800 pt-1.5 space-y-1 text-[11px]">
+            <span class="text-[10px] text-slate-500 font-bold uppercase block">Penalty Multiplier</span>
+            <div class="flex justify-between"><span>Penalty:</span> ${formatWeightDiff(curr.attack.penaltyMult, rec.attack.penaltyMult)}</div>
+          </div>
+        </div>
+
+        <!-- MIDFIELD -->
+        <div class="p-3 rounded-xl bg-slate-900/80 border border-purple-500/30 space-y-2 text-xs">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <span class="font-black text-purple-400 uppercase tracking-wider text-[11px]">⚙️ Midfield Sector</span>
+          </div>
+          <div class="space-y-1 text-[11px]">
+            <span class="text-[10px] text-slate-500 font-bold uppercase block">Attribute Weights</span>
+            <div class="flex justify-between"><span>PAS:</span> ${formatWeightDiff(curr.midfield.attributes.pas, rec.midfield.attributes.pas)}</div>
+            <div class="flex justify-between"><span>DRI:</span> ${formatWeightDiff(curr.midfield.attributes.dri, rec.midfield.attributes.dri)}</div>
+            <div class="flex justify-between"><span>PAC:</span> ${formatWeightDiff(curr.midfield.attributes.pac, rec.midfield.attributes.pac)}</div>
+            <div class="flex justify-between"><span>DEF:</span> ${formatWeightDiff(curr.midfield.attributes.def, rec.midfield.attributes.def)}</div>
+          </div>
+          <div class="border-t border-slate-800 pt-1.5 space-y-1 text-[11px]">
+            <span class="text-[10px] text-slate-500 font-bold uppercase block">Penalty Multiplier</span>
+            <div class="flex justify-between"><span>Penalty:</span> ${formatWeightDiff(curr.midfield.penaltyMult, rec.midfield.penaltyMult)}</div>
+          </div>
+        </div>
+
+        <!-- DEFENSE & GK -->
+        <div class="p-3 rounded-xl bg-slate-900/80 border border-red-500/30 space-y-2 text-xs">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <span class="font-black text-red-400 uppercase tracking-wider text-[11px]">🛡️ Defense &amp; GK</span>
+          </div>
+          <div class="space-y-1 text-[11px]">
+            <span class="text-[10px] text-slate-500 font-bold uppercase block">Attribute Weights</span>
+            <div class="flex justify-between"><span>DEF:</span> ${formatWeightDiff(curr.defense.attributes.def, rec.defense.attributes.def)}</div>
+            <div class="flex justify-between"><span>PHY:</span> ${formatWeightDiff(curr.defense.attributes.phy, rec.defense.attributes.phy)}</div>
+            <div class="flex justify-between"><span>PAC:</span> ${formatWeightDiff(curr.defense.attributes.pac, rec.defense.attributes.pac)}</div>
+            <div class="flex justify-between"><span>GK Blend:</span> ${formatWeightDiff(curr.defense.gkBlend, rec.defense.gkBlend)}</div>
+          </div>
+          <div class="border-t border-slate-800 pt-1.5 space-y-1 text-[11px]">
+            <span class="text-[10px] text-slate-500 font-bold uppercase block">Penalty Multiplier</span>
+            <div class="flex justify-between"><span>Penalty:</span> ${formatWeightDiff(curr.defense.penaltyMult, rec.defense.penaltyMult)}</div>
+          </div>
+        </div>
+
+        <!-- ATHLETIC & CROSS-SQUAD -->
+        <div class="p-3 rounded-xl bg-slate-900/80 border border-amber-500/30 space-y-2 text-xs">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <span class="font-black text-amber-400 uppercase tracking-wider text-[11px]">⚡ Overall &amp; Athletic</span>
+          </div>
+          <div class="space-y-1.5 text-[11px]">
+            <span class="text-[10px] text-slate-500 font-bold uppercase block">Cross-Squad Penalties</span>
+            <div class="flex justify-between"><span>Team OVR:</span> ${formatWeightDiff(curr.overall?.penaltyMult, rec.overall?.penaltyMult)}</div>
+            <div class="flex justify-between"><span>Team PAC:</span> ${formatWeightDiff(curr.pace?.penaltyMult, rec.pace?.penaltyMult)}</div>
+            <div class="flex justify-between"><span>Team PHY:</span> ${formatWeightDiff(curr.physical?.penaltyMult, rec.physical?.penaltyMult)}</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 3. Per-Match Backtest Table (Summary) -->
+      <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2 text-xs">
+        <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Historical Derby Backtesting Results</span>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-[11px]">
+            <thead class="text-[10px] text-slate-500 uppercase border-b border-slate-800">
+              <tr>
+                <th class="py-1.5 px-2">Match Date</th>
+                <th class="py-1.5 px-2">Scoreline</th>
+                <th class="py-1.5 px-2">Predicted Net Balance</th>
+                <th class="py-1.5 px-2 text-right">Outcome Match</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60">
+              ${result.matchEvaluations.map(m => `
+                <tr class="hover:bg-slate-800/30">
+                  <td class="py-1.5 px-2 font-mono text-slate-300">${m.matchDate}</td>
+                  <td class="py-1.5 px-2 font-bold text-white">${m.teamAName} ${m.scoreA} - ${m.scoreB} ${m.teamBName}</td>
+                  <td class="py-1.5 px-2 font-mono ${m.predictedBalance.net < 0 ? 'text-blue-400' : m.predictedBalance.net > 0 ? 'text-red-400' : 'text-slate-400'}">
+                    ${m.predictedBalance.net > 0 ? '+' + m.predictedBalance.net : m.predictedBalance.net} (${m.predWinner === 'teamA' ? m.teamAName : m.predWinner === 'teamB' ? m.teamBName : 'Even'})
+                  </td>
+                  <td class="py-1.5 px-2 text-right">
+                    ${m.isAligned ? '<span class="text-emerald-400 font-bold">✓ Aligned</span>' : '<span class="text-amber-400 font-medium">Upset</span>'}
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    console.warn("Failed to generate preview:", err);
+    contentEl.innerHTML = `
+      <div class="p-6 text-center text-red-400 space-y-2">
+        <p class="font-bold">❌ Could not load backtesting calibration preview</p>
+        <p class="text-xs text-slate-400">${err.message || "An unexpected error occurred."}</p>
+      </div>
+    `;
+  }
 }
 
 /**

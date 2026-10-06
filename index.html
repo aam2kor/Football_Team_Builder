@@ -277,6 +277,10 @@
                   </div>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
+                  <button id="btn-preview-calibrated-weights" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700 transition-all flex items-center gap-1 cursor-pointer" title="Preview suggested calibrated weights before applying">
+                    <span>🔍</span>
+                    <span>Preview Suggested Weights</span>
+                  </button>
                   <button id="btn-apply-calibrated-weights" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1 cursor-pointer">
                     <span>⚡</span>
                     <span>Apply Calibrated Weights</span>
@@ -1438,6 +1442,43 @@
           Save Settings
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- Model Auto-Tuning Calibration Preview Modal -->
+  <div id="modal-autotune-preview" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+    <div class="glass-panel w-full max-w-4xl p-5 sm:p-6 rounded-2xl border border-indigo-500/40 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center text-base">
+            🧠
+          </div>
+          <div>
+            <h3 class="text-sm sm:text-base font-black text-white">Model Auto-Tuner: Calibration Preview</h3>
+            <p class="text-[11px] text-slate-400">Compare current active weights against empirically backtested league weights</p>
+          </div>
+        </div>
+        <button id="btn-close-autotune-preview" type="button" class="text-slate-400 hover:text-white text-lg p-1">✕</button>
+      </div>
+
+      <!-- Modal Body (Scrollable) -->
+      <div id="autotune-preview-content" class="overflow-y-auto space-y-4 pr-1 flex-1">
+        <!-- Populated dynamically by JavaScript -->
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="pt-3 border-t border-slate-800 flex items-center justify-between shrink-0">
+        <button id="btn-cancel-autotune-preview" type="button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors">
+          Cancel
+        </button>
+        <button id="btn-confirm-apply-calibrated-weights" type="button" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-1.5 cursor-pointer">
+          <span>⚡</span>
+          <span>Apply Suggested Calibration</span>
+        </button>
+      </div>
+
     </div>
   </div>
 
