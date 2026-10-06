@@ -606,8 +606,13 @@ export async function generateGeminiScoutRecommendations(scoutData, aiConfig = {
   const playerRosterSummary = playerProfiles.map(p => {
     const s = p.leagueStats || {};
     const a = p.attributes || {};
+    const bc = s.balanceContext || {};
+    const balanceStr = bc.totalWithBalance > 0 
+      ? `\n   - Match Balance Performance: ${bc.adverseWins}W/${bc.adverseMatches}M with handicap (${bc.adverseWinRate}%), ${bc.favoredWins}W/${bc.favoredMatches}M with advantage (${bc.favoredWinRate}%)`
+      : "";
+
     return `• ${p.name} (ID: ${p.id}, Pos: ${p.position}/${p.secondaryPosition}, OVR: ${p.ovr}):
-   - League Record: ${s.matches} matches (${s.wins}W - ${s.draws}D - ${s.losses}L, WinRate: ${s.winRate}%), Goals: ${s.goals}, GoalDiff: ${s.goalDifference > 0 ? '+' + s.goalDifference : s.goalDifference}
+   - League Record: ${s.matches} matches (${s.wins}W - ${s.draws}D - ${s.losses}L, WinRate: ${s.winRate}%), Goals: ${s.goals}, GoalDiff: ${s.goalDifference > 0 ? '+' + s.goalDifference : s.goalDifference}${balanceStr}
    - Current Attributes: PAC:${a.pac} SHO:${a.sho} PAS:${a.pas} DRI:${a.dri} DEF:${a.def} PHY:${a.phy} GK:${a.gk || 20}
    - Chemistry Partners: [${(p.chemistryPartners || []).join(', ')}]`;
   }).join("\n\n");
@@ -617,32 +622,38 @@ export async function generateGeminiScoutRecommendations(scoutData, aiConfig = {
   ).join("\n");
 
   const prompt = `You are the Lead Performance Scout & Chief Analyst for the Third Half United League.
-Your mission is to analyze players' real match history (goals scored, win rates, goals conceded, goal differences, teammate partnerships) and compare them with their current FIFA-style attributes (PAC, SHO, PAS, DRI, DEF, PHY, GK, OVR).
+Your mission is to analyze players' real match history (goals scored, win rates, goals conceded, goal differences, teammate partnerships, and pre-match sector balance handicaps) and compare them with their current FIFA-style attributes (PAC, SHO, PAS, DRI, DEF, PHY, GK, OVR).
 
 LEAGUE CONTEXT:
 Total Matches Recorded: ${h2h.totalMatches || 4}
 Voyagers (${h2h.voyagersWins || 0}W) vs Boots & Beers (${h2h.bootsWins || 0}W)
 
-PLAYER PROFILES & STATS:
+PLAYER PROFILES, STATS & SECTOR BALANCE CONTEXT:
 ${playerRosterSummary}
 
 TOP WINNING TEAMMATE DUOS:
 ${duoSummary || "None recorded yet"}
 
 SCOUTING GUIDELINES & TWO-WAY CALIBRATION:
-1. UPGRADE CANDIDATES (Underrated Performers):
-   - Standout Finishers: (e.g. Vinay with 7 goals, Sreekanth with 5 goals) whose current SHO/PAC/DRI/OVR is underrated relative to their finishing impact. Recommend realistic upgrades (+4 to +10 SHO, +1 to +4 OVR, calibrationType: "upgrade").
-   - Defensive & Midfield Anchors: (e.g. Anoop with 75% win rate, Sanjay) whose defensive solidity or playmaking warrants DEF/PHY/PAS boosts (+2 to +6, calibrationType: "upgrade").
+1. MATCH BALANCE & HANDICAP CONTEXT:
+   - Matches have pre-game sector balance ratings (-5.0 favors Voyagers to +5.0 favors Boots & Beers, 0.0 is even).
+   - Handicap Resistance (Upgrade): If a player or unit achieved wins or kept scorelines tight despite playing with an adverse sector handicap, reward them with attribute boosts (e.g. DEF, PHY, or PAC) for defying difficult odds.
+   - Fair Assessment: Do NOT unfairly downgrade players who conceded goals or lost if their squad was saddled with a massive pre-match balance deficit.
+   - Dominance Validation: Players who consistently deliver match-winning goals or clean defending regardless of balance deserve recognition as core anchors.
 
-2. DOWNGRADE CANDIDATES (Overrated Underperformers):
+2. UPGRADE CANDIDATES (Underrated Performers):
+   - Standout Finishers: (e.g. Vinay with 7 goals, Sreekanth with 5 goals, CP) whose current SHO/PAC/DRI/OVR is underrated relative to their finishing impact. Recommend realistic upgrades (+4 to +10 SHO, +1 to +4 OVR, calibrationType: "upgrade").
+   - Defensive & Midfield Anchors: (e.g. Anoop with 75% win rate, Sanjay) whose defensive solidity, recovery speed, or playmaking warrants DEF/PHY/PAC/PAS boosts (+2 to +6, calibrationType: "upgrade").
+
+3. DOWNGRADE CANDIDATES (Overrated Underperformers):
    - Cold Attackers: Listed with high SHO (>= 74) or as FWD, but has 0 goals across >= 2 matches and negative goal differential. Recommend realistic SHO/OVR downgrades (-3 to -6 SHO, -1 to -2 OVR, calibrationType: "downgrade").
-   - Leaky Defenders: Listed with high DEF (>= 75) or as DEF, but team regularly concedes high goals (>= 4.0 GA/M) with multiple losses. Recommend realistic DEF/PHY downgrades (-3 to -5 DEF, -1 to -2 OVR, calibrationType: "downgrade").
+   - Leaky Defenders: Listed with high DEF (>= 75) or as DEF, but team regularly concedes high goals (>= 4.0 GA/M) with multiple losses when not facing an extreme balance handicap. Recommend realistic DEF/PHY downgrades (-3 to -5 DEF, -1 to -2 OVR, calibrationType: "downgrade").
    - Reputation vs Impact: High starting OVR (>= 76) but low win rate (<= 25%) across >= 3 matches. Recommend small downward adjustments across physical/pace/passing (-2 to -3, calibrationType: "downgrade").
 
-3. ATTRIBUTE CALIBRATION OUTPUT:
-   - For each recommended player, provide a sharp 1-2 sentence scouting rationale, their calibrationType ("upgrade" or "downgrade"), currentOvr, suggestedOvr, attributeDiffs (e.g. { "sho": "+8", "pac": "+3" } or { "sho": "-5", "def": "-3" }), and complete suggestedAttributes object.
+4. ATTRIBUTE CALIBRATION OUTPUT:
+   - For each recommended player, provide a sharp 1-2 sentence scouting rationale referencing their stats/handicap context, their calibrationType ("upgrade" or "downgrade"), currentOvr, suggestedOvr, attributeDiffs (e.g. { "sho": "+8", "pac": "+3" } or { "sho": "-5", "def": "-3" }), and complete suggestedAttributes object.
 
-4. CHEMISTRY DUO RECOMMENDATIONS:
+5. CHEMISTRY DUO RECOMMENDATIONS:
    - Recommend new Chemistry Partner pairs for teammates who have proven high win rates when playing together (win rate >= 65% across multiple games).
 
 Be objective, statistically grounded, and realistic.`;

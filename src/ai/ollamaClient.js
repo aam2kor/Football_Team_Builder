@@ -617,6 +617,7 @@ export function generateHeuristicScoutRecommendations(scoutData) {
     const goalsAgainst = s.goalsAgainst || 0;
     const goalDiff = s.goalDifference || 0;
     const gaPerMatch = matches > 0 ? goalsAgainst / matches : 0;
+    const bc = s.balanceContext || {};
     const a = p.attributes || { pac: 70, sho: 70, pas: 70, dri: 70, def: 70, phy: 70, gk: 20 };
 
     if (matches < 2) return; // Minimum 2 matches required for reliable calibration
@@ -643,6 +644,30 @@ export function generateHeuristicScoutRecommendations(scoutData) {
           dri: Math.min(99, a.dri + driBoost),
           def: a.def,
           phy: Math.min(99, a.phy + 2),
+          gk: a.gk || 20
+        }
+      });
+    } else if (bc.adverseMatches >= 2 && bc.adverseWinRate >= 50) {
+      // Handicap Resistance Anchor (Won/drew under adverse sector balance)
+      const defBoost = 3;
+      const phyBoost = 4;
+      const pacBoost = 2;
+      const suggestedOvr = Math.min(95, p.ovr + 2);
+      attributeRecommendations.push({
+        playerId: p.id,
+        playerName: p.name,
+        calibrationType: "upgrade",
+        reason: `Handicap Resilience: Defied pre-match sector balance deficits with ${bc.adverseWins}W in ${bc.adverseMatches} adverse matches (${bc.adverseWinRate}% win rate).`,
+        currentOvr: p.ovr,
+        suggestedOvr,
+        attributeDiffs: { phy: `+${phyBoost}`, def: `+${defBoost}`, pac: `+${pacBoost}` },
+        suggestedAttributes: {
+          pac: Math.min(99, a.pac + pacBoost),
+          sho: a.sho,
+          pas: a.pas,
+          dri: a.dri,
+          def: Math.min(99, a.def + defBoost),
+          phy: Math.min(99, a.phy + phyBoost),
           gk: a.gk || 20
         }
       });
@@ -694,8 +719,8 @@ export function generateHeuristicScoutRecommendations(scoutData) {
           gk: a.gk || 20
         }
       });
-    } else if ((p.position === "DEF" || a.def >= 75) && s.losses >= 2 && gaPerMatch >= 4.0) {
-      // Leaky Backline Defender
+    } else if ((p.position === "DEF" || a.def >= 75) && s.losses >= 2 && gaPerMatch >= 4.0 && !(bc.adverseMatches >= 2 && bc.adverseWinRate === 0)) {
+      // Leaky Backline Defender (only if not heavily victimized by adverse team handicaps)
       const defNerf = 4;
       const phyNerf = 2;
       const suggestedOvr = Math.max(65, p.ovr - 2);
@@ -764,7 +789,7 @@ export function generateHeuristicScoutRecommendations(scoutData) {
   });
 
   return {
-    scoutSummary: `Scout analysis completed on recent fixtures. Evaluated both standout performers (upgrades) and overrated underperformers (downgrades).`,
+    scoutSummary: `Scout analysis completed on recent fixtures. Evaluated standout performers (upgrades), handicap resilience, and overrated underperformers (downgrades).`,
     attributeRecommendations: attributeRecommendations.slice(0, 10),
     chemistryRecommendations: chemistryRecommendations.slice(0, 4)
   };
@@ -782,7 +807,11 @@ export async function generateOllamaScoutRecommendations(scoutData, aiConfig = {
   const playerRosterSummary = playerProfiles.map(p => {
     const s = p.leagueStats || {};
     const a = p.attributes || {};
-    return `• ${p.name} (ID: ${p.id}, Pos: ${p.position}, OVR: ${p.ovr}): ${s.matches}M (${s.wins}W-${s.losses}L, WinRate:${s.winRate}%), Goals:${s.goals}, Conceded:${s.goalsAgainst} | Attr: PAC:${a.pac} SHO:${a.sho} PAS:${a.pas} DRI:${a.dri} DEF:${a.def} PHY:${a.phy}`;
+    const bc = s.balanceContext || {};
+    const balanceStr = bc.totalWithBalance > 0 
+      ? ` | Handicap: ${bc.adverseWins}W/${bc.adverseMatches}M, Adv: ${bc.favoredWins}W/${bc.favoredMatches}M`
+      : "";
+    return `• ${p.name} (ID: ${p.id}, Pos: ${p.position}, OVR: ${p.ovr}): ${s.matches}M (${s.wins}W-${s.losses}L, WinRate:${s.winRate}%), Goals:${s.goals}, Conceded:${s.goalsAgainst}${balanceStr} | Attr: PAC:${a.pac} SHO:${a.sho} PAS:${a.pas} DRI:${a.dri} DEF:${a.def} PHY:${a.phy}`;
   }).join("\n");
 
   const duoSummary = duoList.slice(0, 8).map(d =>
@@ -790,13 +819,21 @@ export async function generateOllamaScoutRecommendations(scoutData, aiConfig = {
   ).join("\n");
 
   const prompt = `You are the Chief Scout for the Third Half United League.
-Analyze player performance from past league fixtures and recommend realistic attribute upgrades (for standout performers) and downgrades (for overrated underperformers with 0 goals or high goals conceded), along with Chemistry Partner duos.
+Analyze player performance from past league fixtures, taking into account pre-match sector balance handicaps, and recommend realistic attribute upgrades (for standout performers and handicap-defying anchors) and downgrades (for overrated underperformers with 0 goals or high goals conceded), along with Chemistry Partner duos.
 
-PLAYER STATS:
+LEAGUE H2H: ${h2h.voyagersWins || 0}W Voyagers vs ${h2h.bootsWins || 0}W Boots & Beers (${h2h.totalMatches || 4} matches)
+
+PLAYER STATS & HANDICAP CONTEXT:
 ${playerRosterSummary}
 
 TOP DUOS:
 ${duoSummary || "None"}
+
+GUIDELINES:
+1. Reward players who won or performed well despite pre-match sector handicaps (+DEF/+PHY/+PAC).
+2. Do not unfairly downgrade defenders if they played under huge sector deficits.
+3. Downgrade cold attackers (0 goals) and leaky defenses (-SHO, -DEF, -OVR).
+4. Recommend winning duos (win rate >= 65%) as chemistry partners.
 
 Respond strictly with valid JSON format:
 {

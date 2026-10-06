@@ -944,6 +944,8 @@ export function buildScoutAnalysisPayload(players = [], matches = [], sectorWeig
     const goals = scorerMap[cleanName] || 0;
     const a = p.attributes || { pac: 70, sho: 70, pas: 70, dri: 70, def: 70, phy: 70, gk: 20 };
 
+    const balanceContext = computePlayerBalanceContext(matches, p.name);
+
     return {
       id: p.id,
       name: p.name,
@@ -964,15 +966,23 @@ export function buildScoutAnalysisPayload(players = [], matches = [], sectorWeig
         goalsPerMatch: stats.matches > 0 ? Number((goals / stats.matches).toFixed(1)) : 0,
         goalsAgainstPerMatch: stats.matches > 0 ? Number((stats.goalsAgainst / stats.matches).toFixed(1)) : 0,
         goalDifference: stats.goalsFor - stats.goalsAgainst,
-        bayesianScore: stats.bayesianScore || 0
+        bayesianScore: stats.bayesianScore || 0,
+        balanceContext
       }
     };
   });
 
+  const recentMatchesWithBalance = matches.filter(m => m.balance).map(m => ({
+    date: m.match_date,
+    balance: m.balance,
+    balanceSummary: getMatchBalanceSummary(m)
+  }));
+
   return {
     playerProfiles,
     duoList: duoList.sort((a, b) => b.winRate - a.winRate || b.matches - a.matches),
-    h2h: computeHeadToHeadSummary(matches)
+    h2h: computeHeadToHeadSummary(matches),
+    recentMatchesWithBalance
   };
 }
 
