@@ -88,6 +88,11 @@ async function fetchFromApiAndCache(forceRefresh = false) {
     {
       match_date: "2026-09-02",
       season: 2026,
+      balance: {
+        attack: -0.5,
+        midfield: 0.8,
+        defense: 0.4
+      },
       teams: [
         {
           team: "voyagers",
@@ -113,6 +118,11 @@ async function fetchFromApiAndCache(forceRefresh = false) {
     {
       match_date: "2026-08-30",
       season: 2026,
+      balance: {
+        attack: 0.2,
+        midfield: -1.0,
+        defense: -0.6
+      },
       teams: [
         {
           team: "voyagers",
@@ -135,63 +145,199 @@ async function fetchFromApiAndCache(forceRefresh = false) {
         }
       ]
     },
-      {
-        match_date: "2026-08-26",
-        season: 2026,
-        teams: [
-          {
-            team: "voyagers",
-            members: ["Ajith", "Anup", "CP", "Mathai", "Rajeev", "Somu", "Tom", "Varun"],
-            score: 5,
-            scorers: [
-              { name: "CP", goals: 3, is_own_goal: false },
-              { name: "Mathai", goals: 1, is_own_goal: false },
-              { name: "Rajeev", goals: 1, is_own_goal: false }
-            ]
-          },
-          {
-            team: "bootsandbeers",
-            members: ["Abey", "Akash", "Anoop", "Pradeep", "Prasanth", "Sreekanth", "Sudhi", "Vinay"],
-            score: 5,
-            scorers: [
-              { name: "Vinay", goals: 3, is_own_goal: false },
-              { name: "Sreekanth", goals: 2, is_own_goal: false }
-            ]
-          }
-        ]
+    {
+      match_date: "2026-08-26",
+      season: 2026,
+      balance: {
+        attack: 0.0,
+        midfield: 0.0,
+        defense: 0.0
       },
-      {
-        match_date: "2026-08-23",
-        season: 2026,
-        teams: [
-          {
-            team: "voyagers",
-            members: ["Abey", "Anoop", "CP", "Mathai", "Sanjay", "Sreekanth", "Sudhi", "Vinay"],
-            score: 8,
-            scorers: [
-              { name: "Vinay", goals: 3, is_own_goal: false },
-              { name: "Sanjay", goals: 2, is_own_goal: false },
-              { name: "CP", goals: 1, is_own_goal: false },
-              { name: "Sudhi", goals: 1, is_own_goal: false },
-              { name: "Sreekanth", goals: 1, is_own_goal: false }
-            ]
-          },
-          {
-            team: "bootsandbeers",
-            members: ["Ajith", "Akash", "Anup", "Mithun", "Pradeep", "Prasanth", "Rajeev", "Tom"],
-            score: 4,
-            scorers: [
-              { name: "Mithun", goals: 2, is_own_goal: false },
-              { name: "Akash", goals: 1, is_own_goal: false },
-              { name: "Tom", goals: 1, is_own_goal: false }
-            ]
-          }
-        ]
-      }
-    ];
+      teams: [
+        {
+          team: "voyagers",
+          members: ["Ajith", "Anup", "CP", "Mathai", "Rajeev", "Somu", "Tom", "Varun"],
+          score: 5,
+          scorers: [
+            { name: "CP", goals: 3, is_own_goal: false },
+            { name: "Mathai", goals: 1, is_own_goal: false },
+            { name: "Rajeev", goals: 1, is_own_goal: false }
+          ]
+        },
+        {
+          team: "bootsandbeers",
+          members: ["Abey", "Akash", "Anoop", "Pradeep", "Prasanth", "Sreekanth", "Sudhi", "Vinay"],
+          score: 5,
+          scorers: [
+            { name: "Vinay", goals: 3, is_own_goal: false },
+            { name: "Sreekanth", goals: 2, is_own_goal: false }
+          ]
+        }
+      ]
+    },
+    {
+      match_date: "2026-08-23",
+      season: 2026,
+      balance: {
+        attack: -2.5,
+        midfield: -1.8,
+        defense: -1.2
+      },
+      teams: [
+        {
+          team: "voyagers",
+          members: ["Abey", "Anoop", "CP", "Mathai", "Sanjay", "Sreekanth", "Sudhi", "Vinay"],
+          score: 8,
+          scorers: [
+            { name: "Vinay", goals: 3, is_own_goal: false },
+            { name: "Sanjay", goals: 2, is_own_goal: false },
+            { name: "CP", goals: 1, is_own_goal: false },
+            { name: "Sudhi", goals: 1, is_own_goal: false },
+            { name: "Sreekanth", goals: 1, is_own_goal: false }
+          ]
+        },
+        {
+          team: "bootsandbeers",
+          members: ["Ajith", "Akash", "Anup", "Mithun", "Pradeep", "Prasanth", "Rajeev", "Tom"],
+          score: 4,
+          scorers: [
+            { name: "Mithun", goals: 2, is_own_goal: false },
+            { name: "Akash", goals: 1, is_own_goal: false },
+            { name: "Tom", goals: 1, is_own_goal: false }
+          ]
+        }
+      ]
+    }
+  ];
 
-    return { matches: fallbackMatches, source: "fallback", error: lastError?.message || "" };
+  return { matches: fallbackMatches, source: "fallback", error: lastError?.message || "" };
+}
+
+/**
+ * Evaluates and formats the pre-match sector balance for a match.
+ * Scale: -5.0 (favors Team A / Voyagers) to +5.0 (favors Team B / Boots & Beers). Zero is balanced.
+ * @param {Object} match - match object
+ * @param {string} teamAName - optional display name for Team A
+ * @param {string} teamBName - optional display name for Team B
+ * @returns {Object}
+ */
+export function getMatchBalanceSummary(match, teamAName = "Voyagers", teamBName = "Boots & Beers") {
+  if (!match || !match.balance || typeof match.balance !== "object") {
+    return {
+      hasBalance: false,
+      attack: { value: 0, favoredTeam: "even", label: "Balanced", diffStr: "0.0" },
+      midfield: { value: 0, favoredTeam: "even", label: "Balanced", diffStr: "0.0" },
+      defense: { value: 0, favoredTeam: "even", label: "Balanced", diffStr: "0.0" },
+      netScore: 0,
+      netFavoredTeam: "even",
+      summaryText: "Pre-match balance: Balanced"
+    };
   }
+
+  const formatSector = (val) => {
+    const num = typeof val === "number" ? val : parseFloat(val) || 0;
+    const rounded = Math.round(num * 10) / 10;
+    let favoredTeam = "even";
+    let label = "Balanced";
+    if (rounded <= -0.5) {
+      favoredTeam = "teamA";
+      label = `Favors ${teamAName} (+${Math.abs(rounded).toFixed(1)})`;
+    } else if (rounded >= 0.5) {
+      favoredTeam = "teamB";
+      label = `Favors ${teamBName} (+${rounded.toFixed(1)})`;
+    }
+    return {
+      value: rounded,
+      favoredTeam,
+      label,
+      diffStr: (rounded > 0 ? `+${rounded.toFixed(1)}` : rounded.toFixed(1))
+    };
+  };
+
+  const attack = formatSector(match.balance.attack);
+  const midfield = formatSector(match.balance.midfield);
+  const defense = formatSector(match.balance.defense);
+
+  const netScore = Math.round(((attack.value + midfield.value + defense.value) / 3) * 10) / 10;
+  let netFavoredTeam = "even";
+  if (netScore <= -0.5) netFavoredTeam = "teamA";
+  else if (netScore >= 0.5) netFavoredTeam = "teamB";
+
+  return {
+    hasBalance: true,
+    attack,
+    midfield,
+    defense,
+    netScore,
+    netFavoredTeam,
+    summaryText: `ATT: ${attack.diffStr} | MID: ${midfield.diffStr} | DEF: ${defense.diffStr}`
+  };
+}
+
+/**
+ * Computes player performance across different match balance conditions (adverse vs favored).
+ * @param {Array} matches
+ * @param {string} playerName
+ * @returns {Object}
+ */
+export function computePlayerBalanceContext(matches = [], playerName = "") {
+  if (!playerName || !Array.isArray(matches)) {
+    return { totalWithBalance: 0, adverseMatches: 0, adverseWins: 0, adverseWinRate: 0, favoredMatches: 0, favoredWins: 0, favoredWinRate: 0, evenMatches: 0, evenWins: 0 };
+  }
+
+  const targetName = playerName.toLowerCase().trim();
+  let totalWithBalance = 0;
+  let adverseMatches = 0;
+  let adverseWins = 0;
+  let favoredMatches = 0;
+  let favoredWins = 0;
+  let evenMatches = 0;
+  let evenWins = 0;
+
+  matches.forEach(m => {
+    if (!m.balance || !Array.isArray(m.teams) || m.teams.length < 2) return;
+
+    const teamA = m.teams[0];
+    const teamB = m.teams[1];
+    const inTeamA = (teamA.members || []).some(mName => mName.toLowerCase().trim() === targetName);
+    const inTeamB = (teamB.members || []).some(mName => mName.toLowerCase().trim() === targetName);
+
+    if (!inTeamA && !inTeamB) return;
+
+    totalWithBalance++;
+    const netBalance = ((m.balance.attack || 0) + (m.balance.midfield || 0) + (m.balance.defense || 0)) / 3;
+
+    // Player perspective advantage
+    const playerPerspectiveAdvantage = inTeamA ? -netBalance : netBalance;
+    const isWin = inTeamA ? (teamA.score > teamB.score) : (teamB.score > teamA.score);
+
+    if (playerPerspectiveAdvantage < -0.5) {
+      adverseMatches++;
+      if (isWin) adverseWins++;
+    } else if (playerPerspectiveAdvantage > 0.5) {
+      favoredMatches++;
+      if (isWin) favoredWins++;
+    } else {
+      evenMatches++;
+      if (isWin) evenWins++;
+    }
+  });
+
+  const adverseWinRate = adverseMatches > 0 ? Math.round((adverseWins / adverseMatches) * 100) : 0;
+  const favoredWinRate = favoredMatches > 0 ? Math.round((favoredWins / favoredMatches) * 100) : 0;
+
+  return {
+    totalWithBalance,
+    adverseMatches,
+    adverseWins,
+    adverseWinRate,
+    favoredMatches,
+    favoredWins,
+    favoredWinRate,
+    evenMatches,
+    evenWins
+  };
+}
 
 /**
  * Computes Head-to-Head statistical summary between Voyagers and Boots & Beers.
