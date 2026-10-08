@@ -43,12 +43,12 @@
       "dri": 0
     },
     "positions": {
-      "GK": 1,
+      "GK": 0,
       "DEF": 1,
       "MID": 0,
       "FWD": 0
     },
-    "gkBlend": 0.1,
+    "gkBlend": 0.35,
     "penaltyMult": 10
   },
   "overall": {

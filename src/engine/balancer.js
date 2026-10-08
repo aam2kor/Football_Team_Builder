@@ -232,12 +232,15 @@ export function getPlayerMetricScore(player, setting = {}, metricKey, sectorWeig
 
 /**
  * Calculates aggregate and sector-specific stats for a team of players.
+ * Supports dynamic turn-by-turn simulation when gkMode is 'rotating'.
+ * 
  * @param {Array}  players
- * @param {Object} matchdaySettingsMap  - { [playerId]: { fitness, form } }
- * @param {Object} sectorWeights        - custom or DEFAULT_SECTOR_WEIGHTS
- * @param {boolean} useMatchdayPositions - if true, evaluates on-pitch matchdayPosition; if false, always uses database position
+ * @param {Object} matchdaySettingsMap   - { [playerId]: { fitness, form, canRotateGk } }
+ * @param {Object} sectorWeights         - custom or DEFAULT_SECTOR_WEIGHTS
+ * @param {boolean} useMatchdayPositions - if true, evaluates on-pitch matchdayPosition; if false, uses database position
+ * @param {string} gkMode                - 'rotating' | 'fixed'
  */
-export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeights = DEFAULT_SECTOR_WEIGHTS, useMatchdayPositions = false) {
+export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeights = DEFAULT_SECTOR_WEIGHTS, useMatchdayPositions = false, gkMode = "rotating") {
   const sw = sectorWeights || DEFAULT_SECTOR_WEIGHTS;
 
   if (!players || players.length === 0) {
@@ -246,7 +249,11 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeig
       attack: 0, midfield: 0, defense: 0, outfieldDef: 0,
       pace: 0, passing: 0, physical: 0, goalkeeping: 0, avgGkReflex: 0,
       synergyCount: 0, synergyBoost: 0, activeDuos: [],
-      positions: { GK: 0, DEF: 0, MID: 0, FWD: 0 }
+      positions: { GK: 0, DEF: 0, MID: 0, FWD: 0 },
+      rotationSchedule: [],
+      eligibleGkCount: 0,
+      hasNoEligibleGk: false,
+      sectorRanges: { attack: [0, 0], midfield: [0, 0], defense: [0, 0] }
     };
   }
 
@@ -257,8 +264,9 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeig
   const positions = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
 
   const effectivePlayers = players.map(p => {
-    const setting = matchdaySettingsMap[p.id] || { fitness: p.fitness ?? 100, form: p.form ?? "neutral" };
+    const setting = matchdaySettingsMap[p.id] || { fitness: p.fitness ?? 100, form: p.form ?? "neutral", canRotateGk: p.canRotateGk ?? true };
     const eff = getEffectivePlayerStats(p, setting);
+    eff.canRotateGk = setting.canRotateGk !== false;
 
     totalBaseOvr += p.ovr || 75;
     totalEffOvr  += eff.effectiveOvr;
@@ -281,37 +289,131 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeig
   });
 
   const chemistry = calculateTeamChemistry(players);
-
   const baseAvgOvr      = Math.round((totalBaseOvr / n) * 10) / 10;
   const rawEffAvgOvr    = totalEffOvr / n;
   const effectiveAvgOvr = Math.round((rawEffAvgOvr + chemistry.synergyBoost / n) * 10) / 10;
+  const gkBlend = sw.defense.gkBlend ?? 0.35;
 
-  // Compute each sector using the configurable weights
-  const attackRaw    = computeSectorScore(effectivePlayers, sw.attack.attributes,  sw.attack.positions);
-  const midfieldRaw  = computeSectorScore(effectivePlayers, sw.midfield.attributes, sw.midfield.positions);
-  const outfieldDefRaw = computeSectorScore(effectivePlayers, sw.defense.attributes, sw.defense.positions);
+  let attackRaw = 0, midfieldRaw = 0, defenseRaw = 0, outfieldDefRaw = 0, goalkeepingRaw = 0;
+  const rotationSchedule = [];
+  let minAtt = 999, maxAtt = 0, minMid = 999, maxMid = 0, minDef = 999, maxDef = 0;
+  let eligibleGkCount = 0;
+  let hasNoEligibleGk = false;
 
-  const gkBlend  = sw.defense.gkBlend ?? 0.35;
-  const defenseRaw = outfieldDefRaw * (1 - gkBlend) + maxGk * gkBlend;
+  if (gkMode === "rotating" && n >= 2) {
+    // 1. Identify all willing/eligible rotating goalkeepers
+    const eligibleGks = effectivePlayers.filter(p => p.canRotateGk !== false);
+    eligibleGkCount = eligibleGks.length;
+    
+    let gksToRotate = eligibleGks;
+    if (gksToRotate.length === 0) {
+      // Fallback: Pick highest GK reflex rating if none marked eligible
+      hasNoEligibleGk = true;
+      const sortedByGk = [...effectivePlayers].sort((a, b) => (b.effectiveAttributes.gk || 20) - (a.effectiveAttributes.gk || 20));
+      gksToRotate = [sortedByGk[0]];
+    }
+
+    const k = gksToRotate.length;
+    let sumAtt = 0, sumMid = 0, sumOutDef = 0, sumDef = 0, sumGk = 0;
+
+    gksToRotate.forEach((gkPlayer, idx) => {
+      // The other n - 1 players are outfield on the pitch for this turn
+      const outfieldOnPitch = effectivePlayers.filter(p => p.id !== gkPlayer.id);
+
+      const turnAtt = computeSectorScore(outfieldOnPitch, sw.attack.attributes, sw.attack.positions);
+      const turnMid = computeSectorScore(outfieldOnPitch, sw.midfield.attributes, sw.midfield.positions);
+      const turnOutDef = computeSectorScore(outfieldOnPitch, sw.defense.attributes, sw.defense.positions);
+      
+      const turnGkVal = gkPlayer.effectiveAttributes.gk || 20;
+      const turnDef = turnOutDef * (1 - gkBlend) + turnGkVal * gkBlend;
+
+      sumAtt += turnAtt;
+      sumMid += turnMid;
+      sumOutDef += turnOutDef;
+      sumDef += turnDef;
+      sumGk += turnGkVal;
+
+      if (turnAtt < minAtt) minAtt = turnAtt;
+      if (turnAtt > maxAtt) maxAtt = turnAtt;
+      if (turnMid < minMid) minMid = turnMid;
+      if (turnMid > maxMid) maxMid = turnMid;
+      if (turnDef < minDef) minDef = turnDef;
+      if (turnDef > maxDef) maxDef = turnDef;
+
+      rotationSchedule.push({
+        turnIndex: idx + 1,
+        turnLabel: `Rotation ${idx + 1}`,
+        gkPlayerId: gkPlayer.id,
+        gkPlayerName: gkPlayer.name,
+        gkRating: turnGkVal,
+        turnAttack: Math.round(turnAtt * 10) / 10,
+        turnMidfield: Math.round(turnMid * 10) / 10,
+        turnOutfieldDef: Math.round(turnOutDef * 10) / 10,
+        turnDefense: Math.round(turnDef * 10) / 10
+      });
+    });
+
+    attackRaw = sumAtt / k;
+    midfieldRaw = sumMid / k;
+    outfieldDefRaw = sumOutDef / k;
+    defenseRaw = sumDef / k;
+    goalkeepingRaw = sumGk / k;
+  } else {
+    // Fixed GK or single-player fallback:
+    // Identify designated GK (player with natural GK position or highest GK)
+    const designatedGk = effectivePlayers.find(p => p.position === "GK" || p.matchdayPosition === "GK") ||
+                         [...effectivePlayers].sort((a, b) => (b.effectiveAttributes.gk || 20) - (a.effectiveAttributes.gk || 20))[0];
+    
+    const outfieldOnPitch = n > 1 ? effectivePlayers.filter(p => p.id !== designatedGk.id) : effectivePlayers;
+    attackRaw = computeSectorScore(outfieldOnPitch, sw.attack.attributes, sw.attack.positions);
+    midfieldRaw = computeSectorScore(outfieldOnPitch, sw.midfield.attributes, sw.midfield.positions);
+    outfieldDefRaw = computeSectorScore(outfieldOnPitch, sw.defense.attributes, sw.defense.positions);
+    goalkeepingRaw = designatedGk.effectiveAttributes.gk || 20;
+    defenseRaw = outfieldDefRaw * (1 - gkBlend) + goalkeepingRaw * gkBlend;
+
+    minAtt = maxAtt = attackRaw;
+    minMid = maxMid = midfieldRaw;
+    minDef = maxDef = defenseRaw;
+
+    rotationSchedule.push({
+      turnIndex: 1,
+      turnLabel: "Full Match",
+      gkPlayerId: designatedGk.id,
+      gkPlayerName: designatedGk.name,
+      gkRating: goalkeepingRaw,
+      turnAttack: Math.round(attackRaw * 10) / 10,
+      turnMidfield: Math.round(midfieldRaw * 10) / 10,
+      turnOutfieldDef: Math.round(outfieldDefRaw * 10) / 10,
+      turnDefense: Math.round(defenseRaw * 10) / 10
+    });
+  }
 
   return {
     avgOvr: effectiveAvgOvr,
     baseAvgOvr,
     effectiveAvgOvr,
-    attack:      Math.round(attackRaw),
-    midfield:    Math.round(midfieldRaw),
-    defense:     Math.round(defenseRaw),
-    outfieldDef: Math.round(outfieldDefRaw),
+    attack:      Math.round(attackRaw * 10) / 10,
+    midfield:    Math.round(midfieldRaw * 10) / 10,
+    defense:     Math.round(defenseRaw * 10) / 10,
+    outfieldDef: Math.round(outfieldDefRaw * 10) / 10,
     pace:        Math.round(totalPac / n),
     passing:     Math.round(totalPas / n),
     physical:    Math.round(totalPhy / n),
-    goalkeeping: Math.round(maxGk),
+    goalkeeping: Math.round(goalkeepingRaw * 10) / 10,
     avgGkReflex: Math.round(totalGk / n),
     positions,
     synergyCount: chemistry.synergyCount,
     synergyBoost: chemistry.synergyBoost,
     activeDuos:   chemistry.activeDuos,
-    effectivePlayers
+    effectivePlayers,
+    rotationSchedule,
+    eligibleGkCount,
+    hasNoEligibleGk,
+    sectorRanges: {
+      attack: [Math.round(minAtt * 10) / 10, Math.round(maxAtt * 10) / 10],
+      midfield: [Math.round(minMid * 10) / 10, Math.round(maxMid * 10) / 10],
+      defense: [Math.round(minDef * 10) / 10, Math.round(maxDef * 10) / 10]
+    }
   };
 }
 
@@ -356,15 +458,18 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
   const sw = sectorWeights || DEFAULT_SECTOR_WEIGHTS;
   const sizeKey = teamSizeKey || `${teamA.length}v${teamA.length}`;
 
-  const bestA = findBestFormationForTeam(teamA, sizeKey, sw, matchdaySettingsMap, calculateTeamStats, autoFormation ? null : (formationA || null), posConstraints);
-  const bestB = findBestFormationForTeam(teamB, sizeKey, sw, matchdaySettingsMap, calculateTeamStats, autoFormation ? null : (formationB || null), posConstraints);
+  const calcStatsWrapper = (pList, mSettings, sWeights, useMatchdayPos) =>
+    calculateTeamStats(pList, mSettings, sWeights, useMatchdayPos, gkMode);
+
+  const bestA = findBestFormationForTeam(teamA, sizeKey, sw, matchdaySettingsMap, calcStatsWrapper, autoFormation ? null : (formationA || null), posConstraints);
+  const bestB = findBestFormationForTeam(teamB, sizeKey, sw, matchdaySettingsMap, calcStatsWrapper, autoFormation ? null : (formationB || null), posConstraints);
 
   const assignedA = bestA.assignedPlayers;
   const assignedB = bestB.assignedPlayers;
 
   // Calculate sector scores using assigned on-pitch matchday positions (respecting slider weights directly)
-  const statsA = bestA.stats || calculateTeamStats(assignedA, matchdaySettingsMap, sw, true);
-  const statsB = bestB.stats || calculateTeamStats(assignedB, matchdaySettingsMap, sw, true);
+  const statsA = bestA.stats || calculateTeamStats(assignedA, matchdaySettingsMap, sw, true, gkMode);
+  const statsB = bestB.stats || calculateTeamStats(assignedB, matchdaySettingsMap, sw, true, gkMode);
 
   const ovrDelta = Math.abs(statsA.effectiveAvgOvr - statsB.effectiveAvgOvr);
   const attDelta = Math.abs(statsA.attack   - statsB.attack);
@@ -384,13 +489,18 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
   const rosterA = countRosterPositions(teamA);
   const rosterB = countRosterPositions(teamB);
 
-  // Goalkeeper penalty based on natural squad goalkeepers
+  // Goalkeeper penalty based on natural squad goalkeepers & rotating GK willingness
   let gkPenalty = 0;
   if (gkMode === "fixed") {
     const rawGkDelta = Math.abs(rosterA.GK - rosterB.GK);
     gkPenalty = rawGkDelta > 0 ? rawGkDelta * 250 : 0;
   } else {
-    gkPenalty = Math.abs(statsA.avgGkReflex - statsB.avgGkReflex) * 0.4;
+    // In rotating mode: penalize if a team has zero willing goalkeepers or extreme rotation count gap
+    const noGkPenalty = (statsA.hasNoEligibleGk ? 400.0 : 0) + (statsB.hasNoEligibleGk ? 400.0 : 0);
+    const rotatorDelta = Math.abs(statsA.eligibleGkCount - statsB.eligibleGkCount);
+    const rotatorDisparityPenalty = rotatorDelta > 2 ? (rotatorDelta - 2) * 25.0 : 0;
+    const avgGkDelta = Math.abs(statsA.goalkeeping - statsB.goalkeeping);
+    gkPenalty = (avgGkDelta * 1.5) + noGkPenalty + rotatorDisparityPenalty;
   }
 
   // Positional count disparity based on true roster positions

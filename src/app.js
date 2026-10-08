@@ -155,7 +155,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Pre-select first 16 players on initial load for instant match builder experience
   const allPlayers = db.getAll();
   allPlayers.forEach(p => {
-    state.matchdaySettings[p.id] = { fitness: 100, form: "neutral" };
+    state.matchdaySettings[p.id] = { fitness: 100, form: "neutral", canRotateGk: true };
   });
 
   if (allPlayers.length >= 16) {
@@ -2305,6 +2305,20 @@ function renderGeneratorView() {
             <input type="range" min="20" max="100" step="5" value="${mSetting.fitness}" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500" data-fitness-slider-id="${player.id}">
           </div>
 
+          <!-- Matchday GK Willingness (Rotating GK toggle) -->
+          <div class="pt-2 border-t border-slate-800/70 flex items-center justify-between">
+            <span class="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+              <span>🧤 Rotating GK:</span>
+            </span>
+            <button class="px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all ${
+              mSetting.canRotateGk !== false
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
+                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-slate-300'
+            }" data-toggle-gk-rotate="${player.id}" title="Toggle whether ${player.name} takes turns in goal during Rotating GK mode">
+              <span>${mSetting.canRotateGk !== false ? '✓ Willing' : '✕ Outfield Only'}</span>
+            </button>
+          </div>
+
         </div>
 
       </div>
@@ -2320,6 +2334,18 @@ function renderGeneratorView() {
       } else {
         state.selectedPlayerIds.add(id);
       }
+      renderGeneratorView();
+    });
+  });
+
+  // Attach GK rotation toggle listeners
+  grid.querySelectorAll("[data-toggle-gk-rotate]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.toggleGkRotate;
+      if (!state.matchdaySettings[id]) state.matchdaySettings[id] = { fitness: 100, form: "neutral", canRotateGk: true };
+      const current = state.matchdaySettings[id].canRotateGk !== false;
+      state.matchdaySettings[id].canRotateGk = !current;
       renderGeneratorView();
     });
   });
@@ -2608,8 +2634,8 @@ function handlePlayerSwapClick(player, team) {
 // Side-by-Side FIFA Team Comparison Dashboard
 // ============================================================
 function renderTeamComparison() {
-  const statsA = calculateTeamStats(state.activeTeamA, state.matchdaySettings, state.sectorWeights, true);
-  const statsB = calculateTeamStats(state.activeTeamB, state.matchdaySettings, state.sectorWeights, true);
+  const statsA = calculateTeamStats(state.activeTeamA, state.matchdaySettings, state.sectorWeights, true, state.gkMode);
+  const statsB = calculateTeamStats(state.activeTeamB, state.matchdaySettings, state.sectorWeights, true, state.gkMode);
 
   // Team A Overviews
   document.getElementById("team-a-ovr-display").textContent = statsA.effectiveAvgOvr.toFixed(1);
@@ -2776,7 +2802,114 @@ function renderTeamComparison() {
   renderTeamRosterList("team-a-roster-list", state.activeTeamA, "A");
   renderTeamRosterList("team-b-roster-list", state.activeTeamB, "B");
   renderMatchupAuditor();
+  renderRotatingGkSchedule(statsA, statsB);
   renderJerseyAdvisory();
+}
+
+/**
+ * Renders the Dynamic Rotating GK Schedule & Sector Variations card
+ */
+function renderRotatingGkSchedule(statsA, statsB) {
+  const container = document.getElementById("rotating-gk-schedule-container");
+  if (!container) return;
+
+  if (state.gkMode !== "rotating" || !state.activeTeamA?.length || !state.activeTeamB?.length) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const renderTeamSchedule = (teamName, teamColor, stats, borderClass, bgBadgeClass) => {
+    const schedule = stats?.rotationSchedule || [];
+    const ranges = stats?.sectorRanges || { attack: [stats.attack, stats.attack], midfield: [stats.midfield, stats.midfield], defense: [stats.defense, stats.defense] };
+
+    return `
+      <div class="glass-panel p-4 rounded-xl border ${borderClass} space-y-3 flex-1 flex flex-col justify-between">
+        <div>
+          <!-- Header -->
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2.5">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-black ${teamColor}">${teamName}</span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${bgBadgeClass}">
+                🧤 ${stats.eligibleGkCount || schedule.length} Rotators
+              </span>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] text-slate-400 font-mono">Expected DEF:</span>
+              <span class="text-xs font-black text-emerald-400 ml-1 font-mono">${stats.defense}</span>
+            </div>
+          </div>
+
+          ${stats.hasNoEligibleGk ? `
+            <div class="p-2 mb-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300 flex items-center gap-1.5">
+              <span>⚠️</span>
+              <span>No players selected as willing GK. Best reflex defender assigned as emergency anchor.</span>
+            </div>
+          ` : ''}
+
+          <!-- Turn-by-Turn Rotation Grid -->
+          <div class="space-y-1.5">
+            <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400 flex justify-between px-1">
+              <span>Turn / Rotation</span>
+              <span>Active GK (Rating)</span>
+              <span>Team ATT | MID | DEF</span>
+            </div>
+            ${schedule.map((turn) => `
+              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800/80 flex items-center justify-between text-xs hover:border-slate-700 transition-colors">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-slate-800 text-slate-300 font-mono">
+                    #${turn.turnIndex}
+                  </span>
+                  <div class="truncate">
+                    <span class="font-bold text-white">${turn.gkPlayerName}</span>
+                    <span class="text-[10px] text-emerald-400 font-mono ml-1">(GK ${turn.gkRating})</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 font-mono text-[11px] flex-shrink-0">
+                  <span class="text-rose-300" title="Attack score during this rotation">${turn.turnAttack}</span>
+                  <span class="text-slate-600">/</span>
+                  <span class="text-amber-300" title="Midfield score during this rotation">${turn.turnMidfield}</span>
+                  <span class="text-slate-600">/</span>
+                  <span class="font-bold text-emerald-300" title="Defense score during this rotation">${turn.turnDefense}</span>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+
+        <!-- Sector Dynamic Range Bounds -->
+        <div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
+          <span class="font-sans font-semibold text-slate-500">Sector Shift Ranges:</span>
+          <div class="flex items-center gap-2">
+            <span class="text-rose-400 font-bold" title="Attack dynamic range">⚔️ ${ranges.attack[0]} - ${ranges.attack[1]}</span>
+            <span class="text-amber-400 font-bold" title="Midfield dynamic range">⚙️ ${ranges.midfield[0]} - ${ranges.midfield[1]}</span>
+            <span class="text-emerald-400 font-bold" title="Defense dynamic range">🛡️ ${ranges.defense[0]} - ${ranges.defense[1]}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  container.innerHTML = `
+    <div class="glass-panel p-5 sm:p-6 rounded-2xl border border-indigo-500/30 bg-gradient-to-b from-slate-900/95 to-slate-950 shadow-2xl space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🔄</span>
+          <div>
+            <h3 class="text-sm sm:text-base font-black text-white tracking-tight">Dynamic Rotating GK Match Plan &amp; Lineup Shifts</h3>
+            <p class="text-xs text-slate-400">Time-weighted balancing: As keepers rotate, outfield potentials and sector ratings shift dynamically.</p>
+          </div>
+        </div>
+        <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 self-start sm:self-center">
+          Active Mode: Rotating GK
+        </span>
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-4">
+        ${renderTeamSchedule(state.teamAName || "Voyagers", "text-blue-400", statsA, "border-blue-500/30", "bg-blue-500/20 text-blue-300 border border-blue-500/40")}
+        ${renderTeamSchedule(state.teamBName || "Boots & Beers", "text-red-400", statsB, "border-red-500/30", "bg-red-500/20 text-red-300 border border-red-500/40")}
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -4145,8 +4278,8 @@ function setupBackupEvents() {
 // Match Day Utilities: WhatsApp Export, Canvas Image, Coin Toss
 // ============================================================
 function copyWhatsAppLineup() {
-  const statsA = calculateTeamStats(state.activeTeamA, state.matchdaySettings);
-  const statsB = calculateTeamStats(state.activeTeamB, state.matchdaySettings);
+  const statsA = calculateTeamStats(state.activeTeamA, state.matchdaySettings, state.sectorWeights, true, state.gkMode);
+  const statsB = calculateTeamStats(state.activeTeamB, state.matchdaySettings, state.sectorWeights, true, state.gkMode);
 
   const formatList = (team) => {
     const sorted = [...team].sort((a, b) => {
@@ -4154,12 +4287,21 @@ function copyWhatsAppLineup() {
       return (pMap[a.position] || 5) - (pMap[b.position] || 5);
     });
     return sorted.map(p => {
-      const mSetting = state.matchdaySettings[p.id] || { fitness: 100, form: "neutral" };
+      const mSetting = state.matchdaySettings[p.id] || { fitness: 100, form: "neutral", canRotateGk: true };
       const eff = getEffectivePlayerStats(p, mSetting);
       const formText = eff.formMod.icon;
       const fitText = mSetting.fitness < 100 ? `(Fit:${mSetting.fitness}%)` : '';
-      return `• [${p.position}] ${p.name} (OVR: ${eff.effectiveOvr}) ${formText} ${fitText}`;
+      const gkText = (state.gkMode === "rotating" && mSetting.canRotateGk === false) ? '🚫(No GK)' : '';
+      return `• [${p.position}] ${p.name} (OVR: ${eff.effectiveOvr}) ${formText} ${fitText} ${gkText}`.trim();
     }).join("\n");
+  };
+
+  const formatRotationPlan = (stats) => {
+    if (state.gkMode !== "rotating" || !stats?.rotationSchedule?.length) return "";
+    const lines = stats.rotationSchedule.map(turn => 
+      `  • Turn ${turn.turnIndex}: 🧤 ${turn.gkPlayerName} (GK ${turn.gkRating} | Turn Def: ${turn.turnDefense})`
+    );
+    return `\n🧤 *GK Rotation Schedule*:\n${lines.join("\n")}\n🛡️ *Expected DEF*: ${stats.defense} (Range: ${stats.sectorRanges?.defense[0]} - ${stats.sectorRanges?.defense[1]})`;
   };
 
   const aiBriefingText = state.aiCoachBriefing
@@ -4170,13 +4312,13 @@ function copyWhatsAppLineup() {
 -----------------------------------------
 🔵 *${state.teamAName.toUpperCase()}* (Avg OVR: ${statsA.effectiveAvgOvr})
 Tactics: ${state.formationTeamA} ${statsA.synergyCount > 0 ? `| ⚡ ${statsA.synergyCount} Chemistry (+${statsA.synergyBoost} OVR)` : ''}
-${formatList(state.activeTeamA)}
+${formatList(state.activeTeamA)}${formatRotationPlan(statsA)}
 
 🔴 *${state.teamBName.toUpperCase()}* (Avg OVR: ${statsB.effectiveAvgOvr})
 Tactics: ${state.formationTeamB} ${statsB.synergyCount > 0 ? `| ⚡ ${statsB.synergyCount} Chemistry (+${statsB.synergyBoost} OVR)` : ''}
-${formatList(state.activeTeamB)}
+${formatList(state.activeTeamB)}${formatRotationPlan(statsB)}
 -----------------------------------------${aiBriefingText}
-GK Mode: ${state.gkMode === "rotating" ? "🔄 Rotating Goalkeepers" : "🧤 Fixed Dedicated GK"}
+GK Mode: ${state.gkMode === "rotating" ? "🔄 Dynamic Rotating Goalkeepers" : "🧤 Fixed Dedicated GK"}
 Generated with 8x8 Football Team Builder 🏆`;
 
   navigator.clipboard.writeText(text).then(() => {
