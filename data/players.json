@@ -1,5 +1,25 @@
 [
   {
+    "id": "p_1791980106951_muclq",
+    "name": "Carlton",
+    "position": "MID",
+    "secondaryPosition": "FWD",
+    "ovr": 61,
+    "attributes": {
+      "pac": 60,
+      "sho": 60,
+      "pas": 60,
+      "dri": 60,
+      "def": 65,
+      "phy": 65,
+      "gk": 60
+    },
+    "avatar": "⚡",
+    "preferredFoot": "Right",
+    "notes": "",
+    "chemistryPartners": []
+  },
+  {
     "id": "p_1791119809110_1_ftz6",
     "name": "Amal",
     "position": "MID",
