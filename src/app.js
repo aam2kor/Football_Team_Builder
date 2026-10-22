@@ -22,7 +22,11 @@ import {
   computePlayerFormTrajectory,
   generateFormMountainSvg,
   generateMiniSparklineSvg,
-  validateBalancerModel
+  validateBalancerModel,
+  computePlusMinusAndMoneyballStats,
+  computeGiantKillersAndClosers,
+  computeChemistryAndKryptoniteStats,
+  computeMetaTacticalAnatomy
 } from "./services/leagueService.js";
 
 // Initialize Database instance
@@ -530,6 +534,7 @@ async function handleGenerateLeagueInsights() {
   if (refreshBtn) refreshBtn.disabled = true;
 
   try {
+    const allDbPlayers = db.getAll();
     const topScorers = computeTopGoalScorers(state.leagueMatches, 3);
     const topWinners = computeTopWinRatePlayers(state.leagueMatches, 3);
     const topLosers = computeTopConsistentLosers(state.leagueMatches, 3);
@@ -537,22 +542,372 @@ async function handleGenerateLeagueInsights() {
     const derbyTrends = computeDerbyTrends(state.leagueMatches);
     const jerseyRotationStats = computeJerseyRotationStats(state.leagueMatches);
 
+    // Deep Statistical & Meta-Tactical Analytics (Directions 1 & 2)
+    const moneyball = computePlusMinusAndMoneyballStats(state.leagueMatches, allDbPlayers);
+    const giantKillers = computeGiantKillersAndClosers(state.leagueMatches);
+    const chemKrypto = computeChemistryAndKryptoniteStats(state.leagueMatches, 2);
+    const metaTactics = computeMetaTacticalAnatomy(state.leagueMatches, allDbPlayers, state.sectorWeights);
+    const clutchData = computeClutchScorers(state.leagueMatches);
+
     // Call LLM / AI service with Grounded Hybrid context (matches + player DB + verified stats)
-    const allDbPlayers = db.getAll();
     const insights = await queryLeagueInsights(state.leagueMatches, state.aiConfig, allDbPlayers);
 
     if (contentEl) {
+      const upsetSummary = giantKillers.leagueUpsetSummary;
+
       contentEl.innerHTML = `
-        <!-- 1. Pundit Headline -->
-        <div class="p-3.5 rounded-xl bg-gradient-to-r from-indigo-950/80 via-purple-950/70 to-slate-900 border border-indigo-500/40 space-y-1 shadow-sm">
-          <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span>🎙️</span>
-            <span>League Derby Narrative &amp; Headline</span>
-          </span>
-          <h4 class="text-sm font-black text-white">${insights.headline}</h4>
+        <!-- 1. Pundit Headline & Derby Pulse Banner -->
+        <div class="p-4 rounded-xl bg-gradient-to-r from-indigo-950/90 via-purple-950/80 to-slate-900 border border-indigo-500/40 space-y-2.5 shadow-md">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-[10px] font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+              <span>🎙️</span>
+              <span>League Derby Narrative &amp; Meta-Tactical Intelligence</span>
+            </span>
+            <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+              <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                🏆 #1 Meta Winner: ${metaTactics.topSector.label} (${metaTactics.topSector.winConversionRate}%)
+              </span>
+              <span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                🗡️ Underdog Upset Rate: ${upsetSummary.upsetRate}%
+              </span>
+              <span class="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">
+                ⚽ Pace: ${derbyTrends.avgGoalsPerMatch} G/Match
+              </span>
+            </div>
+          </div>
+          <h4 class="text-sm sm:text-base font-black text-white leading-snug">${insights.headline}</h4>
         </div>
 
-        <!-- 2. Specific Stat Leaderboards (4-Column Responsive Grid) -->
+        <!-- 2. DIRECTION #2: Meta-Tactical Anatomy ("What Actually Wins Derbies?") -->
+        <div class="p-4 rounded-xl bg-slate-900/95 border border-purple-500/35 space-y-3.5 shadow-sm">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-800 pb-2">
+            <div>
+              <span class="text-xs font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🧬</span>
+                <span>Meta-Tactical Anatomy: What Actually Wins Derbies?</span>
+              </span>
+              <p class="text-[11px] text-slate-400 mt-0.5">Empirical win conversion rate when a team leads in each tactical sector or attribute across ${metaTactics.analyzedMatches} historical matches.</p>
+            </div>
+            <span class="text-[10px] font-mono px-2.5 py-1 rounded-lg bg-purple-950/70 text-purple-300 border border-purple-500/30 self-start sm:self-center">
+              Balancer Model Alignment: <strong>${metaTactics.alignmentRate}%</strong>
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Left: Sector Win Conversion Bars -->
+            <div class="space-y-2.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+              <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <span>Tactical Sector Advantage</span>
+                <span>Win Rate When Leading (Corr r)</span>
+              </div>
+              ${metaTactics.sectors.map((sec, idx) => {
+                const barColor = idx === 0 ? "from-emerald-500 to-teal-400" : idx === 1 ? "from-blue-500 to-indigo-400" : "from-amber-500 to-orange-400";
+                const textColor = idx === 0 ? "text-emerald-300" : idx === 1 ? "text-blue-300" : "text-amber-300";
+                const corrStr = sec.corr > 0 ? `+${sec.corr}` : `${sec.corr}`;
+                return `
+                  <div class="space-y-1">
+                    <div class="flex items-center justify-between text-xs">
+                      <span class="font-bold text-slate-200 flex items-center gap-1.5">
+                        ${idx === 0 ? '<span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-black uppercase border border-emerald-500/40">#1 Decider</span>' : ''}
+                        <span>${sec.label}</span>
+                      </span>
+                      <span class="font-mono font-bold ${textColor}">
+                        ${sec.winConversionRate}% Win <span class="text-[10px] text-slate-400 font-normal">(${sec.winsWhenLeading}W/${sec.ledMatches}M • r=${corrStr})</span>
+                      </span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                      <div class="h-full bg-gradient-to-r ${barColor} rounded-full transition-all" style="width: ${Math.max(8, sec.winConversionRate)}%"></div>
+                    </div>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+
+            <!-- Right: Team Attribute Conversion & Favorite vs Underdog Reality -->
+            <div class="space-y-2.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
+              <div class="space-y-2">
+                <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <span>Key Attribute Advantage</span>
+                  <span>Win / Unbeaten Rate</span>
+                </div>
+                ${metaTactics.attributes.map((attr, idx) => `
+                  <div class="space-y-1">
+                    <div class="flex items-center justify-between text-[11px]">
+                      <span class="font-bold text-slate-200">${attr.label}</span>
+                      <span class="font-mono font-bold ${idx === 0 ? 'text-cyan-300' : 'text-slate-300'}">
+                        ${attr.winConversionRate}% Win <span class="text-[10px] text-slate-400 font-normal">(${attr.unbeatenRate}% Unbeaten)</span>
+                      </span>
+                    </div>
+                    <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                      <div class="h-full ${idx === 0 ? 'bg-cyan-400' : 'bg-indigo-400'} rounded-full" style="width: ${Math.max(8, attr.winConversionRate)}%"></div>
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+
+              <!-- Pre-match Paper Favorite vs Underdog Upset Bar -->
+              <div class="pt-2 border-t border-slate-800/80 space-y-1">
+                <div class="flex items-center justify-between text-[10px] font-mono">
+                  <span class="text-slate-400">📊 Pre-Match Paper Favorites: <strong class="text-blue-300">${upsetSummary.favoriteWins}W (${upsetSummary.favoriteWinRate}%)</strong></span>
+                  <span class="text-slate-400">Draws: <strong class="text-slate-300">${upsetSummary.tiltedDraws}</strong></span>
+                  <span class="text-slate-400">🗡️ Underdog Upsets: <strong class="text-amber-300">${upsetSummary.underdogUpsets}W (${upsetSummary.upsetRate}%)</strong></span>
+                </div>
+                <p class="text-[11px] text-purple-200/90 italic bg-purple-950/30 border border-purple-500/20 rounded-lg px-2.5 py-1.5">
+                  💡 ${insights.metaTacticalInsight || `${metaTactics.topSector.label} is the #1 match-winning sector (${metaTactics.topSector.winConversionRate}% win rate when leading).`}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. DIRECTION #1: Deep Analytical Cards (Moneyball, Plus/Minus, Giant Killers, Cursed Duos, Kryptonite) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+
+          <!-- Card A: Plus/Minus (+/-) On-Pitch Impact Leaderboard -->
+          <div class="p-3.5 rounded-xl bg-slate-900/95 border border-emerald-500/35 space-y-2 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[11px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>📊</span>
+                <span>Plus/Minus (±) Impact Leaders</span>
+              </span>
+              <span class="text-[9px] font-mono text-slate-400">Net Team GD/Match</span>
+            </div>
+            <div class="space-y-1.5">
+              ${moneyball.plusMinusLeaders.slice(0, 4).map((p, idx) => `
+                <div class="flex items-center justify-between text-[11px] bg-slate-950/60 px-2 py-1 rounded-lg border border-slate-800/70">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="text-[10px] font-mono font-bold text-slate-400">#${idx + 1}</span>
+                    <span class="font-bold text-white truncate">${p.name}</span>
+                    <span class="text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-300 font-mono">${p.position}</span>
+                  </div>
+                  <div class="flex items-center gap-2 font-mono flex-shrink-0">
+                    <span class="font-black ${p.plusMinusPerMatch > 0 ? 'text-emerald-400' : p.plusMinusPerMatch < 0 ? 'text-rose-400' : 'text-slate-300'}">
+                      ${p.plusMinusPerMatch > 0 ? '+' : ''}${p.plusMinusPerMatch}/M
+                    </span>
+                    <span class="text-[10px] text-slate-400">(Tot: ${p.goalDiff > 0 ? '+' : ''}${p.goalDiff})</span>
+                  </div>
+                </div>
+              `).join("") || '<span class="text-xs text-slate-500">No data</span>'}
+            </div>
+          </div>
+
+          <!-- Card B: Moneyball Overperformers (Hidden Gems vs FIFA OVR) -->
+          <div class="p-3.5 rounded-xl bg-slate-900/95 border border-cyan-500/35 space-y-2 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[11px] font-black text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>💎</span>
+                <span>Moneyball Gems (Beat OVR)</span>
+              </span>
+              <span class="text-[9px] font-mono text-slate-400">Actual vs Exp Win%</span>
+            </div>
+            <div class="space-y-1.5">
+              ${moneyball.overperformers.slice(0, 4).map((p) => `
+                <div class="flex items-center justify-between text-[11px] bg-slate-950/60 px-2 py-1 rounded-lg border border-slate-800/70">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono text-[10px] font-bold">${p.ovr}</span>
+                    <span class="font-bold text-white truncate">${p.name}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 font-mono flex-shrink-0 text-[10px]">
+                    <span class="text-emerald-300 font-bold">${p.winRate}% W</span>
+                    <span class="text-slate-500">vs ${p.expectedWinRate}% exp</span>
+                    <span class="px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold">
+                      ${p.winRateDelta >= 0 ? '+' : ''}${p.winRateDelta}%
+                    </span>
+                  </div>
+                </div>
+              `).join("") || '<span class="text-xs text-slate-500">No overperformers yet</span>'}
+            </div>
+          </div>
+
+          <!-- Card C: Paper Tigers (High-OVR Underperformers) -->
+          <div class="p-3.5 rounded-xl bg-slate-900/95 border border-rose-500/35 space-y-2 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[11px] font-black text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>📉</span>
+                <span>Paper Tigers (Due a Bounceback)</span>
+              </span>
+              <span class="text-[9px] font-mono text-slate-400">OVR vs Output</span>
+            </div>
+            <div class="space-y-1.5">
+              ${moneyball.underperformers.slice(0, 4).map((p) => `
+                <div class="flex items-center justify-between text-[11px] bg-slate-950/60 px-2 py-1 rounded-lg border border-slate-800/70">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono text-[10px] font-bold">${p.ovr}</span>
+                    <span class="font-bold text-white truncate">${p.name}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 font-mono flex-shrink-0 text-[10px]">
+                    <span class="text-rose-300 font-bold">${p.winRate}% W</span>
+                    <span class="text-slate-500">(${p.plusMinusPerMatch > 0 ? '+' : ''}${p.plusMinusPerMatch} GD/M)</span>
+                    <span class="px-1 py-0.2 rounded bg-rose-500/20 text-rose-300 font-bold">${p.winRateDelta}%</span>
+                  </div>
+                </div>
+              `).join("") || '<span class="text-xs text-slate-500">All stars meeting expectations</span>'}
+            </div>
+          </div>
+
+          <!-- Card D: Giant Killers (Underdog Winners) & Clutch Closers -->
+          <div class="p-3.5 rounded-xl bg-slate-900/95 border border-amber-500/35 space-y-2 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[11px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🗡️</span>
+                <span>Giant Killers &amp; Clutch Heroes</span>
+              </span>
+              <span class="text-[9px] font-mono text-slate-400">Underdog &amp; 1-Goal Games</span>
+            </div>
+            <div class="space-y-1.5">
+              ${giantKillers.giantKillers.slice(0, 2).map((g) => `
+                <div class="flex items-center justify-between text-[11px] bg-slate-950/60 px-2 py-1 rounded-lg border border-amber-500/20">
+                  <span class="font-bold text-white flex items-center gap-1">
+                    <span class="text-[10px]">🗡️</span>
+                    <span>${g.name}</span>
+                  </span>
+                  <span class="font-mono text-[10px] text-amber-300 font-bold">
+                    ${g.adverseWins}W/${g.adverseMatches}M as Underdog (${g.adverseWinRate}%)
+                  </span>
+                </div>
+              `).join("")}
+              ${clutchData.clutchScorers.slice(0, 2).map((c) => `
+                <div class="flex items-center justify-between text-[11px] bg-slate-950/60 px-2 py-1 rounded-lg border border-emerald-500/20">
+                  <span class="font-bold text-white flex items-center gap-1">
+                    <span class="text-[10px]">🎯</span>
+                    <span>${c.name}</span>
+                  </span>
+                  <span class="font-mono text-[10px] text-emerald-300 font-bold">
+                    ${c.clutchGoals} Clutch Goals (≤1G margin)
+                  </span>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+
+          <!-- Card E: Golden Duos vs. Cursed Pairings -->
+          <div class="p-3.5 rounded-xl bg-slate-900/95 border border-indigo-500/35 space-y-2 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[11px] font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>⚡</span>
+                <span>Golden Duos vs. 💔 Cursed Pairs</span>
+              </span>
+              <span class="text-[9px] font-mono text-slate-400">Same-Team Chemistry</span>
+            </div>
+            <div class="space-y-1.5">
+              ${chemKrypto.goldenDuos.slice(0, 2).map((d) => `
+                <div class="flex items-center justify-between text-[11px] bg-emerald-950/30 px-2 py-1 rounded-lg border border-emerald-500/30">
+                  <span class="font-bold text-emerald-200 truncate pr-1">⚡ ${d.p1} &amp; ${d.p2}</span>
+                  <span class="font-mono text-[10px] text-emerald-300 font-bold whitespace-nowrap">
+                    ${d.wins}W-${d.draws}D-${d.losses}L (${d.winRate}% • ${d.goalDiff > 0 ? '+' : ''}${d.goalDiff} GD)
+                  </span>
+                </div>
+              `).join("")}
+              ${chemKrypto.cursedDuos.slice(0, 2).map((d) => `
+                <div class="flex items-center justify-between text-[11px] bg-rose-950/30 px-2 py-1 rounded-lg border border-rose-500/30">
+                  <span class="font-bold text-rose-200 truncate pr-1">💔 ${d.p1} &amp; ${d.p2}</span>
+                  <span class="font-mono text-[10px] text-rose-300 font-bold whitespace-nowrap">
+                    ${d.wins}W-${d.draws}D-${d.losses}L (${d.winRate}% • ${d.goalDiff} GD)
+                  </span>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+
+          <!-- Card F: Kryptonite Nemeses (Lopsided 1v1 Opponents) -->
+          <div class="p-3.5 rounded-xl bg-slate-900/95 border border-fuchsia-500/35 space-y-2 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[11px] font-black text-fuchsia-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>☠️</span>
+                <span>Kryptonite 1v1 Nemeses</span>
+              </span>
+              <span class="text-[9px] font-mono text-slate-400">Opposing H2H Dominance</span>
+            </div>
+            <div class="space-y-1.5">
+              ${chemKrypto.kryptoniteRivalries.slice(0, 4).map((k) => `
+                <div class="flex items-center justify-between text-[11px] bg-slate-950/60 px-2 py-1 rounded-lg border border-slate-800/70">
+                  <div class="truncate pr-1">
+                    <span class="font-bold text-fuchsia-300">${k.dominant}</span>
+                    <span class="text-[10px] text-slate-400 mx-1">owns</span>
+                    <span class="font-semibold text-slate-200">${k.victim}</span>
+                  </div>
+                  <span class="font-mono text-[10px] text-fuchsia-300 font-bold whitespace-nowrap">
+                    ${k.domWins}W-${k.draws}D-${k.vicWins}L (${k.goalDiff > 0 ? '+' : ''}${k.goalDiff} GD)
+                  </span>
+                </div>
+              `).join("") || '<span class="text-xs text-slate-500">All H2H rivalries dead even</span>'}
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 4. AI Pundit Broadcast Commentary (6 Narrative Insights) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          
+          <!-- Narrative 1: Moneyball & Value Over Expectation -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-cyan-500/30 space-y-1.5 shadow-sm hover:border-cyan-500/50 transition-colors">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[10px] font-black text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>💎</span>
+                <span>Moneyball Scout Report</span>
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.moneyballInsight || insights.derbyDynamicInsight}</p>
+          </div>
+
+          <!-- Narrative 2: Personal Head-to-Head Player Rivalries -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-rose-500/30 space-y-1.5 shadow-sm hover:border-rose-500/50 transition-colors">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[10px] font-black text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>⚔️</span>
+                <span>Kryptonite &amp; H2H Rivalries</span>
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.rivalryInsight}</p>
+          </div>
+
+          <!-- Narrative 3: Proven Winning Partnerships vs Cursed Pairs -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-amber-500/30 space-y-1.5 shadow-sm hover:border-amber-500/50 transition-colors">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[10px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🏆</span>
+                <span>Golden vs. Cursed Chemistries</span>
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.partnershipInsight}</p>
+          </div>
+
+          <!-- Narrative 4: Clutch Scorers & Giant Killers -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-1.5 shadow-sm hover:border-emerald-500/50 transition-colors">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[10px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🎯</span>
+                <span>Clutch Scorers &amp; Giant Killers</span>
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.clutchScorerInsight}</p>
+          </div>
+
+          <!-- Narrative 5: Defensive Lockdown & Plus/Minus -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-teal-500/30 space-y-1.5 shadow-sm hover:border-teal-500/50 transition-colors">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[10px] font-black text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🛡️</span>
+                <span>Defensive Wall &amp; ± Impact</span>
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.defensiveInsight}</p>
+          </div>
+
+          <!-- Narrative 6: Jersey Identity Win Rate Paradox -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-indigo-500/30 space-y-1.5 shadow-sm hover:border-indigo-500/50 transition-colors">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="text-[10px] font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span>👕</span>
+                <span>Jersey Identity Win Rate Paradox</span>
+              </span>
+            </div>
+            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.jerseyParadoxInsight}</p>
+          </div>
+
+        </div>
+
+        <!-- 5. Traditional Podiums (4-Column Responsive Grid) -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           
           <!-- Top 3 Goal Scorers -->
@@ -560,7 +915,7 @@ async function handleGenerateLeagueInsights() {
             <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
               <span class="text-[11px] font-black text-blue-400 uppercase tracking-wider flex items-center gap-1">
                 <span>⚽</span>
-                <span>Top Scorers</span>
+                <span>Golden Boot</span>
               </span>
             </div>
             <div class="space-y-1.5">
@@ -595,8 +950,8 @@ async function handleGenerateLeagueInsights() {
           <div class="p-3 rounded-xl bg-slate-900/90 border border-red-500/30 space-y-2">
             <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
               <span class="text-[11px] font-black text-red-400 uppercase tracking-wider flex items-center gap-1">
-                <span>⚠️</span>
-                <span>Top Underdogs</span>
+                <span>🔥</span>
+                <span>Redemption Seekers</span>
               </span>
             </div>
             <div class="space-y-1.5">
@@ -614,7 +969,7 @@ async function handleGenerateLeagueInsights() {
             <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
               <span class="text-[11px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1">
                 <span>🤝</span>
-                <span>Top Duo Chemistries</span>
+                <span>Most Joint Wins</span>
               </span>
             </div>
             <div class="space-y-1.5">
@@ -625,77 +980,6 @@ async function handleGenerateLeagueInsights() {
                 </div>
               `).join("") || '<span class="text-slate-500">No data</span>'}
             </div>
-          </div>
-
-        </div>
-
-        <!-- 3. Deep Historical AI Insights (6-Card Grid) -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          
-          <!-- Card 1: Personal Head-to-Head Player Rivalries -->
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-rose-500/30 space-y-1.5 shadow-sm hover:border-rose-500/50 transition-colors">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
-              <span class="text-[10px] font-black text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
-                <span>⚔️</span>
-                <span>Head-to-Head Player Rivalries</span>
-              </span>
-            </div>
-            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.rivalryInsight}</p>
-          </div>
-
-          <!-- Card 2: Proven Winning Partnerships -->
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-amber-500/30 space-y-1.5 shadow-sm hover:border-amber-500/50 transition-colors">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
-              <span class="text-[10px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                <span>🏆</span>
-                <span>Winning Partnerships &amp; Chemistries</span>
-              </span>
-            </div>
-            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.partnershipInsight}</p>
-          </div>
-
-          <!-- Card 3: Clutch Scorers & Hat-Trick Impact -->
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-1.5 shadow-sm hover:border-emerald-500/50 transition-colors">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
-              <span class="text-[10px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                <span>🎯</span>
-                <span>Clutch Scorers &amp; Hat-Tricks</span>
-              </span>
-            </div>
-            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.clutchScorerInsight}</p>
-          </div>
-
-          <!-- Card 4: Defensive Lockdown & Leakage -->
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-cyan-500/30 space-y-1.5 shadow-sm hover:border-cyan-500/50 transition-colors">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
-              <span class="text-[10px] font-black text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
-                <span>🛡️</span>
-                <span>Defensive Lockdown &amp; Leakage</span>
-              </span>
-            </div>
-            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.defensiveInsight}</p>
-          </div>
-
-          <!-- Card 5: Jersey Identity Win Rate Paradox -->
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-indigo-500/30 space-y-1.5 shadow-sm hover:border-indigo-500/50 transition-colors">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
-              <span class="text-[10px] font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                <span>👕</span>
-                <span>Jersey Identity Win Rate Paradox</span>
-              </span>
-            </div>
-            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.jerseyParadoxInsight}</p>
-          </div>
-
-          <!-- Card 6: Derby Dynamics & Expected Pace -->
-          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-purple-500/30 space-y-1.5 shadow-sm hover:border-purple-500/50 transition-colors">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
-              <span class="text-[10px] font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
-                <span>🔮</span>
-                <span>Derby Dynamics &amp; Expected Pace</span>
-              </span>
-            </div>
-            <p class="text-xs leading-relaxed text-slate-200 font-medium">${insights.derbyDynamicInsight}</p>
           </div>
 
         </div>

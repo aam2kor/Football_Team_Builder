@@ -6,7 +6,11 @@ import {
   computeDefensiveLeakageStats,
   computeClutchScorers,
   computeDerbyTrends,
-  computeTopWinningChemistries
+  computeTopWinningChemistries,
+  computePlusMinusAndMoneyballStats,
+  computeGiantKillersAndClosers,
+  computeChemistryAndKryptoniteStats,
+  computeMetaTacticalAnatomy
 } from "../services/leagueService.js";
 
 export const DEFAULT_AI_CONFIG = {
@@ -351,27 +355,61 @@ async function queryOllamaLeagueInsights(matches = [], aiConfig = DEFAULT_AI_CON
   const defensive = computeDefensiveLeakageStats(matches, 3);
   const jerseyStats = computePlayerJerseyWinRates(matches).filter(p => p.totalMatches >= 2 && p.voyagers.matches > 0 && p.boots.matches > 0);
   const trends = computeDerbyTrends(matches);
+  const moneyball = computePlusMinusAndMoneyballStats(matches, playerDb);
+  const giantKillers = computeGiantKillersAndClosers(matches);
+  const chemKrypto = computeChemistryAndKryptoniteStats(matches, 2);
+  const metaTactics = computeMetaTacticalAnatomy(matches, playerDb);
 
   const topRivalry = rivalries[0] || { p1: "Abey", p2: "Anoop", matches: 4, p1Wins: 2, p2Wins: 1, draws: 1 };
+  const topKrypto = chemKrypto.kryptoniteRivalries[0];
   const topDuo = chemistries[0] || { p1: "Vinay", p2: "Sreekanth", wins: 2 };
+  const topCursed = chemKrypto.cursedDuos[0];
   const topClutch = clutch.clutchScorers[0] || { name: "Sanjay", clutchGoals: 3 };
+  const topGkiller = giantKillers.giantKillers[0];
   const topDef = defensive[0] || { name: "Mathai", goalsAgainstPerMatch: 3.5 };
+  const topPm = moneyball.plusMinusLeaders[0];
+  const topGem = moneyball.overperformers[0];
+  const topTiger = moneyball.underperformers[0];
   const topJersey = jerseyStats[0] || { name: "Abey", voyagers: { winRate: 50 }, boots: { winRate: 33 } };
 
-  const systemPrompt = `You are a sharp football pundit, scout, and tactician for Third Half United League.
+  const defaultRivalryText = topKrypto
+    ? `Kryptonite Alert: ${topKrypto.dominant} has dominated ${topKrypto.victim} in ${topKrypto.matches} head-to-head clashes (${topKrypto.domWins}W-${topKrypto.draws}D-${topKrypto.vicWins}L, ${topKrypto.domWinRate}% win rate, ${topKrypto.goalDiff > 0 ? '+' : ''}${topKrypto.goalDiff} GD).`
+    : `${topRivalry.p1} and ${topRivalry.p2} have clashed in ${topRivalry.matches} direct matchups (${topRivalry.p1} ${topRivalry.p1Wins}W - ${topRivalry.draws}D - ${topRivalry.p2Wins}W ${topRivalry.p2}).`;
+
+  const defaultPartnerText = topCursed
+    ? `Golden Duo ${topDuo.p1} & ${topDuo.p2} boast ${topDuo.wins} joint wins, whereas Cursed Pairing ${topCursed.p1} & ${topCursed.p2} have struggled together (${topCursed.wins}W-${topCursed.draws}D-${topCursed.losses}L, ${topCursed.goalDiff} GD).`
+    : `${topDuo.p1} & ${topDuo.p2} boast a lethal joint record with ${topDuo.wins} wins when paired on the same side.`;
+
+  const defaultClutchText = topGkiller
+    ? `${topClutch.name} leads tight games with ${topClutch.clutchGoals} clutch goals, while Giant Killer ${topGkiller.name} has pulled off ${topGkiller.adverseWins} underdog win(s) (${topGkiller.adverseWinRate}% win rate when rated weaker).`
+    : `${topClutch.name} leads high-pressure moments with ${topClutch.clutchGoals} clutch goals in 1-goal margin games, while CP & Vinay hold hat-trick honours.`;
+
+  const defaultDefText = topPm
+    ? `${topDef.name} anchors the backline (${topDef.goalsAgainstPerMatch} GA/match), while ${topPm.name} leads the league in on-pitch Plus/Minus impact at ${topPm.plusMinusPerMatch > 0 ? '+' : ''}${topPm.plusMinusPerMatch} GD/match.`
+    : `${topDef.name} anchors defensive stability with an impressive ${topDef.goalsAgainstPerMatch} goals conceded per match.`;
+
+  const defaultMoneyballText = topGem
+    ? `${topGem.name} (${topGem.ovr} OVR) is the premier Moneyball gem with a ${topGem.winRate}% win rate (vs ${topGem.expectedWinRate}% expected) and ${topGem.plusMinusPerMatch > 0 ? '+' : ''}${topGem.plusMinusPerMatch} GD/match${topTiger ? `, while ${topTiger.name} (${topTiger.ovr} OVR) sits at ${topTiger.winRate}% (${topTiger.plusMinusPerMatch} GD/M)` : ''}.`
+    : `Mid-tier OVR workhorses consistently outperform paper ratings through high-tempo two-way transitions.`;
+
+  const defaultMetaText = `${metaTactics.topSector.label} is the #1 match-winning sector (${metaTactics.topSector.winConversionRate}% win rate when leading), paired with ${metaTactics.topAttribute.label} (${metaTactics.topAttribute.winConversionRate}% win conversion).`;
+
+  const systemPrompt = `You are a sharp football pundit, Moneyball scout, and tactician for Third Half United League.
 Match & Player History:
 ${leagueSummary}
 
-Provide 6 concrete, data-grounded insights strictly based on match history and player database attributes.
+Provide concrete, data-grounded insights strictly based on match history and player database attributes.
 Respond with pure JSON matching this exact schema:
 {
-  "headline": "Punchy 1-line headline summarizing the derby status",
-  "rivalryInsight": "1-2 sentences highlighting a fierce H2H rivalry (e.g. Abey vs Anoop) with win/loss record",
-  "partnershipInsight": "1-2 sentences on a lethal winning duo (e.g. Vinay & Sreekanth or Mathai & Sanjay) and their chemistry",
-  "clutchScorerInsight": "1-2 sentences on clutch goalscorers in tight games vs hat-trick records (cite exact names and numbers)",
-  "defensiveInsight": "1-2 sentences on defensive lockdown vs goals conceded leakage per match",
+  "headline": "Punchy 1-line headline summarizing the derby status, Moneyball standouts, and tactical meta",
+  "rivalryInsight": "1-2 sentences highlighting the sharpest Kryptonite H2H rivalry with win/loss record and goal diff",
+  "partnershipInsight": "1-2 sentences contrasting a lethal Golden Duo with a Cursed Pairing that struggles together",
+  "clutchScorerInsight": "1-2 sentences on clutch goalscorers, hat-tricks, and Giant Killer underdog winners",
+  "defensiveInsight": "1-2 sentences on defensive lockdown vs goals conceded leakage and Plus/Minus (+/-) impact leaders",
   "jerseyParadoxInsight": "1-2 sentences on surprising win rate differences when wearing Voyagers vs Boots & Beers jerseys",
-  "derbyDynamicInsight": "1-2 sentences forecasting the derby pace and expected scoreline based on the historical goals per match average"
+  "derbyDynamicInsight": "1-2 sentences forecasting derby pace and underdog upset rate",
+  "moneyballInsight": "1-2 sentences on Moneyball Overperformers beating their FIFA OVR vs underperforming high-OVR stars",
+  "metaTacticalInsight": "1-2 sentences explaining which sector and attribute actually convert into derby wins"
 }
 Rules: Be concise, cite exact player names and figures from data.`;
 
@@ -379,14 +417,14 @@ Rules: Be concise, cite exact player names and figures from data.`;
     model: model,
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Analyze personal H2H rivalries, winning partnerships, clutch scorers, defensive leakage, jersey win rate paradoxes, and derby scoring trends." }
+      { role: "user", content: "Analyze personal H2H rivalries, Golden vs Cursed partnerships, clutch scorers & Giant Killers, Plus/Minus & defensive leakage, Moneyball OVR value, and Meta-Tactical derby win rates." }
     ],
     stream: false,
     format: "json",
     options: {
       temperature: 0.15,
-      num_predict: 450,
-      num_ctx: 1024
+      num_predict: 550,
+      num_ctx: 2048
     }
   };
 
@@ -421,25 +459,29 @@ Rules: Be concise, cite exact player names and figures from data.`;
     }
 
     return {
-      headline: parsed.headline || "Third Half United Derby Dynamics",
-      rivalryInsight: parsed.rivalryInsight || `${topRivalry.p1} and ${topRivalry.p2} have clashed in ${topRivalry.matches} direct matchups (${topRivalry.p1} ${topRivalry.p1Wins}W - ${topRivalry.draws}D - ${topRivalry.p2Wins}W ${topRivalry.p2}).`,
-      partnershipInsight: parsed.partnershipInsight || `${topDuo.p1} & ${topDuo.p2} boast a lethal joint record with ${topDuo.wins} wins when paired on the same side.`,
-      clutchScorerInsight: parsed.clutchScorerInsight || `${topClutch.name} leads high-pressure moments with ${topClutch.clutchGoals} clutch goals in 1-goal margin games, while CP & Vinay hold hat-trick honours.`,
-      defensiveInsight: parsed.defensiveInsight || `${topDef.name} anchors defensive stability with an impressive ${topDef.goalsAgainstPerMatch} goals conceded per match.`,
+      headline: parsed.headline || `${metaTactics.topSector.label} Rules the Meta as ${topGem ? topGem.name : 'Underdogs'} Defy the Odds`,
+      rivalryInsight: parsed.rivalryInsight || defaultRivalryText,
+      partnershipInsight: parsed.partnershipInsight || defaultPartnerText,
+      clutchScorerInsight: parsed.clutchScorerInsight || defaultClutchText,
+      defensiveInsight: parsed.defensiveInsight || defaultDefText,
       jerseyParadoxInsight: parsed.jerseyParadoxInsight || `${topJersey.name} exhibits a stark jersey win rate contrast: ${topJersey.voyagers.winRate}% with Voyagers vs ${topJersey.boots.winRate}% with Boots & Beers.`,
-      derbyDynamicInsight: parsed.derbyDynamicInsight || `Across ${trends.totalMatches} matches, an explosive ${trends.totalGoals} goals have been scored (${trends.avgGoalsPerMatch} goals/match) — expect another high-octane battle!`
+      derbyDynamicInsight: parsed.derbyDynamicInsight || `Across ${trends.totalMatches} matches (${trends.avgGoalsPerMatch} goals/match), underdogs have pulled off a ${giantKillers.leagueUpsetSummary.upsetRate}% upset rate against paper favorites!`,
+      moneyballInsight: parsed.moneyballInsight || defaultMoneyballText,
+      metaTacticalInsight: parsed.metaTacticalInsight || defaultMetaText
     };
   } catch (err) {
     clearTimeout(timeoutId);
     console.warn("Ollama league insights call failed, generating data-driven fallback:", err);
     return {
-      headline: "Third Half United Derby Dynamics & Tactical Breakdown",
-      rivalryInsight: `${topRivalry.p1} vs ${topRivalry.p2} has been one of the most intense battles (${topRivalry.matches} matches: ${topRivalry.p1} ${topRivalry.p1Wins}W - ${topRivalry.draws}D - ${topRivalry.p2Wins}W ${topRivalry.p2}).`,
-      partnershipInsight: `${topDuo.p1} & ${topDuo.p2} form the benchmark winning partnership with ${topDuo.wins} victories when paired together.`,
-      clutchScorerInsight: `${topClutch.name} delivers when the stakes are highest with ${topClutch.clutchGoals} clutch goals in close contests, complemented by CP & Vinay's 3-goal blitzes.`,
-      defensiveInsight: `${topDef.name} leads defensive containment with only ${topDef.goalsAgainstPerMatch} goals conceded per match.`,
+      headline: `${metaTactics.topSector.label} Rules the Meta as ${topGem ? topGem.name : 'Underdogs'} Defy the Odds`,
+      rivalryInsight: defaultRivalryText,
+      partnershipInsight: defaultPartnerText,
+      clutchScorerInsight: defaultClutchText,
+      defensiveInsight: defaultDefText,
       jerseyParadoxInsight: `${topJersey.name} shows notable jersey polarity (${topJersey.voyagers.winRate}% win rate as Voyager vs ${topJersey.boots.winRate}% with Boots & Beers).`,
-      derbyDynamicInsight: `With ${trends.totalGoals} goals scored across ${trends.totalMatches} games (${trends.avgGoalsPerMatch} goals/match), historical trends point towards a high-scoring thriller.`
+      derbyDynamicInsight: `Across ${trends.totalMatches} matches (${trends.avgGoalsPerMatch} goals/match), underdogs have pulled off a ${giantKillers.leagueUpsetSummary.upsetRate}% upset rate against paper favorites!`,
+      moneyballInsight: defaultMoneyballText,
+      metaTacticalInsight: defaultMetaText
     };
   }
 }

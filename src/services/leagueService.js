@@ -809,6 +809,425 @@ export function computeDerbyTrends(matches = []) {
 }
 
 /**
+ * Computes Plus/Minus (+/- Goal Differential per match) and Moneyball Value Over Expectation
+ * by comparing each player's FIFA OVR rating against their real on-pitch results.
+ * @param {Array} matches
+ * @param {Array} playerDb
+ * @returns {Object} { plusMinusLeaders, overperformers, underperformers, allPlayerMetrics, avgLeagueOvr }
+ */
+export function computePlusMinusAndMoneyballStats(matches = [], playerDb = []) {
+  const stats = computePlayerLeagueStats(matches);
+  const topScorers = computeTopGoalScorers(matches, 100);
+  const scorerMap = {};
+  topScorers.forEach(s => {
+    scorerMap[s.name.toLowerCase().trim()] = s.goals;
+  });
+
+  const resolveDbPlayer = (name) => {
+    if (!name || !Array.isArray(playerDb)) return null;
+    const clean = name.toLowerCase().trim();
+    return playerDb.find(
+      p => p.name?.toLowerCase().trim() === clean ||
+           p.name?.toLowerCase().split(" ")[0] === clean
+    ) || null;
+  };
+
+  const playerEntries = Object.values(stats).filter(p => p.matches > 0);
+  if (playerEntries.length === 0) {
+    return { plusMinusLeaders: [], overperformers: [], underperformers: [], allPlayerMetrics: [], avgLeagueOvr: 80 };
+  }
+
+  const mappedWithOvr = playerEntries.map(p => {
+    const dbP = resolveDbPlayer(p.name);
+    return {
+      ...p,
+      ovr: dbP?.ovr || 80,
+      position: dbP?.position || "MID"
+    };
+  });
+
+  const avgLeagueOvr = Math.round(
+    (mappedWithOvr.reduce((acc, p) => acc + p.ovr, 0) / mappedWithOvr.length) * 10
+  ) / 10;
+
+  const allPlayerMetrics = mappedWithOvr.map(p => {
+    const cleanName = p.name.toLowerCase().trim();
+    const individualGoals = scorerMap[cleanName] || 0;
+    const goalDiff = p.goalsFor - p.goalsAgainst;
+    const plusMinusPerMatch = Number((goalDiff / p.matches).toFixed(1));
+    const goalsPerMatch = Number((individualGoals / p.matches).toFixed(2));
+
+    // Expected win rate based on player OVR relative to league mean OVR
+    const expectedWinRate = Math.max(20, Math.min(85, Math.round(50 + (p.ovr - avgLeagueOvr) * 3.0)));
+    const winRateDelta = p.winRate - expectedWinRate;
+
+    // Sample confidence weight (ramps up to 1.0 at 2+ matches)
+    const sampleWeight = Math.min(1.0, p.matches / 2);
+    const moneyballScore = Number(
+      ((plusMinusPerMatch * 12 + winRateDelta * 0.75 + goalsPerMatch * 10) * sampleWeight).toFixed(1)
+    );
+
+    return {
+      name: p.name,
+      position: p.position,
+      ovr: p.ovr,
+      matches: p.matches,
+      wins: p.wins,
+      draws: p.draws,
+      losses: p.losses,
+      winRate: p.winRate,
+      expectedWinRate,
+      winRateDelta,
+      individualGoals,
+      goalsPerMatch,
+      goalsFor: p.goalsFor,
+      goalsAgainst: p.goalsAgainst,
+      goalDiff,
+      plusMinusPerMatch,
+      moneyballScore
+    };
+  });
+
+  const minGames = allPlayerMetrics.some(p => p.matches >= 2) ? 2 : 1;
+
+  const plusMinusLeaders = [...allPlayerMetrics]
+    .filter(p => p.matches >= minGames)
+    .sort((a, b) => b.plusMinusPerMatch - a.plusMinusPerMatch || b.goalDiff - a.goalDiff || b.wins - a.wins);
+
+  const overperformers = [...allPlayerMetrics]
+    .filter(p => p.matches >= minGames && (p.moneyballScore > 0 || p.winRateDelta > 0))
+    .sort((a, b) => b.moneyballScore - a.moneyballScore || b.winRateDelta - a.winRateDelta);
+
+  const underperformers = [...allPlayerMetrics]
+    .filter(p => p.matches >= minGames && (p.moneyballScore < 0 || p.winRateDelta < 0))
+    .sort((a, b) => a.moneyballScore - b.moneyballScore || a.winRateDelta - b.winRateDelta);
+
+  return {
+    plusMinusLeaders,
+    overperformers,
+    underperformers,
+    allPlayerMetrics,
+    avgLeagueOvr
+  };
+}
+
+/**
+ * Computes Giant Killers (players who win when their team is rated weaker pre-match)
+ * and Safe Closers / Front-Runners (players who convert favored matchups into wins),
+ * plus overall league upset rates.
+ * @param {Array} matches
+ * @returns {Object} { giantKillers, frontRunners, upsetVictims, leagueUpsetSummary }
+ */
+export function computeGiantKillersAndClosers(matches = []) {
+  const stats = computePlayerLeagueStats(matches);
+  const playerNames = Object.keys(stats);
+
+  const profiles = playerNames.map(name => {
+    const bc = computePlayerBalanceContext(matches, name);
+    const pStat = stats[name];
+    return {
+      name,
+      matches: pStat.matches,
+      wins: pStat.wins,
+      winRate: pStat.winRate,
+      ...bc
+    };
+  });
+
+  const giantKillers = profiles
+    .filter(p => p.adverseMatches > 0 && p.adverseWins > 0)
+    .sort((a, b) => b.adverseWins - a.adverseWins || b.adverseWinRate - a.adverseWinRate || b.winRate - a.winRate);
+
+  const frontRunners = profiles
+    .filter(p => p.favoredMatches > 0 && p.favoredWins > 0)
+    .sort((a, b) => b.favoredWinRate - a.favoredWinRate || b.favoredWins - a.favoredWins || b.winRate - a.winRate);
+
+  const upsetVictims = profiles
+    .filter(p => p.favoredMatches > 0 && p.favoredWins < p.favoredMatches)
+    .map(p => ({ ...p, favoredDrops: p.favoredMatches - p.favoredWins }))
+    .sort((a, b) => b.favoredDrops - a.favoredDrops || a.favoredWinRate - b.favoredWinRate);
+
+  // League-wide favorite vs underdog match outcomes
+  let tiltedMatches = 0;
+  let favoriteWins = 0;
+  let underdogUpsets = 0;
+  let tiltedDraws = 0;
+
+  (matches || []).forEach(m => {
+    if (!m.balance || !Array.isArray(m.teams) || m.teams.length < 2) return;
+    const netBalance = ((m.balance.attack || 0) + (m.balance.midfield || 0) + (m.balance.defense || 0)) / 3;
+    if (Math.abs(netBalance) < 0.2) return; // Even match
+
+    tiltedMatches++;
+    const teamAScore = Number(m.teams[0].score) || 0;
+    const teamBScore = Number(m.teams[1].score) || 0;
+    const favIsA = netBalance < 0; // negative favors Team A / Voyagers
+
+    if (teamAScore === teamBScore) {
+      tiltedDraws++;
+    } else if ((favIsA && teamAScore > teamBScore) || (!favIsA && teamBScore > teamAScore)) {
+      favoriteWins++;
+    } else {
+      underdogUpsets++;
+    }
+  });
+
+  const upsetRate = tiltedMatches > 0 ? Math.round((underdogUpsets / tiltedMatches) * 100) : 0;
+  const favoriteWinRate = tiltedMatches > 0 ? Math.round((favoriteWins / tiltedMatches) * 100) : 0;
+
+  return {
+    giantKillers,
+    frontRunners,
+    upsetVictims,
+    leagueUpsetSummary: {
+      tiltedMatches,
+      favoriteWins,
+      underdogUpsets,
+      tiltedDraws,
+      upsetRate,
+      favoriteWinRate
+    }
+  };
+}
+
+/**
+ * Computes Golden Duos, Cursed Pairings (teammates who struggle when paired together),
+ * and Kryptonite Nemeses (most lopsided 1v1 opposing records).
+ * @param {Array} matches
+ * @param {number} minMatches
+ * @returns {Object} { goldenDuos, cursedDuos, kryptoniteRivalries }
+ */
+export function computeChemistryAndKryptoniteStats(matches = [], minMatches = 2) {
+  const duoMap = {};
+
+  (matches || []).forEach(m => {
+    if (!Array.isArray(m.teams) || m.teams.length < 2) return;
+    m.teams.forEach(t => {
+      const otherTeam = m.teams.find(ot => ot !== t);
+      if (!otherTeam) return;
+
+      const myScore = Number(t.score) || 0;
+      const oppScore = Number(otherTeam.score) || 0;
+      const gd = myScore - oppScore;
+      const isWin = myScore > oppScore;
+      const isDraw = myScore === oppScore;
+
+      const members = (t.members || []).map(n => n.trim()).filter(Boolean).sort();
+      for (let i = 0; i < members.length; i++) {
+        for (let j = i + 1; j < members.length; j++) {
+          const key = `${members[i]} & ${members[j]}`;
+          if (!duoMap[key]) {
+            duoMap[key] = {
+              label: key,
+              p1: members[i],
+              p2: members[j],
+              matches: 0,
+              wins: 0,
+              draws: 0,
+              losses: 0,
+              goalsFor: 0,
+              goalsAgainst: 0,
+              goalDiff: 0
+            };
+          }
+          const d = duoMap[key];
+          d.matches++;
+          d.goalsFor += myScore;
+          d.goalsAgainst += oppScore;
+          d.goalDiff += gd;
+          if (isWin) d.wins++;
+          else if (isDraw) d.draws++;
+          else d.losses++;
+        }
+      }
+    });
+  });
+
+  const qualifiedDuos = Object.values(duoMap)
+    .filter(d => d.matches >= minMatches)
+    .map(d => ({
+      ...d,
+      winRate: Math.round((d.wins / d.matches) * 100),
+      plusMinusPerMatch: Number((d.goalDiff / d.matches).toFixed(1))
+    }));
+
+  const goldenDuos = [...qualifiedDuos]
+    .filter(d => d.wins > 0)
+    .sort((a, b) => b.winRate - a.winRate || b.wins - a.wins || b.goalDiff - a.goalDiff);
+
+  const cursedDuos = [...qualifiedDuos]
+    .filter(d => d.losses > 0 && d.winRate <= 50)
+    .sort((a, b) => a.winRate - b.winRate || b.losses - a.losses || a.goalDiff - b.goalDiff);
+
+  // Kryptonite Nemeses from opposing H2H rivalries
+  const rawRivalries = computePlayerH2HRivalries(matches, minMatches);
+  const kryptoniteRivalries = rawRivalries
+    .filter(r => r.p1Wins !== r.p2Wins)
+    .map(r => {
+      const p1Dominant = r.p1Wins > r.p2Wins;
+      const dominant = p1Dominant ? r.p1 : r.p2;
+      const victim = p1Dominant ? r.p2 : r.p1;
+      const domWins = p1Dominant ? r.p1Wins : r.p2Wins;
+      const vicWins = p1Dominant ? r.p2Wins : r.p1Wins;
+      const domGoals = p1Dominant ? r.p1Goals : r.p2Goals;
+      const vicGoals = p1Dominant ? r.p2Goals : r.p1Goals;
+      const winDiff = domWins - vicWins;
+      const domWinRate = Math.round((domWins / r.matches) * 100);
+
+      return {
+        dominant,
+        victim,
+        matches: r.matches,
+        domWins,
+        vicWins,
+        draws: r.draws,
+        winDiff,
+        domWinRate,
+        domGoals,
+        vicGoals,
+        goalDiff: domGoals - vicGoals
+      };
+    })
+    .sort((a, b) => b.winDiff - a.winDiff || b.domWinRate - a.domWinRate || b.goalDiff - a.goalDiff);
+
+  return {
+    goldenDuos,
+    cursedDuos,
+    kryptoniteRivalries
+  };
+}
+
+/**
+ * Computes Meta-Tactical Anatomy ("What Actually Wins Derbies?"):
+ * Evaluates every historical match to determine which tactical sectors (Attack, Midfield, Defense)
+ * and team attributes (Pace, Passing, Shooting, Physicality, Chemistry) actually convert into wins.
+ * @param {Array} matches
+ * @param {Array} playerDb
+ * @param {Object} sectorWeights
+ * @returns {Object}
+ */
+export function computeMetaTacticalAnatomy(matches = [], playerDb = [], sectorWeights = null) {
+  const sw = sectorWeights || DEFAULT_SECTOR_WEIGHTS;
+  const modelVal = validateBalancerModel(matches, playerDb, sw);
+
+  const resolvePlayer = (name) => {
+    if (!name || !Array.isArray(playerDb)) return null;
+    const clean = name.toLowerCase().trim();
+    return playerDb.find(
+      p => p.name?.toLowerCase().trim() === clean ||
+           p.id?.toLowerCase() === clean ||
+           p.name?.toLowerCase().split(" ")[0] === clean
+    ) || null;
+  };
+
+  const factors = {
+    attack:    { key: "attack",    label: "⚔️ Attack Sector",     category: "sector",    ledMatches: 0, winsWhenLeading: 0, drawsWhenLeading: 0, corr: modelVal.sectorCorrelations?.attack || 0 },
+    midfield:  { key: "midfield",  label: "⚙️ Midfield Control",  category: "sector",    ledMatches: 0, winsWhenLeading: 0, drawsWhenLeading: 0, corr: modelVal.sectorCorrelations?.midfield || 0 },
+    defense:   { key: "defense",   label: "🛡️ Defense & GK Wall", category: "sector",    ledMatches: 0, winsWhenLeading: 0, drawsWhenLeading: 0, corr: modelVal.sectorCorrelations?.defense || 0 },
+    pace:      { key: "pace",      label: "⚡ Team Pace (PAC)",   category: "attribute", ledMatches: 0, winsWhenLeading: 0, drawsWhenLeading: 0 },
+    passing:   { key: "passing",   label: "🎯 Passing & Vision",  category: "attribute", ledMatches: 0, winsWhenLeading: 0, drawsWhenLeading: 0 },
+    physical:  { key: "physical",  label: "💪 Physical & Stamina",category: "attribute", ledMatches: 0, winsWhenLeading: 0, drawsWhenLeading: 0 },
+    chemistry: { key: "chemistry", label: "🤝 Chemistry Links",   category: "attribute", ledMatches: 0, winsWhenLeading: 0, drawsWhenLeading: 0 }
+  };
+
+  let analyzedMatches = 0;
+
+  (matches || []).forEach(m => {
+    if (!Array.isArray(m.teams) || m.teams.length < 2) return;
+    const tA = m.teams[0];
+    const tB = m.teams[1];
+    const scoreA = Number(tA.score);
+    const scoreB = Number(tB.score);
+    if (Number.isNaN(scoreA) || Number.isNaN(scoreB)) return;
+
+    const playersA = (tA.members || []).map(resolvePlayer).filter(Boolean);
+    const playersB = (tB.members || []).map(resolvePlayer).filter(Boolean);
+
+    let valsA, valsB;
+    if (playersA.length >= 2 && playersB.length >= 2) {
+      const sA = calculateTeamStats(playersA, {}, sw, false);
+      const sB = calculateTeamStats(playersB, {}, sw, false);
+      valsA = {
+        attack: sA.attack,
+        midfield: sA.midfield,
+        defense: sA.defense,
+        pace: sA.pace,
+        passing: sA.passing,
+        physical: sA.physical,
+        chemistry: sA.synergyCount
+      };
+      valsB = {
+        attack: sB.attack,
+        midfield: sB.midfield,
+        defense: sB.defense,
+        pace: sB.pace,
+        passing: sB.passing,
+        physical: sB.physical,
+        chemistry: sB.synergyCount
+      };
+    } else if (m.balance) {
+      // Fallback to recorded pre-match balance if playerDb wasn't passed
+      valsA = {
+        attack: -(m.balance.attack || 0),
+        midfield: -(m.balance.midfield || 0),
+        defense: -(m.balance.defense || 0),
+        pace: 0, passing: 0, physical: 0, chemistry: 0
+      };
+      valsB = {
+        attack: (m.balance.attack || 0),
+        midfield: (m.balance.midfield || 0),
+        defense: (m.balance.defense || 0),
+        pace: 0, passing: 0, physical: 0, chemistry: 0
+      };
+    } else {
+      return;
+    }
+
+    analyzedMatches++;
+    const aWon = scoreA > scoreB;
+    const bWon = scoreB > scoreA;
+    const isDraw = scoreA === scoreB;
+
+    Object.keys(factors).forEach(k => {
+      const diff = (valsA[k] || 0) - (valsB[k] || 0);
+      if (Math.abs(diff) < 0.1) return; // Tied in this metric
+      const f = factors[k];
+      f.ledMatches++;
+      const leaderWon = (diff > 0 && aWon) || (diff < 0 && bWon);
+      if (leaderWon) f.winsWhenLeading++;
+      else if (isDraw) f.drawsWhenLeading++;
+    });
+  });
+
+  const factorList = Object.values(factors).map(f => {
+    const winConversionRate = f.ledMatches > 0 ? Math.round((f.winsWhenLeading / f.ledMatches) * 100) : 50;
+    const unbeatenRate = f.ledMatches > 0 ? Math.round(((f.winsWhenLeading + f.drawsWhenLeading) / f.ledMatches) * 100) : 50;
+    return {
+      ...f,
+      winConversionRate,
+      unbeatenRate
+    };
+  });
+
+  const sectors = factorList.filter(f => f.category === "sector").sort((a, b) => b.winConversionRate - a.winConversionRate || Math.abs(b.corr) - Math.abs(a.corr));
+  const attributes = factorList.filter(f => f.category === "attribute" && f.ledMatches > 0).sort((a, b) => b.winConversionRate - a.winConversionRate || b.unbeatenRate - a.unbeatenRate);
+
+  const topSector = sectors[0] || { label: "⚙️ Midfield Control", winConversionRate: 67, corr: 0.5 };
+  const topAttribute = attributes[0] || { label: "⚡ Team Pace (PAC)", winConversionRate: 67, unbeatenRate: 75 };
+
+  return {
+    analyzedMatches,
+    alignmentRate: modelVal.alignmentRate,
+    meanError: modelVal.meanError,
+    sectors,
+    attributes,
+    topSector,
+    topAttribute,
+    matchEvaluations: modelVal.matchEvaluations
+  };
+}
+
+/**
  * Formats a comprehensive historical league summary string suitable for LLM analysis.
  * Implements the Grounded Hybrid Architecture:
  * Layer 1: Match-by-Match Raw Log (lineups, scorelines, scorers)
@@ -868,6 +1287,10 @@ export function formatLeagueSummaryForAi(matches = [], filterPlayers = null, pla
   const clutch = computeClutchScorers(matches);
   const defensive = computeDefensiveLeakageStats(matches, 5);
   const jerseyStats = computePlayerJerseyWinRates(matches).filter(p => p.totalMatches >= 2 && p.voyagers.matches > 0 && p.boots.matches > 0).slice(0, 5);
+  const moneyball = computePlusMinusAndMoneyballStats(matches, playerDb || []);
+  const giantKillers = computeGiantKillersAndClosers(matches);
+  const chemKrypto = computeChemistryAndKryptoniteStats(matches, 2);
+  const metaTactics = computeMetaTacticalAnatomy(matches, playerDb || []);
 
   const allScorers = computeTopGoalScorers(matches, 30);
   const activeScorers = (allowedNames ? allScorers.filter(s => allowedNames.has(s.name.toLowerCase().trim())) : allScorers).slice(0, 5);
@@ -879,14 +1302,28 @@ export function formatLeagueSummaryForAi(matches = [], filterPlayers = null, pla
   out += `\n=== VERIFIED STATISTICAL GROUND-TRUTH (CITE THESE EXACT FIGURES) ===\n`;
   out += `• Derby Record: Voyagers ${h2h.voyagersWins}W - ${h2h.draws}D - ${h2h.bootsWins}L Boots & Beers (${trends.totalGoals} total goals, ${trends.avgGoalsPerMatch} goals/match avg).\n`;
   out += `• Top Scorers: ${activeScorers.map(s => `${s.name} (${s.goals}G)`).join(", ")}\n`;
+  out += `• Plus/Minus (+/- GD per match) Leaders: ${moneyball.plusMinusLeaders.slice(0, 4).map(p => `${p.name} (${p.plusMinusPerMatch > 0 ? '+' : ''}${p.plusMinusPerMatch}/M, Total GD: ${p.goalDiff > 0 ? '+' : ''}${p.goalDiff})`).join(", ")}\n`;
+  if (moneyball.overperformers.length > 0) {
+    out += `• Moneyball Overperformers (vs OVR expectation): ${moneyball.overperformers.slice(0, 4).map(p => `${p.name} (${p.ovr} OVR, ${p.winRate}% Win vs ${p.expectedWinRate}% Exp, ${p.plusMinusPerMatch > 0 ? '+' : ''}${p.plusMinusPerMatch} GD/M)`).join(", ")}\n`;
+  }
+  if (giantKillers.giantKillers.length > 0) {
+    out += `• Giant Killers (Underdog Wins): ${giantKillers.giantKillers.slice(0, 4).map(g => `${g.name} (${g.adverseWins}W/${g.adverseMatches}M as underdog, ${g.adverseWinRate}%)`).join(", ")}\n`;
+  }
   out += `• Verified Hat-Tricks: ${clutch.hatTricks.map(ht => `${ht.name} (${ht.goals}G on ${ht.date})`).join(", ") || 'None'}\n`;
   out += `• Clutch Scorers (<=1 goal margins/draws): ${clutch.clutchScorers.slice(0, 4).map(c => `${c.name} (${c.clutchGoals} clutch goals)`).join(", ")}\n`;
   out += `• Top Winning Duos: ${chemistries.map(c => `${c.p1} & ${c.p2} (${c.wins} wins)`).join(", ")}\n`;
+  if (chemKrypto.cursedDuos.length > 0) {
+    out += `• Cursed Pairings (Struggle Together): ${chemKrypto.cursedDuos.slice(0, 3).map(d => `${d.p1} & ${d.p2} (${d.wins}W-${d.draws}D-${d.losses}L, ${d.winRate}% win rate, ${d.goalDiff} GD)`).join(", ")}\n`;
+  }
+  if (chemKrypto.kryptoniteRivalries.length > 0) {
+    out += `• Kryptonite Nemeses (1v1 Dominance): ${chemKrypto.kryptoniteRivalries.slice(0, 4).map(k => `${k.dominant} dominates ${k.victim} (${k.domWins}W-${k.draws}D-${k.vicWins}L in ${k.matches} clashes)`).join("; ")}\n`;
+  }
   out += `• Top Player H2H Rivalries: ${rivalries.map(r => `${r.p1} vs ${r.p2} (${r.matches} matches: ${r.p1} ${r.p1Wins}W - ${r.draws}D - ${r.p2Wins}W ${r.p2})`).join("; ")}\n`;
   out += `• Defensive Leakage (Goals conceded/match): ${defensive.map(d => `${d.name} (${d.goalsAgainstPerMatch} GA/match)`).join(", ")}\n`;
   if (jerseyStats.length > 0) {
     out += `• Jersey Win Rates: ${jerseyStats.map(j => `${j.name} (Voyagers: ${j.voyagers.winRate}% vs Boots: ${j.boots.winRate}%)`).join(", ")}\n`;
   }
+  out += `• Meta-Tactical Sector Win Conversion: ${metaTactics.sectors.map(s => `${s.label}: ${s.winConversionRate}% win rate when leading (r=${s.corr})`).join(" | ")}\n`;
 
   return out;
 }
