@@ -1,5 +1,45 @@
 [
   {
+    "id": "p_1792918324037_gbk8f",
+    "name": "Antony",
+    "position": "DEF",
+    "secondaryPosition": "DEF",
+    "ovr": 67,
+    "attributes": {
+      "pac": 54,
+      "sho": 54,
+      "pas": 66,
+      "dri": 60,
+      "def": 70,
+      "phy": 70,
+      "gk": 55
+    },
+    "avatar": "🛡️",
+    "preferredFoot": "Right",
+    "notes": "",
+    "chemistryPartners": []
+  },
+  {
+    "id": "p_1792918227547_y9dss",
+    "name": "Joshua",
+    "position": "DEF",
+    "secondaryPosition": "DEF",
+    "ovr": 42,
+    "attributes": {
+      "pac": 50,
+      "sho": 40,
+      "pas": 40,
+      "dri": 40,
+      "def": 40,
+      "phy": 40,
+      "gk": 35
+    },
+    "avatar": "🛡️",
+    "preferredFoot": "Right",
+    "notes": "",
+    "chemistryPartners": []
+  },
+  {
     "id": "p_1791980106951_muclq",
     "name": "Carlton",
     "position": "MID",
