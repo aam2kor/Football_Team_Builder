@@ -47,6 +47,39 @@ def calculate_rotating_team_stats(players, sector_weights=DEFAULT_SECTOR_WEIGHTS
     n = len(players)
     gk_blend = sw["defense"].get("gkBlend", 0.35)
     
+    pinned_gk = next((p for p in players if p.get("isPinnedRole") and p.get("matchdayPosition") == "GK"), None)
+    if pinned_gk:
+        outfield = [p for p in players if p["id"] != pinned_gk["id"]]
+        turn_att = compute_sector_score(outfield, sw["attack"]["attributes"], sw["attack"]["positions"])
+        turn_mid = compute_sector_score(outfield, sw["midfield"]["attributes"], sw["midfield"]["positions"])
+        turn_out_def = compute_sector_score(outfield, sw["defense"]["attributes"], sw["defense"]["positions"])
+        turn_gk_val = pinned_gk["attributes"].get("gk", 20)
+        turn_def = turn_out_def * (1.0 - gk_blend) + turn_gk_val * gk_blend
+        return {
+            "attack": round(turn_att, 1),
+            "midfield": round(turn_mid, 1),
+            "defense": round(turn_def, 1),
+            "goalkeeping": round(turn_gk_val, 1),
+            "eligibleGkCount": 1,
+            "hasNoEligibleGk": False,
+            "hasPinnedGk": True,
+            "rotationSchedule": [{
+                "turnIndex": 1,
+                "turnLabel": "Pinned Full Match",
+                "gkPlayerId": pinned_gk["id"],
+                "gkPlayerName": pinned_gk["name"],
+                "gkRating": turn_gk_val,
+                "turnAttack": round(turn_att, 1),
+                "turnMidfield": round(turn_mid, 1),
+                "turnDefense": round(turn_def, 1),
+                "isPinnedGk": True
+            }],
+            "sectorRanges": {
+                "attack": [round(turn_att, 1), round(turn_att, 1)],
+                "defense": [round(turn_def, 1), round(turn_def, 1)]
+            }
+        }
+
     eligible_gks = [p for p in players if p.get("canRotateGk", True) is not False]
     has_no_eligible = False
     if not eligible_gks:
@@ -159,6 +192,24 @@ class TestDynamicRotatingGk(unittest.TestCase):
         
         self.assertAlmostEqual(stats["attack"], avg_att, delta=0.2)
         self.assertAlmostEqual(stats["defense"], avg_def, delta=0.2)
+
+    def test_hybrid_pinned_gk_vs_rotating_gk(self):
+        """When a player is pinned as GK via AI Coach instructions in rotating mode, that team locks them in goal for the full match while the opposing team rotates."""
+        sanjay_team = [
+            {**p, "isPinnedRole": (p["id"] == "p3"), "matchdayPosition": ("GK" if p["id"] == "p3" else p["position"])}
+            for p in SAMPLE_SQUAD_A
+        ]
+        pinned_stats = calculate_rotating_team_stats(sanjay_team)
+        rotating_stats = calculate_rotating_team_stats(SAMPLE_SQUAD_A)
+
+        self.assertTrue(pinned_stats.get("hasPinnedGk"))
+        self.assertEqual(len(pinned_stats["rotationSchedule"]), 1)
+        self.assertEqual(pinned_stats["rotationSchedule"][0]["gkPlayerId"], "p3")
+        self.assertEqual(pinned_stats["rotationSchedule"][0]["turnLabel"], "Pinned Full Match")
+
+        # Opposing team still rotates all 4 willing GKs
+        self.assertFalse(rotating_stats.get("hasPinnedGk", False))
+        self.assertEqual(len(rotating_stats["rotationSchedule"]), 4)
 
 
 if __name__ == "__main__":

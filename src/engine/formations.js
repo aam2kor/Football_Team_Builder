@@ -315,7 +315,7 @@ export function assignPlayersToFormation(players, formation, positionConstraints
     const isPinned = Boolean(positionConstraints && positionConstraints[rawPlayer.id] === slot.pos);
     const isPrimary = rawPlayer.position === slot.pos;
     const isSecondary = !isPrimary && rawPlayer.secondaryPosition === slot.pos;
-    const isEmergencyGk = slot.pos === "GK" && rawPlayer.position !== "GK" && rawPlayer.secondaryPosition !== "GK";
+    const isEmergencyGk = slot.pos === "GK" && rawPlayer.position !== "GK" && rawPlayer.secondaryPosition !== "GK" && !isPinned;
     const isOutOfPosition = (!isPrimary && !isSecondary && !isPinned) || isEmergencyGk;
 
     const assignedPlayer = {

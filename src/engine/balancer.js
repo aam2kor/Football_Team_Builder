@@ -253,6 +253,7 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeig
       rotationSchedule: [],
       eligibleGkCount: 0,
       hasNoEligibleGk: false,
+      hasPinnedGk: false,
       sectorRanges: { attack: [0, 0], midfield: [0, 0], defense: [0, 0] }
     };
   }
@@ -284,6 +285,7 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeig
 
     eff.position = pos;
     eff.matchdayPosition = (useMatchdayPositions && p.matchdayPosition) ? p.matchdayPosition : null;
+    eff.isPinnedRole = Boolean(p.isPinnedRole);
 
     return eff;
   });
@@ -299,8 +301,10 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeig
   let minAtt = 999, maxAtt = 0, minMid = 999, maxMid = 0, minDef = 999, maxDef = 0;
   let eligibleGkCount = 0;
   let hasNoEligibleGk = false;
+  const pinnedGkPlayer = effectivePlayers.find(p => p.isPinnedRole && p.matchdayPosition === "GK");
+  const hasPinnedGk = Boolean(pinnedGkPlayer);
 
-  if (gkMode === "rotating" && n >= 2) {
+  if (gkMode === "rotating" && n >= 2 && !hasPinnedGk) {
     // 1. Identify all willing/eligible rotating goalkeepers
     const eligibleGks = effectivePlayers.filter(p => p.canRotateGk !== false);
     eligibleGkCount = eligibleGks.length;
@@ -359,10 +363,12 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeig
     defenseRaw = sumDef / k;
     goalkeepingRaw = sumGk / k;
   } else {
-    // Fixed GK or single-player fallback:
-    // Identify designated GK (player with natural GK position or highest GK)
-    const designatedGk = effectivePlayers.find(p => p.position === "GK" || p.matchdayPosition === "GK") ||
+    // Fixed GK, Pinned GK in Rotating Mode, or single-player fallback:
+    // Identify designated GK (pinned GK first, then natural GK position, or highest GK)
+    const designatedGk = pinnedGkPlayer ||
+                         effectivePlayers.find(p => p.position === "GK" || p.matchdayPosition === "GK") ||
                          [...effectivePlayers].sort((a, b) => (b.effectiveAttributes.gk || 20) - (a.effectiveAttributes.gk || 20))[0];
+    eligibleGkCount = 1;
     
     const outfieldOnPitch = n > 1 ? effectivePlayers.filter(p => p.id !== designatedGk.id) : effectivePlayers;
     attackRaw = computeSectorScore(outfieldOnPitch, sw.attack.attributes, sw.attack.positions);
@@ -377,14 +383,15 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeig
 
     rotationSchedule.push({
       turnIndex: 1,
-      turnLabel: "Full Match",
+      turnLabel: hasPinnedGk ? "Pinned Full Match" : "Full Match",
       gkPlayerId: designatedGk.id,
       gkPlayerName: designatedGk.name,
       gkRating: goalkeepingRaw,
       turnAttack: Math.round(attackRaw * 10) / 10,
       turnMidfield: Math.round(midfieldRaw * 10) / 10,
       turnOutfieldDef: Math.round(outfieldDefRaw * 10) / 10,
-      turnDefense: Math.round(defenseRaw * 10) / 10
+      turnDefense: Math.round(defenseRaw * 10) / 10,
+      isPinnedGk: hasPinnedGk
     });
   }
 
@@ -409,6 +416,7 @@ export function calculateTeamStats(players, matchdaySettingsMap = {}, sectorWeig
     rotationSchedule,
     eligibleGkCount,
     hasNoEligibleGk,
+    hasPinnedGk,
     sectorRanges: {
       attack: [Math.round(minAtt * 10) / 10, Math.round(maxAtt * 10) / 10],
       midfield: [Math.round(minMid * 10) / 10, Math.round(maxMid * 10) / 10],
@@ -495,10 +503,12 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
     const rawGkDelta = Math.abs(rosterA.GK - rosterB.GK);
     gkPenalty = rawGkDelta > 0 ? rawGkDelta * 250 : 0;
   } else {
-    // In rotating mode: penalize if a team has zero willing goalkeepers or extreme rotation count gap
+    // In rotating mode: penalize if a team has zero willing goalkeepers or extreme rotation count gap (unless a GK is explicitly pinned)
     const noGkPenalty = (statsA.hasNoEligibleGk ? 400.0 : 0) + (statsB.hasNoEligibleGk ? 400.0 : 0);
     const rotatorDelta = Math.abs(statsA.eligibleGkCount - statsB.eligibleGkCount);
-    const rotatorDisparityPenalty = rotatorDelta > 2 ? (rotatorDelta - 2) * 25.0 : 0;
+    const rotatorDisparityPenalty = (statsA.hasPinnedGk || statsB.hasPinnedGk)
+      ? 0
+      : (rotatorDelta > 2 ? (rotatorDelta - 2) * 25.0 : 0);
     const avgGkDelta = Math.abs(statsA.goalkeeping - statsB.goalkeeping);
     gkPenalty = (avgGkDelta * 1.5) + noGkPenalty + rotatorDisparityPenalty;
   }

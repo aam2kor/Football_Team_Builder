@@ -2288,9 +2288,13 @@ function handleBuildTeams() {
 function syncMatchdayPositions() {
   const updatePlayerSlot = (player, slot) => {
     if (!player || !slot) return;
-    const isPrimary = player.position === slot.pos;
+    const isPinned = Boolean(
+      player.isPinnedRole ||
+      (state.aiConstraints?.pinnedPositions && state.aiConstraints.pinnedPositions[player.id] === slot.pos)
+    );
+    const isPrimary = player.position === slot.pos || isPinned;
     const isSecondary = !isPrimary && player.secondaryPosition === slot.pos;
-    const isEmergencyGk = slot.pos === "GK" && player.position !== "GK" && player.secondaryPosition !== "GK";
+    const isEmergencyGk = slot.pos === "GK" && player.position !== "GK" && player.secondaryPosition !== "GK" && !isPinned;
     const isOutOfPosition = (!isPrimary && !isSecondary) || isEmergencyGk;
 
     player.matchdayPosition = slot.pos;
@@ -2298,6 +2302,7 @@ function syncMatchdayPositions() {
     player.isSecondaryRole = isSecondary;
     player.isOutOfPosition = isOutOfPosition;
     player.isEmergencyGk = isEmergencyGk;
+    player.isPinnedRole = isPinned;
   };
 
   if (state.assignedSlotsA && state.assignedSlotsA.length > 0) {
@@ -3114,7 +3119,7 @@ function renderRotatingGkSchedule(statsA, statsB) {
             <div class="flex items-center gap-2">
               <span class="text-sm font-black ${teamColor}">${teamName}</span>
               <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${bgBadgeClass}">
-                🧤 ${stats.eligibleGkCount || schedule.length} Rotators
+                ${stats.hasPinnedGk ? "📌 Pinned Full-Match GK" : `🧤 ${stats.eligibleGkCount || schedule.length} Rotators`}
               </span>
             </div>
             <div class="text-right">
