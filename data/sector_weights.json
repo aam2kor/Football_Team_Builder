@@ -31,7 +31,7 @@
       "MID": 1,
       "FWD": 0
     },
-    "penaltyMult": 10.5
+    "penaltyMult": 10
   },
   "defense": {
     "attributes": {

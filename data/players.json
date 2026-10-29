@@ -132,7 +132,7 @@
       "dri": 82,
       "def": 70,
       "phy": 76,
-      "gk": 10
+      "gk": 60
     },
     "avatar": "⚡",
     "preferredFoot": "Right",
@@ -284,13 +284,13 @@
     "name": "Sreekanth",
     "position": "MID",
     "secondaryPosition": "FWD",
-    "ovr": 73,
+    "ovr": 70,
     "attributes": {
       "pac": 78,
       "sho": 74,
       "pas": 72,
       "dri": 72,
-      "def": 66,
+      "def": 50,
       "phy": 75,
       "gk": 40
     },
