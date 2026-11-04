@@ -64,14 +64,14 @@
     "name": "Amal",
     "position": "MID",
     "secondaryPosition": "MID",
-    "ovr": 70,
+    "ovr": 73,
     "attributes": {
       "pac": 60,
-      "sho": 68,
+      "sho": 70,
       "pas": 78,
       "dri": 78,
-      "def": 54,
-      "phy": 60,
+      "def": 71,
+      "phy": 71,
       "gk": 30
     },
     "avatar": "⚡",

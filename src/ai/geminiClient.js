@@ -4,7 +4,7 @@
  * using structured JSON schemas and responseMimeType: "application/json".
  */
 
-export const GEMINI_DEFAULT_MODEL = "gemini-3.6-flash";
+export const GEMINI_DEFAULT_MODEL = "gemini-flash-latest";
 export const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 /**
