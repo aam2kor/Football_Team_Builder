@@ -310,7 +310,7 @@ function setupGeneratorEvents() {
     const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
     const formations = getFormationsForSize(sizeKey);
     const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
-    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions);
+    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions, state.matchdaySettings);
     syncMatchdayPositions();
     renderPitch();
     renderTeamComparison();
@@ -321,7 +321,7 @@ function setupGeneratorEvents() {
     const sizeKey = `${state.targetTeamSize}v${state.targetTeamSize}`;
     const formations = getFormationsForSize(sizeKey);
     const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
-    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions);
+    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions, state.matchdaySettings);
     syncMatchdayPositions();
     renderPitch();
     renderTeamComparison();
@@ -1365,8 +1365,8 @@ async function handleBuildPureAiTeams() {
     if (selectA) selectA.value = formAKey;
     if (selectB) selectB.value = formBKey;
 
-    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formations[formAKey]);
-    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formations[formBKey]);
+    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formations[formAKey], {}, state.matchdaySettings);
+    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formations[formBKey], {}, state.matchdaySettings);
     syncMatchdayPositions();
 
     // 6. Briefing & Rationale
@@ -1602,8 +1602,8 @@ async function handleRefineDraftWithAi() {
     const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
     const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
 
-    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA);
-    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
+    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions, state.matchdaySettings);
+    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions, state.matchdaySettings);
     syncMatchdayPositions();
 
     state.aiCoachBriefing = aiResult.reviewCommentary;
@@ -2341,11 +2341,11 @@ function applySolution(solution) {
 
   state.assignedSlotsA = (solution.assignedSlotsA && solution.assignedSlotsA.length === state.activeTeamA.length)
     ? solution.assignedSlotsA.map(s => ({ slot: { ...s.slot }, player: { ...s.player } }))
-    : assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions);
+    : assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions, state.matchdaySettings);
 
   state.assignedSlotsB = (solution.assignedSlotsB && solution.assignedSlotsB.length === state.activeTeamB.length)
     ? solution.assignedSlotsB.map(s => ({ slot: { ...s.slot }, player: { ...s.player } }))
-    : assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions);
+    : assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions, state.matchdaySettings);
 
   syncMatchdayPositions();
 
@@ -2708,10 +2708,10 @@ function renderPitch() {
 
   // Initialize slot assignments if missing or size changed
   if (!state.assignedSlotsA || state.assignedSlotsA.length !== state.activeTeamA.length) {
-    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA);
+    state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions, state.matchdaySettings);
   }
   if (!state.assignedSlotsB || state.assignedSlotsB.length !== state.activeTeamB.length) {
-    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB);
+    state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions, state.matchdaySettings);
   }
 
   // Clear existing player tokens and watermarks while keeping pitch markings
@@ -3398,8 +3398,8 @@ function renderMatchupAuditor() {
         const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
         const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
 
-        state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions);
-        state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions);
+        state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions, state.matchdaySettings);
+        state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions, state.matchdaySettings);
         syncMatchdayPositions();
 
         renderPitch();
@@ -3641,8 +3641,8 @@ function renderJerseyAdvisory() {
         const formA = formations[state.formationTeamA] || formations[Object.keys(formations)[0]];
         const formB = formations[state.formationTeamB] || formations[Object.keys(formations)[0]];
 
-        state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions);
-        state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions);
+        state.assignedSlotsA = assignPlayersToFormation(state.activeTeamA, formA, state.aiConstraints?.pinnedPositions, state.matchdaySettings);
+        state.assignedSlotsB = assignPlayersToFormation(state.activeTeamB, formB, state.aiConstraints?.pinnedPositions, state.matchdaySettings);
         syncMatchdayPositions();
 
         renderPitch();

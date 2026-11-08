@@ -1,5 +1,25 @@
 [
   {
+    "id": "p_1794117603114_is8zh",
+    "name": "Joshua_Ajith",
+    "position": "MID",
+    "secondaryPosition": "FWD",
+    "ovr": 80,
+    "attributes": {
+      "pac": 80,
+      "sho": 82,
+      "pas": 82,
+      "dri": 82,
+      "def": 70,
+      "phy": 75,
+      "gk": 45
+    },
+    "avatar": "⚡",
+    "preferredFoot": "Right",
+    "notes": "",
+    "chemistryPartners": []
+  },
+  {
     "id": "p_1792918324037_gbk8f",
     "name": "Antony",
     "position": "DEF",

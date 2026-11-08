@@ -197,10 +197,14 @@ export function getFormationsForSize(teamSizeKey = "8v8") {
  * prioritizing primary position, then secondary position, avoiding out-of-position placement.
  * Uses active slider-based positional role assignment without arbitrary penalty.
  */
-export function assignPlayersToFormation(players, formation, positionConstraints = {}) {
+export function assignPlayersToFormation(players, formation, positionConstraints = {}, matchdaySettingsMap = {}) {
   if (!formation || !formation.slots) return [];
   const slots = formation.slots;
-  const unassigned = players.map(p => ({ ...p }));
+  const unassigned = players.map(p => {
+    const setting = matchdaySettingsMap[p.id];
+    const canRotateGk = setting?.canRotateGk ?? p.canRotateGk ?? true;
+    return { ...p, canRotateGk };
+  });
   const slotAssignments = new Array(slots.length).fill(null);
 
   // Group slots by index and target category
@@ -233,9 +237,14 @@ export function assignPlayersToFormation(players, formation, positionConstraints
   // Pass 1.5: Emergency Goalkeeper Selection (if squad has 0 dedicated GKs and GK slot empty)
   targetSlots.filter(s => s.pos === "GK" && slotAssignments[s.index] === null).forEach(s => {
     if (unassigned.length > 0) {
-      // Emergency GK Priority: Best GK attribute among DEF/MID first, never a pure FWD unless only FWDs remain
-      const nonFwds = unassigned.filter(p => p.position !== "FWD");
-      const candidatePool = nonFwds.length > 0 ? nonFwds : unassigned;
+      // Emergency GK Priority:
+      // 1. First prioritize players who are willing to play/rotate GK (canRotateGk !== false)
+      // 2. Best GK attribute among DEF/MID first, never a pure FWD unless only FWDs remain
+      const willingGks = unassigned.filter(p => p.canRotateGk !== false);
+      const eligiblePool = willingGks.length > 0 ? willingGks : unassigned;
+
+      const nonFwds = eligiblePool.filter(p => p.position !== "FWD");
+      const candidatePool = nonFwds.length > 0 ? nonFwds : eligiblePool;
       
       // Sort candidates by highest GK reflex rating, then defensive stats
       candidatePool.sort((a, b) => {
@@ -346,7 +355,7 @@ export function findBestFormationForTeam(players, teamSizeKey = "8v8", sectorWei
 
   if (fixedFormationKey && formations[fixedFormationKey]) {
     const formation = formations[fixedFormationKey];
-    const assignedSlots = assignPlayersToFormation(players, formation, positionConstraints);
+    const assignedSlots = assignPlayersToFormation(players, formation, positionConstraints, matchdaySettingsMap);
     const assignedPlayers = assignedSlots.map(s => s.player);
     const stats = calculateStatsFn ? calculateStatsFn(assignedPlayers, matchdaySettingsMap, sectorWeights, true) : null;
     return {
@@ -366,7 +375,7 @@ export function findBestFormationForTeam(players, teamSizeKey = "8v8", sectorWei
 
   for (const key of keys) {
     const formation = formations[key];
-    const assignedSlots = assignPlayersToFormation(players, formation, positionConstraints);
+    const assignedSlots = assignPlayersToFormation(players, formation, positionConstraints, matchdaySettingsMap);
     const assignedPlayers = assignedSlots.map(s => s.player);
 
     const outOfPositionCount = assignedPlayers.filter(p => p.isOutOfPosition).length;

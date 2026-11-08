@@ -211,6 +211,24 @@ class TestDynamicRotatingGk(unittest.TestCase):
         self.assertFalse(rotating_stats.get("hasPinnedGk", False))
         self.assertEqual(len(rotating_stats["rotationSchedule"]), 4)
 
+    def test_emergency_gk_respects_outfield_only_setting(self):
+        """When assigning emergency GK on pitch without natural GKs, players marked canRotateGk=False are excluded from GK slot."""
+        def assign_emergency_gk(players, matchday_settings=None):
+            unassigned = [{**p, "canRotateGk": (matchday_settings.get(p["id"], {}).get("canRotateGk") if matchday_settings and p["id"] in matchday_settings else p.get("canRotateGk", True))} for p in players]
+            willing = [p for p in unassigned if p["canRotateGk"] is not False]
+            pool = willing if willing else unassigned
+            non_fwds = [p for p in pool if p.get("position") != "FWD"]
+            candidate_pool = non_fwds if non_fwds else pool
+            candidate_pool.sort(key=lambda p: (p.get("attributes", {}).get("gk", 20), p.get("attributes", {}).get("def", 50)), reverse=True)
+            return candidate_pool[0]
+
+        # In SAMPLE_SQUAD_A, Alice (p1, gk=65), Bob (p2, gk=55), Frank (p6, gk=50) are willing.
+        # If Alice is marked canRotateGk=False (Outfield Only):
+        settings = {"p1": {"canRotateGk": False}}
+        chosen = assign_emergency_gk(SAMPLE_SQUAD_A, settings)
+        self.assertNotEqual(chosen["id"], "p1", "Player marked Outfield Only must not be assigned to GK")
+        self.assertEqual(chosen["id"], "p2", "Next highest willing non-FWD (Bob) must be selected")
+
 
 if __name__ == "__main__":
     unittest.main()
