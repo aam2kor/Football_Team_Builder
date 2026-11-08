@@ -1,5 +1,25 @@
 [
   {
+    "id": "p_1794122858454_gq64c",
+    "name": "Arun_Vishnu",
+    "position": "DEF",
+    "secondaryPosition": "DEF",
+    "ovr": 71,
+    "attributes": {
+      "pac": 55,
+      "sho": 55,
+      "pas": 65,
+      "dri": 56,
+      "def": 78,
+      "phy": 71,
+      "gk": 65
+    },
+    "avatar": "🛡️",
+    "preferredFoot": "Right",
+    "notes": "",
+    "chemistryPartners": []
+  },
+  {
     "id": "p_1794117603114_is8zh",
     "name": "Joshua_Ajith",
     "position": "MID",
