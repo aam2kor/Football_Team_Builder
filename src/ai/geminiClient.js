@@ -412,7 +412,7 @@ Analyze the following deep historical match statistics, raw match logs, and play
 
 ${leagueContext}
 
-Generate deep, concrete, data-grounded insights. Cross-reference player database attributes (OVR, Position, SHO, DEF, PAC, PAS) with their on-pitch historical performance, Plus/Minus (+/- GD per match), Moneyball value over expectation, Giant Killer upsets, Cursed Pairings, Kryptonite Nemeses, and Meta-Tactical Sector conversion rates:
+Generate deep, concrete, data-grounded insights. Cross-reference player database attributes (OVR, Position, SHO, DEF, PAC, PAS) with their on-pitch historical performance, Plus/Minus (+/- GD per match), Moneyball value over expectation, Team Balance Feedback (pre-match sector advantages/handicaps and favorite vs. upset rates), Giant Killer upsets, Cursed Pairings, Kryptonite Nemeses, and Meta-Tactical Sector conversion rates:
 1. "headline": Catchy, dramatic newspaper headline summarizing the derby narrative, Moneyball standouts, and tactical meta.
 2. "rivalryInsight": Highlight the sharpest Kryptonite Nemesis / Head-to-Head player rivalry, citing exact win/loss records and goal differentials when on opposing sides.
 3. "partnershipInsight": Contrast a lethal Golden Duo (high win rate & +/- together) with a Cursed Pairing (strong players who struggle when drafted together).
@@ -647,7 +647,7 @@ export async function generateGeminiScoutRecommendations(scoutData, aiConfig = {
   const apiKey = aiConfig.apiKey || "";
   const model = aiConfig.model || GEMINI_DEFAULT_MODEL;
 
-  const { playerProfiles = [], duoList = [], h2h = {} } = scoutData;
+  const { playerProfiles = [], duoList = [], h2h = {}, recentMatchesWithBalance = [] } = scoutData;
 
   const playerRosterSummary = playerProfiles.map(p => {
     const s = p.leagueStats || {};
@@ -667,12 +667,19 @@ export async function generateGeminiScoutRecommendations(scoutData, aiConfig = {
     `• ${d.p1Name} & ${d.p2Name}: ${d.matches} matches together, ${d.wins} wins (${d.winRate}% win rate, ${d.goalsFor} team goals)`
   ).join("\n");
 
+  const balanceHistorySummary = recentMatchesWithBalance.slice(0, 12).map(m =>
+    `• ${m.date}: ${m.balanceSummary?.summaryText || "Balanced"}`
+  ).join("\n");
+
   const prompt = `You are the Lead Performance Scout & Chief Analyst for the Third Half United League.
 Your mission is to analyze players' real match history (goals scored, win rates, goals conceded, goal differences, teammate partnerships, and pre-match sector balance handicaps) and compare them with their current FIFA-style attributes (PAC, SHO, PAS, DRI, DEF, PHY, GK, OVR).
 
 LEAGUE CONTEXT:
 Total Matches Recorded: ${h2h.totalMatches || 4}
 Voyagers (${h2h.voyagersWins || 0}W) vs Boots & Beers (${h2h.bootsWins || 0}W)
+
+RECENT MATCH TEAM BALANCE FEEDBACK:
+${balanceHistorySummary || "No match balance feedback recorded"}
 
 PLAYER PROFILES, STATS & SECTOR BALANCE CONTEXT:
 ${playerRosterSummary}

@@ -877,8 +877,13 @@ export function computePlusMinusAndMoneyballStats(matches = [], playerDb = []) {
     const plusMinusPerMatch = Number((goalDiff / p.matches).toFixed(1));
     const goalsPerMatch = Number((individualGoals / p.matches).toFixed(2));
 
-    // Expected win rate based on player OVR relative to league mean OVR
-    const expectedWinRate = Math.max(20, Math.min(85, Math.round(50 + (p.ovr - avgLeagueOvr) * 3.0)));
+    const bc = computePlayerBalanceContext(matches, p.name);
+    const balanceTiltAdjustment = bc.totalWithBalance > 0
+      ? ((bc.favoredMatches - bc.adverseMatches) / bc.totalWithBalance) * 10
+      : 0;
+
+    // Expected win rate based on player OVR relative to league mean OVR, adjusted for team balance difficulty
+    const expectedWinRate = Math.max(20, Math.min(85, Math.round(50 + (p.ovr - avgLeagueOvr) * 3.0 + balanceTiltAdjustment)));
     const winRateDelta = p.winRate - expectedWinRate;
 
     // Sample confidence weight (ramps up to 1.0 at 2+ matches)
@@ -904,7 +909,8 @@ export function computePlusMinusAndMoneyballStats(matches = [], playerDb = []) {
       goalsAgainst: p.goalsAgainst,
       goalDiff,
       plusMinusPerMatch,
-      moneyballScore
+      moneyballScore,
+      balanceContext: bc
     };
   });
 
@@ -1278,7 +1284,11 @@ export function formatLeagueSummaryForAi(matches = [], filterPlayers = null, pla
       .map(s => `${s.name}${s.goals > 1 ? ` (${s.goals}G)` : ''}`)
       .join(", ") || "none";
 
-    return `• Date ${m.date}: Voyagers ${m.voyagersScore} [Scorers: ${voyScorers}] vs ${m.bootsScore} Boots & Beers [Scorers: ${bootsScorers}]
+    const balanceLine = m.balanceSummary?.hasBalance
+      ? `\n  Team Balance Feedback: ATT (${m.balanceSummary.attack.label}) | MID (${m.balanceSummary.midfield.label}) | DEF (${m.balanceSummary.defense.label})`
+      : "";
+
+    return `• Date ${m.date}: Voyagers ${m.voyagersScore} [Scorers: ${voyScorers}] vs ${m.bootsScore} Boots & Beers [Scorers: ${bootsScorers}]${balanceLine}
   Voyagers Lineup: ${(m.voyagersMembers || []).join(", ")}
   Boots Lineup: ${(m.bootsMembers || []).join(", ")}`;
   }).join("\n");
@@ -1328,6 +1338,10 @@ export function formatLeagueSummaryForAi(matches = [], filterPlayers = null, pla
   }
   if (giantKillers.giantKillers.length > 0) {
     out += `• Giant Killers (Underdog Wins): ${giantKillers.giantKillers.slice(0, 4).map(g => `${g.name} (${g.adverseWins}W/${g.adverseMatches}M as underdog, ${g.adverseWinRate}%)`).join(", ")}\n`;
+  }
+  const upsetSummary = giantKillers.leagueUpsetSummary;
+  if (upsetSummary && upsetSummary.tiltedMatches > 0) {
+    out += `• Team Balance Feedback Record: Favorites ${upsetSummary.favoriteWins}W - ${upsetSummary.tiltedDraws}D - ${upsetSummary.underdogUpsets}L (${upsetSummary.favoriteWinRate}% favorite win rate, ${upsetSummary.upsetRate}% upset rate across ${upsetSummary.tiltedMatches} tilted matches)\n`;
   }
   out += `• Verified Hat-Tricks: ${clutch.hatTricks.map(ht => `${ht.name} (${ht.goals}G on ${ht.date})`).join(", ") || 'None'}\n`;
   out += `• Clutch Scorers (<=1 goal margins/draws): ${clutch.clutchScorers.slice(0, 4).map(c => `${c.name} (${c.clutchGoals} clutch goals)`).join(", ")}\n`;
@@ -1990,6 +2004,14 @@ export function computePlayerFormTrajectory(playerName, matches = []) {
     totalGoals += goals;
     jerseyStats[teamKey].goals += goals;
 
+    let balanceLabel = "Even";
+    if (m.balance && typeof m.balance === "object") {
+      const netBalance = ((m.balance.attack || 0) + (m.balance.midfield || 0) + (m.balance.defense || 0)) / 3;
+      const playerAdv = isVoy ? -netBalance : netBalance;
+      if (playerAdv < -0.5) balanceLabel = "Handicap";
+      else if (playerAdv > 0.5) balanceLabel = "Favored";
+    }
+
     history.push({
       date: m.match_date,
       season: m.season,
@@ -2001,7 +2023,9 @@ export function computePlayerFormTrajectory(playerName, matches = []) {
       outcome,
       delta,
       cumulativeMomentum,
-      goals
+      goals,
+      balance: m.balance || null,
+      balanceLabel
     });
   });
 
@@ -2257,6 +2281,9 @@ export function validateBalancerModel(matches = [], allPlayers = [], currentSect
 
   let correctOutcomes = 0;
   let totalError = 0;
+  let balanceFeedbackMatches = 0;
+  let feedbackAlignedCount = 0;
+  let feedbackTotalError = 0;
 
   matches.forEach(m => {
     if (!Array.isArray(m.teams) || m.teams.length < 2) return;
@@ -2297,6 +2324,22 @@ export function validateBalancerModel(matches = [], allPlayers = [], currentSect
 
     totalError += Math.abs(netPredDiff - actualScoreDiff);
 
+    let recordedBalance = null;
+    if (m.balance && typeof m.balance === "object") {
+      const rAtt = Number(m.balance.attack) || 0;
+      const rMid = Number(m.balance.midfield) || 0;
+      const rDef = Number(m.balance.defense) || 0;
+      const rNet = Math.round(((rAtt + rMid + rDef) / 3) * 10) / 10;
+      recordedBalance = { attack: rAtt, midfield: rMid, defense: rDef, net: rNet };
+
+      balanceFeedbackMatches++;
+      feedbackTotalError += Math.abs(netPredDiff - rNet);
+      const feedbackWinner = rNet >= 0.5 ? "teamB" : rNet <= -0.5 ? "teamA" : "draw";
+      if (predWinner === feedbackWinner || (predWinner !== "draw" && feedbackWinner !== "draw" && Math.sign(netPredDiff) === Math.sign(rNet))) {
+        feedbackAlignedCount++;
+      }
+    }
+
     matchEvaluations.push({
       matchDate: m.match_date || "Unknown",
       teamAName: teamA.team || "Voyagers",
@@ -2310,6 +2353,7 @@ export function validateBalancerModel(matches = [], allPlayers = [], currentSect
         defense: defDiff,
         net: netPredDiff
       },
+      recordedBalance,
       predWinner,
       actualWinner,
       isAligned
@@ -2331,6 +2375,8 @@ export function validateBalancerModel(matches = [], allPlayers = [], currentSect
 
   const alignmentRate = Math.round((correctOutcomes / n) * 100);
   const meanError = Math.round((totalError / n) * 10) / 10;
+  const feedbackAlignmentRate = balanceFeedbackMatches > 0 ? Math.round((feedbackAlignedCount / balanceFeedbackMatches) * 100) : 0;
+  const feedbackMeanError = balanceFeedbackMatches > 0 ? Math.round((feedbackTotalError / balanceFeedbackMatches) * 10) / 10 : 0;
 
   // Pearson Correlation Helper
   const calcCorrelation = (xArr, yArr) => {
@@ -2356,6 +2402,9 @@ export function validateBalancerModel(matches = [], allPlayers = [], currentSect
   // Generate Insights based on statistical findings
   const insights = [];
   insights.push(`Analyzed ${n} completed derby matches: Balancer predicted match direction with ${alignmentRate}% alignment rate.`);
+  if (balanceFeedbackMatches > 0) {
+    insights.push(`Compared against recorded team balance feedback across ${balanceFeedbackMatches} matches: ${feedbackAlignmentRate}% directional agreement (MAE: ${feedbackMeanError}).`);
+  }
   
   if (midCorr >= 0.4) {
     insights.push(`Midfield advantage shows strong correlation (${midCorr > 0 ? '+' : ''}${midCorr}) with winning margin. Keeping Midfield PAC and PAS weighted prevents fast playmaker clusters.`);
@@ -2401,6 +2450,9 @@ export function validateBalancerModel(matches = [], allPlayers = [], currentSect
     matchCount: n,
     alignmentRate,
     meanError,
+    balanceFeedbackMatches,
+    feedbackAlignmentRate,
+    feedbackMeanError,
     sectorCorrelations: {
       attack: attCorr,
       midfield: midCorr,
