@@ -1,0 +1,1591 @@
+{
+  "matches": [
+    {
+      "match_date": "2026-11-11",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Ajith",
+            "Akash",
+            "Anoop",
+            "CP",
+            "Jibin",
+            "Prasanth",
+            "Varun",
+            "Vignesh"
+          ],
+          "score": 7,
+          "scorers": [
+            {
+              "name": "CP",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vignesh",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Akash",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Abey",
+            "Anup",
+            "Mathai",
+            "Ratheesh",
+            "Sanjay",
+            "Sha",
+            "Vimji",
+            "Vinay"
+          ],
+          "score": 5,
+          "scorers": [
+            {
+              "name": "Sanjay",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vinay",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Ratheesh",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-11-08",
+      "season": 2026,
+      "balance": {
+        "attack": -1,
+        "midfield": -1,
+        "defense": 2
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Ajith",
+            "Akash",
+            "Amal",
+            "Arun_Vishnu",
+            "Joshua_Ajith",
+            "Mithun",
+            "Sha",
+            "Sudhish"
+          ],
+          "score": 4,
+          "scorers": [
+            {
+              "name": "Mithun",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Ajith",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sudhish",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Abey",
+            "Anoop",
+            "Arun",
+            "Blesson",
+            "Ratheesh",
+            "Sanjay",
+            "Vignesh",
+            "Vimji"
+          ],
+          "score": 5,
+          "scorers": [
+            {
+              "name": "Arun",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vimji",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sanjay",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-11-04",
+      "season": 2026,
+      "balance": {
+        "attack": 4,
+        "midfield": 4,
+        "defense": 4
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Abey",
+            "CP",
+            "Pradeep",
+            "Prasanth",
+            "Sanjay",
+            "Varun",
+            "Vimji",
+            "Vinay"
+          ],
+          "score": 5,
+          "scorers": [
+            {
+              "name": "Ajith",
+              "goals": 1,
+              "is_own_goal": true
+            },
+            {
+              "name": "Varun",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Prasanth",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "CP",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Ajith",
+            "Anoop",
+            "Mathai",
+            "Mithun",
+            "Rajeev",
+            "Ratheesh",
+            "Sreekanth",
+            "Vignesh"
+          ],
+          "score": 9,
+          "scorers": [
+            {
+              "name": "Sreekanth",
+              "goals": 4,
+              "is_own_goal": false
+            },
+            {
+              "name": "Mithun",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Ajith",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vignesh",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-11-01",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Amal",
+            "Anoop",
+            "Mathai",
+            "Mithun",
+            "Rajeev",
+            "Ratheesh",
+            "Sudhish",
+            "Vignesh"
+          ],
+          "score": 6,
+          "scorers": [
+            {
+              "name": "Mithun",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Ratheesh",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Amal",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Mathai",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Abey",
+            "Ajith",
+            "CP",
+            "Pradeep",
+            "Prasanth",
+            "Sanjay",
+            "Sreekanth",
+            "Vinay"
+          ],
+          "score": 8,
+          "scorers": [
+            {
+              "name": "Vinay",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sanjay",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "CP",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Ajith",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-10-28",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Abey",
+            "CP",
+            "Mithun",
+            "Pradeep",
+            "Rajeev",
+            "Ratheesh",
+            "Sanjay",
+            "Vignesh"
+          ],
+          "score": 8,
+          "scorers": [
+            {
+              "name": "Abey",
+              "goals": 4,
+              "is_own_goal": false
+            },
+            {
+              "name": "Mithun",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "CP",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Ajith",
+            "Anoop",
+            "Arun",
+            "Jibin",
+            "Mathai",
+            "Prasanth",
+            "Sreekanth",
+            "Vinay"
+          ],
+          "score": 8,
+          "scorers": [
+            {
+              "name": "Vinay",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sreekanth",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Arun",
+              "goals": 3,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-10-25",
+      "season": 2026,
+      "balance": {
+        "attack": 1,
+        "midfield": 0,
+        "defense": 2
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Anoop",
+            "Antony",
+            "Joshua",
+            "Lian",
+            "Mathai",
+            "Rajeev",
+            "Sreekanth",
+            "Sudhish"
+          ],
+          "score": 4,
+          "scorers": [
+            {
+              "name": "Sreekanth",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Lian",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Rajeev",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Aadi",
+            "Abey",
+            "Arun",
+            "CP",
+            "Pradeep",
+            "Prasanth",
+            "Sanjay",
+            "Vignesh"
+          ],
+          "score": 9,
+          "scorers": [
+            {
+              "name": "CP",
+              "goals": 5,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vignesh",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Arun",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Prasanth",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-10-14",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Ajith",
+            "Anoop",
+            "Arun",
+            "Mithun",
+            "Pradeep",
+            "Rajeev",
+            "Ratheesh",
+            "Sreekanth"
+          ],
+          "score": 5,
+          "scorers": [
+            {
+              "name": "Sreekanth",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Rajeev",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Mithun",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Arun",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Abey",
+            "Akash",
+            "Blesson",
+            "Carlton",
+            "George",
+            "Varun",
+            "Vignesh",
+            "Vimji"
+          ],
+          "score": 5,
+          "scorers": [
+            {
+              "name": "Vignesh",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Varun",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "George",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-10-07",
+      "season": 2026,
+      "balance": {
+        "attack": 3,
+        "midfield": 3,
+        "defense": 1
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Ajith",
+            "Akash",
+            "Anoop",
+            "Anup",
+            "Blesson",
+            "Mathai",
+            "Ratheesh",
+            "Sreekanth"
+          ],
+          "score": 0,
+          "scorers": []
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Abey",
+            "CP",
+            "Pradeep",
+            "Prasanth",
+            "Rajeev",
+            "Vignesh",
+            "Vimji",
+            "Vinay"
+          ],
+          "score": 7,
+          "scorers": [
+            {
+              "name": "Vinay",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "CP",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vimji",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vignesh",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-10-04",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 2,
+        "defense": 2
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Aadi",
+            "Akash",
+            "CP",
+            "Chandhan",
+            "Pradeep",
+            "Prasanth",
+            "Ratheesh",
+            "Sreekanth"
+          ],
+          "score": 3,
+          "scorers": [
+            {
+              "name": "Akash",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Prasanth",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sreekanth",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Abey",
+            "Amal",
+            "Anoop",
+            "Blesson",
+            "George",
+            "Mathai",
+            "Sanjay",
+            "Vignesh"
+          ],
+          "score": 7,
+          "scorers": [
+            {
+              "name": "Amal",
+              "goals": 4,
+              "is_own_goal": false
+            },
+            {
+              "name": "Akash",
+              "goals": 1,
+              "is_own_goal": true
+            },
+            {
+              "name": "Blesson",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vignesh",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-09-30",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 2,
+        "defense": 4
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Abey",
+            "Ajith",
+            "Blesson",
+            "George",
+            "Mathai",
+            "Rajeev",
+            "Sreekanth",
+            "Varun"
+          ],
+          "score": 4,
+          "scorers": [
+            {
+              "name": "Abey",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Blesson",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sreekanth",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Mathai",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Anoop",
+            "CP",
+            "Jibin",
+            "Pradeep",
+            "Prasanth",
+            "Ratheesh",
+            "Sanjay",
+            "Vignesh"
+          ],
+          "score": 10,
+          "scorers": [
+            {
+              "name": "CP",
+              "goals": 5,
+              "is_own_goal": false
+            },
+            {
+              "name": "Prasanth",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sanjay",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Jibin",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vignesh",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-09-27",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": -2,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Abey",
+            "Anoop",
+            "Blesson",
+            "Pradeep",
+            "Sanjay",
+            "Tom",
+            "Vignesh",
+            "Vinay"
+          ],
+          "score": 8,
+          "scorers": [
+            {
+              "name": "Vinay",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vignesh",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sanjay",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Blesson",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Abey",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Akash",
+            "CP",
+            "Mathai",
+            "Mithun",
+            "Prasanth",
+            "Rajeev",
+            "Ratheesh",
+            "Sudhish"
+          ],
+          "score": 4,
+          "scorers": [
+            {
+              "name": "Mathai",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Mithun",
+              "goals": 3,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-09-23",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 2
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Ajith",
+            "Anoop",
+            "Mithun",
+            "Prasanth",
+            "Rajeev",
+            "Varun",
+            "Vignesh",
+            "Vinay"
+          ],
+          "score": 4,
+          "scorers": [
+            {
+              "name": "Mithun",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Rajeev",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vignesh",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Prasanth",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Abey",
+            "Blesson",
+            "CP",
+            "Pradeep",
+            "Ratheesh",
+            "Sanjay",
+            "Sreekanth",
+            "Vimji"
+          ],
+          "score": 6,
+          "scorers": [
+            {
+              "name": "Sreekanth",
+              "goals": 4,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sanjay",
+              "goals": 2,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-09-20",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 3,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Abey",
+            "Andrew",
+            "Mithun",
+            "Rajeev",
+            "Rohit",
+            "Vignesh",
+            "Vimji",
+            "Vinay"
+          ],
+          "score": 5,
+          "scorers": [
+            {
+              "name": "Vinay",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vignesh",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Andrew",
+              "goals": 3,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Ajith",
+            "Akash",
+            "Anoop",
+            "Blesson",
+            "Lian",
+            "Prasanth",
+            "Ratheesh",
+            "Sudhish"
+          ],
+          "score": 7,
+          "scorers": [
+            {
+              "name": "Blesson",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sudhish",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Akash",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Lian",
+              "goals": 4,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-09-16",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Abey",
+            "Mathai",
+            "Mithun",
+            "Pradeep",
+            "Prasanth",
+            "Ratheesh",
+            "Sanjay",
+            "Vignesh"
+          ],
+          "score": 1,
+          "scorers": [
+            {
+              "name": "Mathai",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Ajith",
+            "Anoop",
+            "Blesson",
+            "Jibin",
+            "Sreekanth",
+            "Varun",
+            "Vimji",
+            "Vinay"
+          ],
+          "score": 7,
+          "scorers": [
+            {
+              "name": "Vinay",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sreekanth",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Varun",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Pradeep",
+              "goals": 1,
+              "is_own_goal": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-09-13",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Anoop",
+            "CP",
+            "Mathai",
+            "Prasanth",
+            "Ratheesh",
+            "Sanjay",
+            "Sreekanth",
+            "Vinay"
+          ],
+          "score": 8,
+          "scorers": [
+            {
+              "name": "Sreekanth",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vinay",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Ratheesh",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Mathai",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Abey",
+            "Anup",
+            "Blesson",
+            "Mithun",
+            "Pradeep",
+            "Rajeev",
+            "Sudhish",
+            "Tom"
+          ],
+          "score": 6,
+          "scorers": [
+            {
+              "name": "Sudhish",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Mithun",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Rajeev",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Blesson",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-09-09",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Anoop",
+            "Arun",
+            "Blesson",
+            "CP",
+            "Jibin",
+            "Mathai",
+            "Prasanth",
+            "Ratheesh"
+          ],
+          "score": 1,
+          "scorers": [
+            {
+              "name": "Mathai",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Abey",
+            "Anup",
+            "Mithun",
+            "Pradeep",
+            "Sanjay",
+            "Sreekanth",
+            "Vignesh",
+            "Vimji"
+          ],
+          "score": 6,
+          "scorers": [
+            {
+              "name": "Mithun",
+              "goals": 4,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sanjay",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vimji",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-09-06",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Ajith",
+            "Anoop",
+            "Blesson",
+            "Mithun",
+            "Pradeep",
+            "Ratheesh",
+            "Rohit",
+            "Sanjay"
+          ],
+          "score": 4,
+          "scorers": [
+            {
+              "name": "Sanjay",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Mithun",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Ratheesh",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Abey",
+            "Arun",
+            "CP",
+            "Prasanth",
+            "Somu",
+            "Sudhish",
+            "Vignesh",
+            "Vinay"
+          ],
+          "score": 10,
+          "scorers": [
+            {
+              "name": "CP",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Arun",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Abey",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vignesh",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Prasanth",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vinay",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-09-02",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Abey",
+            "Arun",
+            "Jibin",
+            "Mathai",
+            "Pradeep",
+            "Ratheesh",
+            "Varun",
+            "Vignesh"
+          ],
+          "score": 2,
+          "scorers": [
+            {
+              "name": "Arun",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Varun",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Ajith",
+            "Akash",
+            "Anoop",
+            "Blesson",
+            "Prasanth",
+            "Rajeev",
+            "Sreekanth",
+            "Vinay"
+          ],
+          "score": 3,
+          "scorers": [
+            {
+              "name": "Sreekanth",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Vinay",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Akash",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-08-30",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Anoop",
+            "Mathai",
+            "Pradeep",
+            "Prasanth",
+            "Rajeev",
+            "Ratheesh",
+            "Sanjay",
+            "Vignesh"
+          ],
+          "score": 3,
+          "scorers": [
+            {
+              "name": "Rajeev",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sanjay",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Mathai",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Aadi",
+            "Abey",
+            "Ajith",
+            "Akash",
+            "Anup",
+            "Sreekanth",
+            "Tom",
+            "Vinay"
+          ],
+          "score": 2,
+          "scorers": [
+            {
+              "name": "Aadi",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sreekanth",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-08-26",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Ajith",
+            "Anup",
+            "CP",
+            "Mathai",
+            "Rajeev",
+            "Somu",
+            "Tom",
+            "Varun"
+          ],
+          "score": 5,
+          "scorers": [
+            {
+              "name": "CP",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Mathai",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Rajeev",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Abey",
+            "Akash",
+            "Anoop",
+            "Pradeep",
+            "Prasanth",
+            "Sreekanth",
+            "Sudhish",
+            "Vinay"
+          ],
+          "score": 5,
+          "scorers": [
+            {
+              "name": "Vinay",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sreekanth",
+              "goals": 2,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "match_date": "2026-08-23",
+      "season": 2026,
+      "balance": {
+        "attack": 0,
+        "midfield": 0,
+        "defense": 0
+      },
+      "teams": [
+        {
+          "team": "voyagers",
+          "members": [
+            "Abey",
+            "Anoop",
+            "CP",
+            "Mathai",
+            "Sanjay",
+            "Sreekanth",
+            "Sudhish",
+            "Vinay"
+          ],
+          "score": 8,
+          "scorers": [
+            {
+              "name": "Vinay",
+              "goals": 3,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sanjay",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "CP",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sudhish",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Sreekanth",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        },
+        {
+          "team": "bootsandbeers",
+          "members": [
+            "Ajith",
+            "Akash",
+            "Anup",
+            "Mithun",
+            "Pradeep",
+            "Prasanth",
+            "Rajeev",
+            "Tom"
+          ],
+          "score": 4,
+          "scorers": [
+            {
+              "name": "Mithun",
+              "goals": 2,
+              "is_own_goal": false
+            },
+            {
+              "name": "Akash",
+              "goals": 1,
+              "is_own_goal": false
+            },
+            {
+              "name": "Tom",
+              "goals": 1,
+              "is_own_goal": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

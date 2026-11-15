@@ -1,9 +1,9 @@
 {
   "attack": {
     "attributes": {
-      "sho": 0.6,
-      "dri": 0.4,
-      "pac": 0,
+      "sho": 0.5,
+      "dri": 0.2,
+      "pac": 0.3,
       "pas": 0,
       "def": 0,
       "phy": 0
@@ -18,10 +18,10 @@
   },
   "midfield": {
     "attributes": {
-      "pas": 0.6,
-      "dri": 0.4,
+      "pas": 0.5,
+      "dri": 0.2,
       "def": 0,
-      "pac": 0,
+      "pac": 0.3,
       "sho": 0,
       "phy": 0
     },
@@ -35,11 +35,11 @@
   },
   "defense": {
     "attributes": {
-      "def": 0.6,
+      "def": 0.5,
       "phy": 0,
-      "pac": 0,
+      "pac": 0.3,
       "sho": 0,
-      "pas": 0.4,
+      "pas": 0.2,
       "dri": 0
     },
     "positions": {

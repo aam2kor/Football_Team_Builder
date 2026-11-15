@@ -29,6 +29,8 @@ _league_cache = {
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 PLAYERS_FILE = os.path.join(DATA_DIR, "players.json")
 SECTOR_WEIGHTS_FILE = os.path.join(DATA_DIR, "sector_weights.json")
+MATCHES_CACHE_FILE = os.path.join(DATA_DIR, "league_matches_cache.json")
+LEGACY_MATCHES_DUMP_FILE = os.path.join(DATA_DIR, "league_matches_dump.json")
 
 def read_json_file(filepath, default_val=None):
     try:
@@ -52,6 +54,14 @@ def write_json_file(filepath, data):
         print(f"[Storage Error] Failed writing {filepath}: {e}", file=sys.stderr)
         return False
 
+def load_disk_matches_cache():
+    """Loads persisted league matches from disk if available."""
+    for candidate in (MATCHES_CACHE_FILE, LEGACY_MATCHES_DUMP_FILE):
+        parsed = read_json_file(candidate)
+        if isinstance(parsed, dict) and parsed.get("matches"):
+            return json.dumps(parsed).encode("utf-8")
+    return None
+
 def fetch_upstream_matches():
     """Fetches latest matches from the live Lovable API with browser headers."""
     req = urllib.request.Request(
@@ -61,18 +71,16 @@ def fetch_upstream_matches():
             "Accept": "application/json"
         }
     )
-    try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            content = resp.read()
-            parsed = json.loads(content.decode("utf-8"))
-            if "matches" in parsed and len(parsed["matches"]) > 0:
-                with _league_cache["lock"]:
-                    _league_cache["data"] = content
-                    _league_cache["timestamp"] = time.time()
-                return content
-    except Exception as e:
-        print(f"[Proxy] Upstream league fetch warning: {e}", file=sys.stderr)
-    return None
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        content = resp.read()
+        parsed = json.loads(content.decode("utf-8"))
+        if not isinstance(parsed, dict) or not parsed.get("matches"):
+            raise ValueError("Upstream API returned no matches")
+        with _league_cache["lock"]:
+            _league_cache["data"] = content
+            _league_cache["timestamp"] = time.time()
+        write_json_file(MATCHES_CACHE_FILE, parsed)
+        return content
 
 class FastProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -89,49 +97,41 @@ class FastProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self._send_cors_headers()
         self.end_headers()
 
+    def _send_json_response(self, status_code, payload_bytes, cache_status=None):
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        if cache_status:
+            self.send_header("X-Cache", cache_status)
+        self._send_cors_headers()
+        self.end_headers()
+        self.wfile.write(payload_bytes)
+
     def do_GET(self):
         # 1. League API Proxy
         if self.path.startswith("/api/matches") or self.path.startswith("/api/public/matches"):
             now = time.time()
             is_force = "force=true" in self.path or "refresh=true" in self.path
-            cached_data = _league_cache["data"]
-            cache_age = now - _league_cache["timestamp"]
+            with _league_cache["lock"]:
+                cached_data = _league_cache["data"]
+                cache_age = now - _league_cache["timestamp"]
 
             if not is_force and cached_data and cache_age < CACHE_TTL_SECONDS:
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("X-Cache", "HIT")
-                self._send_cors_headers()
-                self.end_headers()
-                self.wfile.write(cached_data)
+                self._send_json_response(200, cached_data, cache_status="HIT")
                 return
 
             try:
                 data = fetch_upstream_matches()
-                if data:
-                    self.send_response(200)
-                    self.send_header("Content-Type", "application/json")
-                    self.send_header("X-Cache", "MISS")
-                    self._send_cors_headers()
-                    self.end_headers()
-                    self.wfile.write(data)
-                    return
+                self._send_json_response(200, data, cache_status="MISS")
+                return
             except Exception as e:
                 print(f"[Proxy] Live fetch error: {e}", file=sys.stderr)
-                if cached_data:
-                    self.send_response(200)
-                    self.send_header("Content-Type", "application/json")
-                    self.send_header("X-Cache", "STALE")
-                    self._send_cors_headers()
-                    self.end_headers()
-                    self.wfile.write(cached_data)
+                fallback_data = cached_data or load_disk_matches_cache()
+                if fallback_data:
+                    self._send_json_response(200, fallback_data, cache_status="STALE")
                     return
 
-                self.send_response(502)
-                self.send_header("Content-Type", "application/json")
-                self._send_cors_headers()
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                self._send_json_response(502, json.dumps({"error": str(e)}).encode("utf-8"))
                 return
 
         # 2. Ollama Proxy (GET, e.g. /api/ollama/api/tags)
@@ -334,12 +334,19 @@ class FastProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"error": f"Failed to connect to Google Gemini API: {e}"}).encode("utf-8"))
 
+def prefetch_upstream_matches():
+    """Pre-fetches matches on startup without crashing the background thread if offline."""
+    try:
+        fetch_upstream_matches()
+    except Exception as e:
+        print(f"[Proxy] Startup prefetch skipped: {e}", file=sys.stderr)
+
 if __name__ == "__main__":
     web_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(web_dir)
 
     # Pre-fetch matches in background immediately on startup
-    threading.Thread(target=fetch_upstream_matches, daemon=True).start()
+    threading.Thread(target=prefetch_upstream_matches, daemon=True).start()
 
     # Use ThreadingHTTPServer for concurrent non-blocking static + API requests
     http.server.ThreadingHTTPServer.allow_reuse_address = True

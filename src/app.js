@@ -403,7 +403,13 @@ async function loadLeagueData(forceRefresh = false) {
 
     renderLeagueHistoryUI();
     if (forceRefresh) {
-      showToast(`🔄 Synced ${state.leagueMatches.length} matches from Third Half Utd API!`, "success");
+      if (res.source === "proxy" || res.source === "api") {
+        showToast(`🔄 Synced ${state.leagueMatches.length} matches from Third Half Utd API!`, "success");
+      } else if (res.source === "proxy-stale" || res.source === "cache") {
+        showToast(`⚠️ Live API unreachable. Loaded ${state.leagueMatches.length} cached matches.`, "warning");
+      } else {
+        showToast(`⚠️ Live API unreachable. Using ${state.leagueMatches.length} offline fallback matches.`, "warning");
+      }
     }
   } catch (err) {
     console.warn("Failed to load league data:", err);

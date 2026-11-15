@@ -34,21 +34,25 @@ export async function fetchLeagueMatches(forceRefresh = false) {
 }
 
 async function fetchFromApiAndCache(forceRefresh = false) {
-  const queryParam = forceRefresh ? "?force=true" : "";
+  const bust = forceRefresh ? `t=${Date.now()}` : "";
+  const proxyQuery = forceRefresh ? `?force=true&${bust}` : "";
+  const directQuery = forceRefresh ? `?${bust}` : "";
   const endpointsToTry = [
-    `/api/matches${queryParam}`,
-    LEAGUE_API_URL
+    `/api/matches${proxyQuery}`,
+    `${LEAGUE_API_URL}${directQuery}`
   ];
 
   let lastError = null;
+  let staleProxyResult = null;
 
   for (const endpoint of endpointsToTry) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
 
       const res = await fetch(endpoint, {
         method: "GET",
+        cache: "no-store",
         headers: { "Accept": "application/json" },
         signal: controller.signal
       });
@@ -59,6 +63,11 @@ async function fetchFromApiAndCache(forceRefresh = false) {
         const matches = Array.isArray(data.matches) ? data.matches : [];
 
         if (matches.length > 0) {
+          const isStaleProxy = endpoint.startsWith("/api") && res.headers.get("X-Cache") === "STALE";
+          if (isStaleProxy && forceRefresh) {
+            staleProxyResult = { matches, source: "proxy-stale" };
+            continue;
+          }
           try {
             localStorage.setItem(CACHE_KEY, JSON.stringify({ matches, fetchedAt: Date.now() }));
           } catch (e) {
@@ -66,10 +75,21 @@ async function fetchFromApiAndCache(forceRefresh = false) {
           }
           return { matches, source: endpoint.startsWith("/api") ? "proxy" : "api" };
         }
+      } else {
+        lastError = new Error(`HTTP ${res.status} from ${endpoint}`);
       }
     } catch (err) {
       lastError = err;
     }
+  }
+
+  if (staleProxyResult) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ matches: staleProxyResult.matches, fetchedAt: Date.now() }));
+    } catch (e) {
+      console.warn("Failed to write stale proxy matches to localStorage:", e);
+    }
+    return staleProxyResult;
   }
 
   console.warn("Failed to fetch matches from live API/proxy, trying cache fallback:", lastError);
