@@ -225,10 +225,10 @@ export function assignPlayersToFormation(players, formation, positionConstraints
     });
   }
 
-  // Pass 1: Assign dedicated GK slots first (highest priority / specialized)
+  // Pass 1: Assign dedicated GK slots first (highest priority / specialized, respecting Outfield-Only)
   targetSlots.filter(s => s.pos === "GK" && slotAssignments[s.index] === null).forEach(s => {
-    let idx = unassigned.findIndex(p => isPrimaryMatch(p, "GK"));
-    if (idx === -1) idx = unassigned.findIndex(p => isSecondaryMatch(p, "GK"));
+    let idx = unassigned.findIndex(p => isPrimaryMatch(p, "GK") && p.canRotateGk !== false);
+    if (idx === -1) idx = unassigned.findIndex(p => isSecondaryMatch(p, "GK") && p.canRotateGk !== false);
     if (idx !== -1) {
       slotAssignments[s.index] = unassigned.splice(idx, 1)[0];
     }
@@ -271,10 +271,23 @@ export function assignPlayersToFormation(players, formation, positionConstraints
 
   slotPriorityOrder.forEach(targetPos => {
     remainingSlots.filter(s => s.pos === targetPos && slotAssignments[s.index] === null).forEach(s => {
-      // Find matching primary players, prioritizing pure specialists first
+      // Reserve players whose secondaryPosition is critically needed by another unfilled slot
+      const isCriticallyNeededElsewhere = (player) => {
+        const secPos = player.secondaryPosition;
+        if (!secPos || secPos === player.position || secPos === targetPos) return false;
+        const unfilledOther = remainingSlots.filter(rs => rs.pos === secPos && slotAssignments[rs.index] === null).length;
+        if (unfilledOther === 0) return false;
+        const primOther = unassigned.filter(u => isPrimaryMatch(u, secPos)).length;
+        const deficit = unfilledOther - primOther;
+        if (deficit <= 0) return false;
+        const secCandidates = unassigned.filter(u => isSecondaryMatch(u, secPos)).length;
+        return secCandidates <= deficit;
+      };
+
+      // Find matching primary players, prioritizing pure specialists and non-reserved players first
       const matches = unassigned
         .map((p, idx) => ({ p, idx }))
-        .filter(item => isPrimaryMatch(item.p, targetPos));
+        .filter(item => isPrimaryMatch(item.p, targetPos) && !isCriticallyNeededElsewhere(item.p));
 
       if (matches.length > 0) {
         // Prioritize pure specialists over versatile players who can fill scarce secondary slots
