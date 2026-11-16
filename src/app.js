@@ -2296,7 +2296,8 @@ function syncMatchdayPositions() {
     if (!player || !slot) return;
     const isPinned = Boolean(
       player.isPinnedRole ||
-      (state.aiConstraints?.pinnedPositions && state.aiConstraints.pinnedPositions[player.id] === slot.pos)
+      (state.aiConstraints?.pinnedPositions && state.aiConstraints.pinnedPositions[player.id] === slot.pos) ||
+      (slot.pos === "GK" && state.matchdaySettings[player.id]?.gkRole === "gk_only")
     );
     const isPrimary = player.position === slot.pos || isPinned;
     const isSecondary = !isPrimary && player.secondaryPosition === slot.pos;
@@ -2600,18 +2601,23 @@ function renderGeneratorView() {
             <input type="range" min="20" max="100" step="5" value="${mSetting.fitness}" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500" data-fitness-slider-id="${player.id}">
           </div>
 
-          <!-- Matchday GK Willingness (Rotating GK toggle) -->
+          <!-- Matchday GK Role (3-state: Willing -> Outfield Only -> GK Only) -->
           <div class="pt-2 border-t border-slate-800/70 flex items-center justify-between">
             <span class="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
-              <span>🧤 Rotating GK:</span>
+              <span>🧤 Matchday GK:</span>
             </span>
-            <button class="px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all ${
-              mSetting.canRotateGk !== false
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
-                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-slate-300'
-            }" data-toggle-gk-rotate="${player.id}" title="Toggle whether ${player.name} takes turns in goal during Rotating GK mode">
-              <span>${mSetting.canRotateGk !== false ? '✓ Willing' : '✕ Outfield Only'}</span>
-            </button>
+            ${(() => {
+              const gkRole = mSetting.gkRole || (mSetting.canRotateGk === false ? "outfield_only" : "willing");
+              const btnClass = gkRole === "gk_only"
+                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30"
+                : gkRole === "outfield_only"
+                  ? "bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-slate-300"
+                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30";
+              const btnLabel = gkRole === "gk_only" ? "📌 GK Only" : gkRole === "outfield_only" ? "✕ Outfield Only" : "✓ Willing";
+              return `<button class="px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all ${btnClass}" data-toggle-gk-rotate="${player.id}" title="Cycle ${player.name}'s GK role: Willing (rotates) → Outfield Only → GK Only (full-match GK)">
+                <span>${btnLabel}</span>
+              </button>`;
+            })()}
           </div>
 
         </div>
@@ -2633,14 +2639,32 @@ function renderGeneratorView() {
     });
   });
 
-  // Attach GK rotation toggle listeners
+  // Attach GK role cycle listeners (Willing -> Outfield Only -> GK Only -> Willing)
   grid.querySelectorAll("[data-toggle-gk-rotate]").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const id = btn.dataset.toggleGkRotate;
-      if (!state.matchdaySettings[id]) state.matchdaySettings[id] = { fitness: 100, form: "neutral", canRotateGk: true };
-      const current = state.matchdaySettings[id].canRotateGk !== false;
-      state.matchdaySettings[id].canRotateGk = !current;
+      if (!state.matchdaySettings[id]) state.matchdaySettings[id] = { fitness: 100, form: "neutral", canRotateGk: true, gkRole: "willing" };
+      const curSetting = state.matchdaySettings[id];
+      const currentRole = curSetting.gkRole || (curSetting.canRotateGk === false ? "outfield_only" : "willing");
+
+      let nextRole = "willing";
+      if (currentRole === "willing") {
+        nextRole = "outfield_only";
+      } else if (currentRole === "outfield_only") {
+        const otherGkOnlyCount = Array.from(state.selectedPlayerIds).filter(pid => pid !== id && state.matchdaySettings[pid]?.gkRole === "gk_only").length;
+        if (otherGkOnlyCount >= 2) {
+          showToast("⚠️ Maximum 2 GK Only players allowed (1 per team). Resetting to Willing.", "warning");
+          nextRole = "willing";
+        } else {
+          nextRole = "gk_only";
+        }
+      } else {
+        nextRole = "willing";
+      }
+
+      curSetting.gkRole = nextRole;
+      curSetting.canRotateGk = nextRole !== "outfield_only";
       renderGeneratorView();
     });
   });
@@ -4586,7 +4610,8 @@ function copyWhatsAppLineup() {
       const eff = getEffectivePlayerStats(p, mSetting);
       const formText = eff.formMod.icon;
       const fitText = mSetting.fitness < 100 ? `(Fit:${mSetting.fitness}%)` : '';
-      const gkText = (state.gkMode === "rotating" && mSetting.canRotateGk === false) ? '🚫(No GK)' : '';
+      const gkRole = mSetting.gkRole || (mSetting.canRotateGk === false ? "outfield_only" : "willing");
+      const gkText = gkRole === "gk_only" ? '📌(GK Only)' : (state.gkMode === "rotating" && gkRole === "outfield_only") ? '🚫(No GK)' : '';
       return `• [${p.position}] ${p.name} (OVR: ${eff.effectiveOvr}) ${formText} ${fitText} ${gkText}`.trim();
     }).join("\n");
   };

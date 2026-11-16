@@ -200,9 +200,14 @@ export function getFormationsForSize(teamSizeKey = "8v8") {
 export function assignPlayersToFormation(players, formation, positionConstraints = {}, matchdaySettingsMap = {}) {
   if (!formation || !formation.slots) return [];
   const slots = formation.slots;
+  const effectiveConstraints = { ...(positionConstraints || {}) };
   const unassigned = players.map(p => {
     const setting = matchdaySettingsMap[p.id];
-    const canRotateGk = setting?.canRotateGk ?? p.canRotateGk ?? true;
+    const gkRole = setting?.gkRole;
+    if (gkRole === "gk_only" && !effectiveConstraints[p.id]) {
+      effectiveConstraints[p.id] = "GK";
+    }
+    const canRotateGk = gkRole === "outfield_only" ? false : (setting?.canRotateGk ?? p.canRotateGk ?? true);
     return { ...p, canRotateGk };
   });
   const slotAssignments = new Array(slots.length).fill(null);
@@ -214,11 +219,11 @@ export function assignPlayersToFormation(players, formation, positionConstraints
   const isPrimaryMatch = (p, pos) => p && p.position === pos;
   const isSecondaryMatch = (p, pos) => p && p.secondaryPosition === pos && p.secondaryPosition !== p.position;
 
-  // Pass 0: Explicit Pinned Position Constraints (from AI Rules or user pins)
-  if (positionConstraints && Object.keys(positionConstraints).length > 0) {
+  // Pass 0: Explicit Pinned Position Constraints (from AI Rules, user pins, or GK Only tile state)
+  if (Object.keys(effectiveConstraints).length > 0) {
     targetSlots.forEach(s => {
       if (slotAssignments[s.index] !== null) return;
-      const idx = unassigned.findIndex(p => positionConstraints[p.id] === s.pos);
+      const idx = unassigned.findIndex(p => effectiveConstraints[p.id] === s.pos);
       if (idx !== -1) {
         slotAssignments[s.index] = unassigned.splice(idx, 1)[0];
       }
@@ -334,7 +339,7 @@ export function assignPlayersToFormation(players, formation, positionConstraints
   // Assemble final result with attached matchdayPosition and matchdayRole
   return slots.map((slot, i) => {
     const rawPlayer = slotAssignments[i] || { name: "TBD", ovr: 70, position: slot.pos, avatar: "⚽" };
-    const isPinned = Boolean(positionConstraints && positionConstraints[rawPlayer.id] === slot.pos);
+    const isPinned = Boolean(effectiveConstraints[rawPlayer.id] === slot.pos);
     const isPrimary = rawPlayer.position === slot.pos;
     const isSecondary = !isPrimary && rawPlayer.secondaryPosition === slot.pos;
     const isEmergencyGk = slot.pos === "GK" && rawPlayer.position !== "GK" && rawPlayer.secondaryPosition !== "GK" && !isPinned;

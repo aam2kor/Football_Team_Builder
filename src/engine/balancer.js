@@ -497,11 +497,15 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
   const rosterA = countRosterPositions(teamA);
   const rosterB = countRosterPositions(teamB);
 
+  const gkOnlyCountA = teamA.filter(p => matchdaySettingsMap[p.id]?.gkRole === "gk_only" || posConstraints[p.id] === "GK").length;
+  const gkOnlyCountB = teamB.filter(p => matchdaySettingsMap[p.id]?.gkRole === "gk_only" || posConstraints[p.id] === "GK").length;
+  const sameTeamGkOnlyPenalty = (Math.max(0, gkOnlyCountA - 1) + Math.max(0, gkOnlyCountB - 1)) * 250.0;
+
   // Goalkeeper penalty based on natural squad goalkeepers & rotating GK willingness
-  let gkPenalty = 0;
+  let gkPenalty = sameTeamGkOnlyPenalty;
   if (gkMode === "fixed") {
     const rawGkDelta = Math.abs(rosterA.GK - rosterB.GK);
-    gkPenalty = rawGkDelta > 0 ? rawGkDelta * 250 : 0;
+    gkPenalty += rawGkDelta > 0 ? rawGkDelta * 250 : 0;
   } else {
     // In rotating mode: penalize if a team has zero willing goalkeepers or extreme rotation count gap (unless a GK is explicitly pinned)
     const noGkPenalty = (statsA.hasNoEligibleGk ? 400.0 : 0) + (statsB.hasNoEligibleGk ? 400.0 : 0);
@@ -510,7 +514,7 @@ export function scoreTeamBalance(teamA, teamB, options = {}) {
       ? 0
       : (rotatorDelta > 2 ? (rotatorDelta - 2) * 25.0 : 0);
     const avgGkDelta = Math.abs(statsA.goalkeeping - statsB.goalkeeping);
-    gkPenalty = (avgGkDelta * 1.5) + noGkPenalty + rotatorDisparityPenalty;
+    gkPenalty += (avgGkDelta * 1.5) + noGkPenalty + rotatorDisparityPenalty;
   }
 
   // Positional count disparity based on true roster positions
@@ -713,21 +717,28 @@ export function buildBalancedTeams(selectedPlayers, options = {}) {
   const fallbackSolutions = [];
 
   const dedicatedGKs = cleanPlayers.filter(p => p.position === "GK");
-  const outfieldPlayers = cleanPlayers.filter(p => p.position !== "GK");
+  const posConstraints = constraints?.pinnedPositions || options.pinnedPositions || {};
+  const gkOnlyPlayers = cleanPlayers.filter(p => matchdaySettingsMap[p.id]?.gkRole === "gk_only" || posConstraints[p.id] === "GK");
+  const partitionPool = (gkMode === "fixed" && dedicatedGKs.length === 2)
+    ? dedicatedGKs
+    : (gkOnlyPlayers.length === 2 ? gkOnlyPlayers : []);
+  const outfieldPlayers = partitionPool.length === 2
+    ? cleanPlayers.filter(p => p.id !== partitionPool[0].id && p.id !== partitionPool[1].id)
+    : cleanPlayers.filter(p => p.position !== "GK");
   const pinnedA = constraints?.pinnedA || constraints?.pinnedTeamA;
   const pinnedB = constraints?.pinnedB || constraints?.pinnedTeamB;
 
-  const bothGKsPinnedSame = dedicatedGKs.length === 2 && (
-    (pinnedA && pinnedA.has(dedicatedGKs[0].id) && pinnedA.has(dedicatedGKs[1].id)) ||
-    (pinnedB && pinnedB.has(dedicatedGKs[0].id) && pinnedB.has(dedicatedGKs[1].id))
+  const bothGKsPinnedSame = partitionPool.length === 2 && (
+    (pinnedA && pinnedA.has(partitionPool[0].id) && pinnedA.has(partitionPool[1].id)) ||
+    (pinnedB && pinnedB.has(partitionPool[0].id) && pinnedB.has(partitionPool[1].id))
   );
 
-  const shouldPartitionGKs = gkMode === "fixed" && dedicatedGKs.length === 2 && !bothGKsPinnedSame;
-  let gkA = dedicatedGKs[0];
-  let gkB = dedicatedGKs[1];
+  const shouldPartitionGKs = partitionPool.length === 2 && !bothGKsPinnedSame;
+  let gkA = partitionPool[0];
+  let gkB = partitionPool[1];
   if (shouldPartitionGKs && ((pinnedB && pinnedB.has(gkA.id)) || (pinnedA && pinnedA.has(gkB.id)))) {
-    gkA = dedicatedGKs[1];
-    gkB = dedicatedGKs[0];
+    gkA = partitionPool[1];
+    gkB = partitionPool[0];
   }
 
   if (n <= 18) {
