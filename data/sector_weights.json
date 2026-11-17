@@ -1,9 +1,9 @@
 {
   "attack": {
     "attributes": {
-      "sho": 0.5,
-      "dri": 0.2,
-      "pac": 0.3,
+      "sho": 0.45,
+      "dri": 0.3,
+      "pac": 0.25,
       "pas": 0,
       "def": 0,
       "phy": 0
@@ -11,53 +11,53 @@
     "positions": {
       "GK": 0,
       "DEF": 0,
-      "MID": 0.7,
-      "FWD": 1
+      "MID": 1,
+      "FWD": 1.4
     },
-    "penaltyMult": 10
+    "penaltyMult": 8
   },
   "midfield": {
     "attributes": {
-      "pas": 0.5,
-      "dri": 0.2,
-      "def": 0,
-      "pac": 0.3,
+      "pas": 0.4,
+      "dri": 0.25,
+      "def": 0.15,
+      "pac": 0.2,
       "sho": 0,
       "phy": 0
     },
     "positions": {
       "GK": 0,
       "DEF": 0,
-      "MID": 1,
-      "FWD": 0
+      "MID": 1.4,
+      "FWD": 1
     },
-    "penaltyMult": 10
+    "penaltyMult": 7.5
   },
   "defense": {
     "attributes": {
       "def": 0.5,
-      "phy": 0,
-      "pac": 0.3,
+      "phy": 0.3,
+      "pac": 0.2,
       "sho": 0,
       "pas": 0.2,
       "dri": 0
     },
     "positions": {
       "GK": 0,
-      "DEF": 1,
+      "DEF": 1.4,
       "MID": 0,
       "FWD": 0
     },
     "gkBlend": 0.35,
-    "penaltyMult": 10
+    "penaltyMult": 9
   },
   "overall": {
-    "penaltyMult": 0
+    "penaltyMult": 22
   },
   "pace": {
-    "penaltyMult": 10
+    "penaltyMult": 1
   },
   "physical": {
-    "penaltyMult": 0
+    "penaltyMult": 0.8
   }
 }
