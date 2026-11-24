@@ -26,7 +26,8 @@ import {
   computePlusMinusAndMoneyballStats,
   computeGiantKillersAndClosers,
   computeChemistryAndKryptoniteStats,
-  computeMetaTacticalAnatomy
+  computeMetaTacticalAnatomy,
+  computePositionPlayerRankings
 } from "./services/leagueService.js";
 
 // Initialize Database instance
@@ -106,6 +107,8 @@ const state = {
   searchQuery: "",
   sortBy: "ovr_desc",
   rosterViewMode: "cards",
+  rankingWindow: "all",
+  rankingMinMatches: 0,
 
   // Generator State
   generatedSolutions: [],
@@ -402,6 +405,9 @@ async function loadLeagueData(forceRefresh = false) {
     state.leagueSummaryText = formatLeagueSummaryForAi(state.leagueMatches);
 
     renderLeagueHistoryUI();
+    if (state.rosterViewMode === "rankings") {
+      renderRosterView();
+    }
     if (forceRefresh) {
       if (res.source === "proxy" || res.source === "api") {
         showToast(`🔄 Synced ${state.leagueMatches.length} matches from Third Half Utd API!`, "success");
@@ -495,6 +501,9 @@ function renderLeagueHistoryUI() {
     document.getElementById("btn-toggle-league-matches")?.addEventListener("click", () => {
       state.showAllLeagueMatches = !state.showAllLeagueMatches;
       renderLeagueHistoryUI();
+    if (state.rosterViewMode === "rankings") {
+      renderRosterView();
+    }
     });
   }
 }
@@ -3751,25 +3760,58 @@ function setupRosterEvents() {
 
   const btnCards = document.getElementById("btn-roster-view-cards");
   const btnPotentials = document.getElementById("btn-roster-view-potentials");
+  const btnRankings = document.getElementById("btn-roster-view-rankings");
   const cardsContainer = document.getElementById("roster-cards-container");
   const potentialsContainer = document.getElementById("roster-potentials-container");
+  const rankingsContainer = document.getElementById("roster-rankings-container");
 
-  btnCards?.addEventListener("click", () => {
-    state.rosterViewMode = "cards";
-    btnCards.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-blue-600 text-white shadow-md shadow-blue-600/30 flex items-center gap-1.5";
-    btnPotentials.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-transparent text-slate-400 hover:text-white flex items-center gap-1.5";
-    cardsContainer?.classList.remove("hidden");
-    potentialsContainer?.classList.add("hidden");
+  const setRosterSubTab = (mode) => {
+    state.rosterViewMode = mode;
+    const activeCls = "px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-blue-600 text-white shadow-md shadow-blue-600/30 flex items-center gap-1.5";
+    const idleCls = "px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-transparent text-slate-400 hover:text-white flex items-center gap-1.5";
+    if (btnCards) btnCards.className = mode === "cards" ? activeCls : idleCls;
+    if (btnPotentials) btnPotentials.className = mode === "potentials" ? activeCls : idleCls;
+    if (btnRankings) btnRankings.className = mode === "rankings" ? activeCls : idleCls;
+    cardsContainer?.classList.toggle("hidden", mode !== "cards");
+    potentialsContainer?.classList.toggle("hidden", mode !== "potentials");
+    rankingsContainer?.classList.toggle("hidden", mode !== "rankings");
+    renderRosterView();
+  };
+
+  btnCards?.addEventListener("click", () => setRosterSubTab("cards"));
+  btnPotentials?.addEventListener("click", () => setRosterSubTab("potentials"));
+  btnRankings?.addEventListener("click", () => setRosterSubTab("rankings"));
+
+  const btnWinAll = document.getElementById("btn-ranking-window-all");
+  const btnWinLast8 = document.getElementById("btn-ranking-window-last8");
+  const updateWindowBtns = () => {
+    const activeW = "px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-600 text-white transition-all";
+    const idleW = "px-2.5 py-1 rounded-md text-[11px] font-bold text-slate-400 hover:text-white transition-all";
+    if (btnWinAll) btnWinAll.className = state.rankingWindow === "all" ? activeW : idleW;
+    if (btnWinLast8) btnWinLast8.className = state.rankingWindow === "last8" ? activeW : idleW;
+  };
+  btnWinAll?.addEventListener("click", () => {
+    state.rankingWindow = "all";
+    updateWindowBtns();
+    renderRosterView();
+  });
+  btnWinLast8?.addEventListener("click", () => {
+    state.rankingWindow = "last8";
+    updateWindowBtns();
     renderRosterView();
   });
 
-  btnPotentials?.addEventListener("click", () => {
-    state.rosterViewMode = "potentials";
-    btnPotentials.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-blue-600 text-white shadow-md shadow-blue-600/30 flex items-center gap-1.5";
-    btnCards.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-transparent text-slate-400 hover:text-white flex items-center gap-1.5";
-    cardsContainer?.classList.add("hidden");
-    potentialsContainer?.classList.remove("hidden");
-    renderRosterView();
+  document.querySelectorAll("[data-ranking-min]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.rankingMinMatches = Number(btn.dataset.rankingMin) || 0;
+      document.querySelectorAll("[data-ranking-min]").forEach(b => {
+        const active = Number(b.dataset.rankingMin) === state.rankingMinMatches;
+        b.className = active
+          ? "px-2 py-1 rounded-md text-[11px] font-bold bg-blue-600 text-white transition-all"
+          : "px-2 py-1 rounded-md text-[11px] font-bold text-slate-400 hover:text-white transition-all";
+      });
+      renderRosterView();
+    });
   });
 
   document.getElementById("roster-search-input")?.addEventListener("input", (e) => {
@@ -3796,6 +3838,102 @@ function setupRosterEvents() {
   });
 }
 
+function renderPlayerRankingsView(filteredPlayers) {
+  const podiumsEl = document.getElementById("roster-rankings-podiums");
+  const tbodyEl = document.getElementById("roster-rankings-table-body");
+  const metaEl = document.getElementById("roster-rankings-meta");
+  if (!podiumsEl || !tbodyEl) return;
+
+  const matches = state.leagueMatches || [];
+  const windowMatches = state.rankingWindow === "last8" ? 8 : null;
+  const minMatches = state.rankingMinMatches || 0;
+
+  // Compute positional podiums from the full roster so Top ATT / MID / DEF always stay populated
+  const allResult = computePositionPlayerRankings(db.getAll(), matches, { windowMatches, minMatches });
+  const filteredResult = computePositionPlayerRankings(filteredPlayers, matches, { windowMatches, minMatches });
+
+  if (metaEl) {
+    const windowLabel = windowMatches ? `Last ${allResult.analyzedMatchCount} Matches` : `All ${allResult.analyzedMatchCount} Matches`;
+    metaEl.textContent = `${windowLabel} • League Avg: ${allResult.leagueAvgGF} GF / ${allResult.leagueAvgGA} GA`;
+  }
+
+  const medals = ["🥇", "🥈", "🥉"];
+  const renderPodiumCard = (title, icon, accentBorder, accentText, list, metricFn) => {
+    const rowsHtml = list.length > 0
+      ? list.map((p, idx) => `
+          <div class="flex items-center justify-between px-3.5 py-2.5 hover:bg-slate-900/60 transition-colors">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="text-sm">${medals[idx] || `#${idx + 1}`}</span>
+              <div class="min-w-0">
+                <div class="font-bold text-white text-xs truncate">${p.name}</div>
+                <div class="text-[10px] text-slate-400 font-mono">${p.matches}M • ${p.wins}W-${p.draws}D-${p.losses}L • ${metricFn(p)}</div>
+              </div>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <span class="px-2 py-0.5 rounded-md text-xs font-black font-mono bg-slate-950 border ${accentBorder} ${accentText}">${p.rankScore.toFixed(1)}</span>
+            </div>
+          </div>
+        `).join("")
+      : `<div class="px-4 py-6 text-center text-[11px] text-slate-500">No players meet the current match filter.</div>`;
+
+    return `
+      <div class="glass-panel rounded-2xl border ${accentBorder} shadow-xl overflow-hidden flex flex-col">
+        <div class="px-4 py-2.5 border-b border-slate-800/80 bg-slate-900/70 flex items-center justify-between">
+          <span class="text-xs font-black uppercase tracking-wider ${accentText} flex items-center gap-1.5">
+            <span>${icon}</span><span>${title}</span>
+          </span>
+          <span class="text-[10px] font-mono text-slate-500">Top 3</span>
+        </div>
+        <div class="divide-y divide-slate-800/60">${rowsHtml}</div>
+      </div>
+    `;
+  };
+
+  podiumsEl.innerHTML = [
+    renderPodiumCard("Top Attackers (FWD)", "⚔️", "border-red-500/30", "text-red-400", allResult.topAttackers, p => `${p.goals}G (${p.goalsPerMatch}/M)`),
+    renderPodiumCard("Top Midfielders (MID)", "⚙️", "border-amber-500/30", "text-amber-400", allResult.topMidfielders, p => `GD ${p.gdPerMatch > 0 ? "+" : ""}${p.gdPerMatch}/M`),
+    renderPodiumCard("Top Defenders (DEF)", "🛡️", "border-blue-500/30", "text-blue-400", allResult.topDefenders, p => `${p.gaPerMatch} GA/M`)
+  ].join("");
+
+  if (filteredResult.rankings.length === 0) {
+    tbodyEl.innerHTML = `<tr><td colspan="9" class="py-8 text-center text-slate-500 text-xs">No players match your current filter.</td></tr>`;
+    return;
+  }
+
+  let rankCounter = 0;
+  tbodyEl.innerHTML = filteredResult.rankings.map(p => {
+    const isRanked = p.rankScore !== null && p.matches >= minMatches;
+    if (isRanked) rankCounter++;
+    const rankLabel = isRanked ? (rankCounter <= 3 ? medals[rankCounter - 1] : `#${rankCounter}`) : "—";
+    const scoreBadge = isRanked
+      ? `<span class="px-2 py-0.5 rounded-md font-mono font-black text-xs bg-amber-500/15 text-amber-300 border border-amber-500/30">${p.rankScore.toFixed(1)}</span>
+         <span class="block text-[9px] font-mono mt-0.5 ${p.rankDeltaVsOvr >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${p.rankDeltaVsOvr >= 0 ? '+' : ''}${p.rankDeltaVsOvr} vs OVR</span>`
+      : `<span class="text-[10px] text-slate-500 font-mono">Unranked</span>`;
+    const gdColor = p.gdPerMatch > 0 ? "text-emerald-400" : p.gdPerMatch < 0 ? "text-rose-400" : "text-slate-400";
+    const underdogText = p.adverseMatches > 0 ? `${p.adverseWins}W/${p.adverseMatches}M` : "—";
+
+    return `
+      <tr class="hover:bg-slate-900/50 transition-colors ${isRanked ? '' : 'opacity-60'}">
+        <td class="py-2.5 px-3 font-mono font-bold text-slate-300">${rankLabel}</td>
+        <td class="py-2.5 px-3">
+          <div class="flex items-center gap-2">
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${getPositionBadgeClass(p.position)}">${p.position}</span>
+            <span class="font-bold text-white">${p.name}</span>
+            <span class="text-[10px] font-mono text-slate-500">OVR ${p.ovr}</span>
+          </div>
+        </td>
+        <td class="py-2.5 px-3 text-center">${scoreBadge}</td>
+        <td class="py-2.5 px-3 text-center font-mono text-slate-200">${p.matches}</td>
+        <td class="py-2.5 px-3 text-center font-mono text-slate-300">${p.matches > 0 ? `${p.wins}-${p.draws}-${p.losses} <span class="text-slate-500">(${p.winRate}%)</span>` : "—"}</td>
+        <td class="py-2.5 px-3 text-center font-mono text-slate-200">${p.matches > 0 ? `${p.goals} <span class="text-slate-500">(${p.goalsPerMatch})</span>` : "—"}</td>
+        <td class="py-2.5 px-3 text-center font-mono text-slate-300">${p.matches > 0 ? `${p.gfPerMatch} / ${p.gaPerMatch}` : "—"}</td>
+        <td class="py-2.5 px-3 text-center font-mono font-bold ${gdColor}">${p.matches > 0 ? `${p.gdPerMatch > 0 ? '+' : ''}${p.gdPerMatch}` : "—"}</td>
+        <td class="py-2.5 px-3 text-center font-mono text-slate-400">${underdogText}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
 function renderRosterView() {
   let players = db.getAll();
 
@@ -3813,19 +3951,17 @@ function renderRosterView() {
   const totalCountEl = document.getElementById("roster-total-count");
   if (totalCountEl) totalCountEl.textContent = `${players.length} Players`;
 
-  // Always keep sector potentials synchronized
+  // Always keep sector potentials & player rankings synchronized
   renderSectorPotentialTables(players);
+  renderPlayerRankingsView(players);
 
   const cardsContainer = document.getElementById("roster-cards-container");
   const potentialsContainer = document.getElementById("roster-potentials-container");
+  const rankingsContainer = document.getElementById("roster-rankings-container");
 
-  if (state.rosterViewMode === "potentials") {
-    cardsContainer?.classList.add("hidden");
-    potentialsContainer?.classList.remove("hidden");
-  } else {
-    cardsContainer?.classList.remove("hidden");
-    potentialsContainer?.classList.add("hidden");
-  }
+  cardsContainer?.classList.toggle("hidden", state.rosterViewMode !== "cards");
+  potentialsContainer?.classList.toggle("hidden", state.rosterViewMode !== "potentials");
+  rankingsContainer?.classList.toggle("hidden", state.rosterViewMode !== "rankings");
 
   if (!cardsContainer) return;
 

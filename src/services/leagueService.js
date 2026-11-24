@@ -2464,4 +2464,226 @@ export function validateBalancerModel(matches = [], allPlayers = [], currentSect
   };
 }
 
+/**
+ * Computes position-aware Empirical-Bayes player rankings using W-D-L (adjusted for pre-match balance feedback),
+ * individual goals scored (G/M), team goals for (GF/M), team goals against (GA/M), and games played.
+ *
+ * @param {Array} players - Player database array
+ * @param {Array} matches - Historical league matches
+ * @param {Object} [options] - { windowMatches: number|null, minMatches: number, priorWeight: number }
+ * @returns {Object} { rankings, topAttackers, topMidfielders, topDefenders, leagueAvgGF, leagueAvgGA, analyzedMatchCount }
+ */
+export function computePositionPlayerRankings(players = [], matches = [], options = {}) {
+  const { windowMatches = null, minMatches = 0, priorWeight = 3.0 } = options;
+
+  const sortedMatches = [...(matches || [])].sort(
+    (a, b) => new Date(b.match_date || 0) - new Date(a.match_date || 0)
+  );
+  const activeMatches = windowMatches && windowMatches > 0
+    ? sortedMatches.slice(0, windowMatches)
+    : sortedMatches;
+
+  const statsMap = {};
+  let totalTeamGoals = 0;
+  let totalTeamApps = 0;
+
+  activeMatches.forEach(m => {
+    const teams = m.teams || [];
+    if (teams.length < 2) return;
+    const t0 = teams[0];
+    const t1 = teams[1];
+    const s0 = Number(t0.score);
+    const s1 = Number(t1.score);
+    if (Number.isNaN(s0) || Number.isNaN(s1)) return;
+
+    const bal = m.balance && typeof m.balance === "object" ? m.balance : null;
+    const netBal = bal
+      ? ((Number(bal.attack) || 0) + (Number(bal.midfield) || 0) + (Number(bal.defense) || 0)) / 3.0
+      : 0;
+
+    totalTeamGoals += s0 + s1;
+    totalTeamApps += 2;
+
+    const pairs = [
+      { team: t0, myScore: s0, oppScore: s1, adv: -netBal },
+      { team: t1, myScore: s1, oppScore: s0, adv: netBal }
+    ];
+
+    pairs.forEach(({ team, myScore, oppScore, adv }) => {
+      let pts = 0;
+      if (myScore > oppScore) {
+        pts = 1.0 + (bal ? (adv < -0.5 ? 0.15 : adv > 0.5 ? -0.05 : 0) : 0);
+      } else if (myScore === oppScore) {
+        pts = 0.5 + (bal && adv < -0.5 ? 0.05 : 0);
+      } else {
+        pts = bal && adv > 0.5 ? -0.05 : 0;
+      }
+      pts = Math.max(0, Math.min(1.15, pts));
+
+      const scorerGoals = {};
+      (team.scorers || []).forEach(sc => {
+        if (typeof sc === "object" && sc.is_own_goal) return;
+        const scName = (typeof sc === "string" ? sc : sc.name || "").trim().toLowerCase();
+        if (!scName) return;
+        const gCount = typeof sc === "object" && sc.goals ? Number(sc.goals) : 1;
+        scorerGoals[scName] = (scorerGoals[scName] || 0) + gCount;
+      });
+
+      (team.members || []).forEach(member => {
+        const key = String(member || "").trim().toLowerCase();
+        if (!key) return;
+        if (!statsMap[key]) {
+          statsMap[key] = {
+            matches: 0,
+            wins: 0,
+            draws: 0,
+            losses: 0,
+            weightedPts: 0,
+            goals: 0,
+            goalsFor: 0,
+            goalsAgainst: 0,
+            adverseMatches: 0,
+            adverseWins: 0
+          };
+        }
+        const st = statsMap[key];
+        st.matches++;
+        if (myScore > oppScore) st.wins++;
+        else if (myScore === oppScore) st.draws++;
+        else st.losses++;
+        st.weightedPts += pts;
+        st.goals += scorerGoals[key] || 0;
+        st.goalsFor += myScore;
+        st.goalsAgainst += oppScore;
+        if (bal && adv < -0.5) {
+          st.adverseMatches++;
+          if (myScore > oppScore) st.adverseWins++;
+        }
+      });
+    });
+  });
+
+  const leagueAvgGoals = totalTeamApps > 0 ? totalTeamGoals / totalTeamApps : 5.0;
+  const leagueAvgGF = Math.round(leagueAvgGoals * 100) / 100;
+  const leagueAvgGA = leagueAvgGF;
+
+  const POS_WEIGHTS = {
+    FWD: { win: 0.30, indGoals: 0.45, teamGf: 0.15, teamGa: 0.10 },
+    MID: { win: 0.40, indGoals: 0.20, teamGf: 0.20, teamGa: 0.20 },
+    DEF: { win: 0.35, indGoals: 0.05, teamGf: 0.10, teamGa: 0.50 },
+    GK:  { win: 0.30, indGoals: 0.00, teamGf: 0.05, teamGa: 0.65 }
+  };
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const baseline = 65.0;
+
+  const allRanked = (players || []).map(p => {
+    const key = (p.name || "").trim().toLowerCase();
+    const st = statsMap[key] || {
+      matches: 0, wins: 0, draws: 0, losses: 0,
+      weightedPts: 0, goals: 0, goalsFor: 0, goalsAgainst: 0,
+      adverseMatches: 0, adverseWins: 0
+    };
+    const m = st.matches;
+    const pos = p.position || "MID";
+    const weights = POS_WEIGHTS[pos] || POS_WEIGHTS.MID;
+
+    if (m === 0) {
+      return {
+        id: p.id,
+        name: p.name,
+        position: pos,
+        secondaryPosition: p.secondaryPosition || pos,
+        ovr: p.ovr || 70,
+        matches: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        winRate: 0,
+        goals: 0,
+        goalsPerMatch: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        gfPerMatch: 0,
+        gaPerMatch: 0,
+        goalDiff: 0,
+        gdPerMatch: 0,
+        adverseMatches: 0,
+        adverseWins: 0,
+        rankScore: null,
+        rankDeltaVsOvr: null
+      };
+    }
+
+    const winRate = Math.round((st.wins / m) * 100);
+    const winScore = (st.weightedPts / m) * 100.0;
+    const goalsPerMatch = Number((st.goals / m).toFixed(2));
+    const gfPerMatch = Number((st.goalsFor / m).toFixed(2));
+    const gaPerMatch = Number((st.goalsAgainst / m).toFixed(2));
+    const goalDiff = st.goalsFor - st.goalsAgainst;
+    const gdPerMatch = Number((goalDiff / m).toFixed(2));
+
+    const indGoalScore = clamp(40.0 + goalsPerMatch * 45.0, 30.0, 100.0);
+    const teamGfScore = clamp(65.0 + (gfPerMatch - leagueAvgGF) * 10.0, 30.0, 100.0);
+    const teamGaScore = clamp(65.0 + (leagueAvgGA - gaPerMatch) * 10.0, 30.0, 100.0);
+
+    const rawScore =
+      weights.win * winScore +
+      weights.indGoals * indGoalScore +
+      weights.teamGf * teamGfScore +
+      weights.teamGa * teamGaScore;
+
+    const rankScore = Number(((rawScore * m + baseline * priorWeight) / (m + priorWeight)).toFixed(1));
+    const rankDeltaVsOvr = Number((rankScore - (p.ovr || 70)).toFixed(1));
+
+    return {
+      id: p.id,
+      name: p.name,
+      position: pos,
+      secondaryPosition: p.secondaryPosition || pos,
+      ovr: p.ovr || 70,
+      matches: m,
+      wins: st.wins,
+      draws: st.draws,
+      losses: st.losses,
+      winRate,
+      goals: st.goals,
+      goalsPerMatch,
+      goalsFor: st.goalsFor,
+      goalsAgainst: st.goalsAgainst,
+      gfPerMatch,
+      gaPerMatch,
+      goalDiff,
+      gdPerMatch,
+      adverseMatches: st.adverseMatches,
+      adverseWins: st.adverseWins,
+      rankScore,
+      rankDeltaVsOvr
+    };
+  });
+
+  const sortRankings = (a, b) => {
+    const aUnranked = a.rankScore === null || a.matches < minMatches;
+    const bUnranked = b.rankScore === null || b.matches < minMatches;
+    if (aUnranked !== bUnranked) return aUnranked ? 1 : -1;
+    if (!aUnranked && b.rankScore !== a.rankScore) return b.rankScore - a.rankScore;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    if (b.gdPerMatch !== a.gdPerMatch) return b.gdPerMatch - a.gdPerMatch;
+    return (b.ovr || 0) - (a.ovr || 0);
+  };
+
+  const rankings = [...allRanked].sort(sortRankings);
+  const eligible = rankings.filter(r => r.rankScore !== null && r.matches >= Math.max(1, minMatches));
+
+  return {
+    rankings,
+    topAttackers: eligible.filter(r => r.position === "FWD").slice(0, 3),
+    topMidfielders: eligible.filter(r => r.position === "MID").slice(0, 3),
+    topDefenders: eligible.filter(r => r.position === "DEF").slice(0, 3),
+    leagueAvgGF,
+    leagueAvgGA,
+    analyzedMatchCount: activeMatches.length
+  };
+}
+
 

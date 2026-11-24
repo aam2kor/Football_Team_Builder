@@ -830,6 +830,10 @@
             <span>📊</span>
             <span>Sector Potentials (ATT · MID · DEF)</span>
           </button>
+          <button id="btn-roster-view-rankings" type="button" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-transparent text-slate-400 hover:text-white flex items-center gap-1.5">
+            <span>🏆</span>
+            <span>Player Rankings</span>
+          </button>
         </div>
 
         <span id="roster-total-count" class="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -871,6 +875,64 @@
           <!-- Defense Potential Table Card -->
           <div id="roster-defense-table-card" class="glass-panel rounded-2xl border border-blue-500/30 shadow-xl overflow-hidden flex flex-col">
             <!-- Rendered by JavaScript -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Player Rankings View Container -->
+      <div id="roster-rankings-container" class="hidden space-y-6">
+        <!-- Info & Filter Controls Banner -->
+        <div class="p-3.5 rounded-xl bg-gradient-to-r from-slate-900 via-amber-950/30 to-slate-900 border border-amber-500/30 text-xs text-slate-300 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+          <div class="flex items-center gap-2.5">
+            <span class="text-xl">🏆</span>
+            <div>
+              <span class="font-bold text-white text-xs">Position-Aware Player Performance Rankings</span>
+              <p id="roster-rankings-subtitle" class="text-slate-400 text-[11px] mt-0.5">Weighted by Position, W-D-L (balance-adjusted), Individual Goals, Team GF/GA, and Games Played (Empirical Bayes C=3).</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <div class="flex items-center gap-1 p-0.5 bg-slate-950/80 rounded-lg border border-slate-800">
+              <button id="btn-ranking-window-all" type="button" class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-600 text-white transition-all">All Season</button>
+              <button id="btn-ranking-window-last8" type="button" class="px-2.5 py-1 rounded-md text-[11px] font-bold text-slate-400 hover:text-white transition-all">Last 8 Games</button>
+            </div>
+            <div class="flex items-center gap-1 p-0.5 bg-slate-950/80 rounded-lg border border-slate-800">
+              <button data-ranking-min="0" type="button" class="px-2 py-1 rounded-md text-[11px] font-bold bg-blue-600 text-white transition-all">All M</button>
+              <button data-ranking-min="3" type="button" class="px-2 py-1 rounded-md text-[11px] font-bold text-slate-400 hover:text-white transition-all">3+ M</button>
+              <button data-ranking-min="5" type="button" class="px-2 py-1 rounded-md text-[11px] font-bold text-slate-400 hover:text-white transition-all">5+ M</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3-Column Positional Podiums: Top Attackers, Midfielders, Defenders -->
+        <div id="roster-rankings-podiums" class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <!-- Populated dynamically by JavaScript -->
+        </div>
+
+        <!-- Full Ranked Leaderboard Table -->
+        <div class="glass-panel rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+            <span class="text-xs font-black uppercase tracking-wider text-slate-200">Full Leaderboard</span>
+            <span id="roster-rankings-meta" class="text-[11px] font-mono text-slate-400"></span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="text-[10px] uppercase tracking-wider text-slate-400 bg-slate-950/60 border-b border-slate-800">
+                <tr>
+                  <th class="py-2.5 px-3">#</th>
+                  <th class="py-2.5 px-3">Player</th>
+                  <th class="py-2.5 px-3 text-center">Rank Score</th>
+                  <th class="py-2.5 px-3 text-center">Played</th>
+                  <th class="py-2.5 px-3 text-center">W-D-L (Win%)</th>
+                  <th class="py-2.5 px-3 text-center">Goals (G/M)</th>
+                  <th class="py-2.5 px-3 text-center">GF / GA (Avg)</th>
+                  <th class="py-2.5 px-3 text-center">+/- GD/M</th>
+                  <th class="py-2.5 px-3 text-center">Underdog W</th>
+                </tr>
+              </thead>
+              <tbody id="roster-rankings-table-body" class="divide-y divide-slate-800/60">
+                <!-- Populated dynamically by JavaScript -->
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
