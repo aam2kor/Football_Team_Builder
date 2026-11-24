@@ -23,14 +23,16 @@ class TestPlayerRankingsTab(unittest.TestCase):
             'id="roster-rankings-table-body"',
             'id="btn-ranking-window-all"',
             'id="btn-ranking-window-last8"',
-            'data-ranking-min="3"',
-            'data-ranking-min="5"',
+            'id="roster-rankings-qual-badge"',
         ):
             self.assertIn(token, self.index_html)
 
     def test_league_service_exports_position_player_rankings(self):
         for token in (
             "export function computePositionPlayerRankings(",
+            "qualifiedRankings,",
+            "limitedRankings,",
+            "qualificationThreshold,",
             "topAttackers:",
             "topMidfielders:",
             "topDefenders:",
@@ -45,6 +47,8 @@ class TestPlayerRankingsTab(unittest.TestCase):
             "computePositionPlayerRankings",
             'btn-roster-view-rankings',
             "function renderPlayerRankingsView(",
+            "Qualified Players",
+            "Not Enough Matches",
             "Top Attackers (FWD)",
             "Top Midfielders (MID)",
             "Top Defenders (DEF)",

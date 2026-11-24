@@ -2474,7 +2474,7 @@ export function validateBalancerModel(matches = [], allPlayers = [], currentSect
  * @returns {Object} { rankings, topAttackers, topMidfielders, topDefenders, leagueAvgGF, leagueAvgGA, analyzedMatchCount }
  */
 export function computePositionPlayerRankings(players = [], matches = [], options = {}) {
-  const { windowMatches = null, minMatches = 0, priorWeight = 3.0 } = options;
+  const { windowMatches = null, minMatches = null, priorWeight = 3.0 } = options;
 
   const sortedMatches = [...(matches || [])].sort(
     (a, b) => new Date(b.match_date || 0) - new Date(a.match_date || 0)
@@ -2482,6 +2482,9 @@ export function computePositionPlayerRankings(players = [], matches = [], option
   const activeMatches = windowMatches && windowMatches > 0
     ? sortedMatches.slice(0, windowMatches)
     : sortedMatches;
+  const qualificationThreshold = minMatches !== null && minMatches !== undefined
+    ? Number(minMatches)
+    : (activeMatches.length > 0 ? Math.ceil(activeMatches.length / 2) : 1);
 
   const statsMap = {};
   let totalTeamGoals = 0;
@@ -2662,24 +2665,33 @@ export function computePositionPlayerRankings(players = [], matches = [], option
     };
   });
 
-  const sortRankings = (a, b) => {
-    const aUnranked = a.rankScore === null || a.matches < minMatches;
-    const bUnranked = b.rankScore === null || b.matches < minMatches;
-    if (aUnranked !== bUnranked) return aUnranked ? 1 : -1;
-    if (!aUnranked && b.rankScore !== a.rankScore) return b.rankScore - a.rankScore;
+  const sortByPerformance = (a, b) => {
+    const aHasGames = a.rankScore !== null;
+    const bHasGames = b.rankScore !== null;
+    if (aHasGames !== bHasGames) return aHasGames ? -1 : 1;
+    if (aHasGames && b.rankScore !== a.rankScore) return b.rankScore - a.rankScore;
     if (b.wins !== a.wins) return b.wins - a.wins;
     if (b.gdPerMatch !== a.gdPerMatch) return b.gdPerMatch - a.gdPerMatch;
     return (b.ovr || 0) - (a.ovr || 0);
   };
 
-  const rankings = [...allRanked].sort(sortRankings);
-  const eligible = rankings.filter(r => r.rankScore !== null && r.matches >= Math.max(1, minMatches));
+  const withQualification = allRanked.map(r => ({
+    ...r,
+    isQualified: r.rankScore !== null && r.matches >= qualificationThreshold
+  }));
+
+  const qualifiedRankings = withQualification.filter(r => r.isQualified).sort(sortByPerformance);
+  const limitedRankings = withQualification.filter(r => !r.isQualified).sort(sortByPerformance);
+  const rankings = [...qualifiedRankings, ...limitedRankings];
 
   return {
     rankings,
-    topAttackers: eligible.filter(r => r.position === "FWD").slice(0, 3),
-    topMidfielders: eligible.filter(r => r.position === "MID").slice(0, 3),
-    topDefenders: eligible.filter(r => r.position === "DEF").slice(0, 3),
+    qualifiedRankings,
+    limitedRankings,
+    qualificationThreshold,
+    topAttackers: qualifiedRankings.filter(r => r.position === "FWD").slice(0, 3),
+    topMidfielders: qualifiedRankings.filter(r => r.position === "MID").slice(0, 3),
+    topDefenders: qualifiedRankings.filter(r => r.position === "DEF").slice(0, 3),
     leagueAvgGF,
     leagueAvgGA,
     analyzedMatchCount: activeMatches.length

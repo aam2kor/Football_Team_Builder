@@ -3801,19 +3801,6 @@ function setupRosterEvents() {
     renderRosterView();
   });
 
-  document.querySelectorAll("[data-ranking-min]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      state.rankingMinMatches = Number(btn.dataset.rankingMin) || 0;
-      document.querySelectorAll("[data-ranking-min]").forEach(b => {
-        const active = Number(b.dataset.rankingMin) === state.rankingMinMatches;
-        b.className = active
-          ? "px-2 py-1 rounded-md text-[11px] font-bold bg-blue-600 text-white transition-all"
-          : "px-2 py-1 rounded-md text-[11px] font-bold text-slate-400 hover:text-white transition-all";
-      });
-      renderRosterView();
-    });
-  });
-
   document.getElementById("roster-search-input")?.addEventListener("input", (e) => {
     state.searchQuery = e.target.value.toLowerCase().trim();
     renderRosterView();
@@ -3842,19 +3829,23 @@ function renderPlayerRankingsView(filteredPlayers) {
   const podiumsEl = document.getElementById("roster-rankings-podiums");
   const tbodyEl = document.getElementById("roster-rankings-table-body");
   const metaEl = document.getElementById("roster-rankings-meta");
+  const qualBadgeEl = document.getElementById("roster-rankings-qual-badge");
   if (!podiumsEl || !tbodyEl) return;
 
   const matches = state.leagueMatches || [];
   const windowMatches = state.rankingWindow === "last8" ? 8 : null;
-  const minMatches = state.rankingMinMatches || 0;
 
-  // Compute positional podiums from the full roster so Top ATT / MID / DEF always stay populated
-  const allResult = computePositionPlayerRankings(db.getAll(), matches, { windowMatches, minMatches });
-  const filteredResult = computePositionPlayerRankings(filteredPlayers, matches, { windowMatches, minMatches });
+  // Compute positional podiums from the full roster so Top ATT / MID / DEF always show qualified regulars (>= 50% matches)
+  const allResult = computePositionPlayerRankings(db.getAll(), matches, { windowMatches });
+  const filteredResult = computePositionPlayerRankings(filteredPlayers, matches, { windowMatches });
+  const qualThresh = allResult.qualificationThreshold;
 
+  if (qualBadgeEl) {
+    qualBadgeEl.textContent = `Qualified: ≥ ${qualThresh}M (50%)`;
+  }
   if (metaEl) {
     const windowLabel = windowMatches ? `Last ${allResult.analyzedMatchCount} Matches` : `All ${allResult.analyzedMatchCount} Matches`;
-    metaEl.textContent = `${windowLabel} • League Avg: ${allResult.leagueAvgGF} GF / ${allResult.leagueAvgGA} GA`;
+    metaEl.textContent = `${windowLabel} • Qualified: ≥ ${qualThresh}M • Avg: ${allResult.leagueAvgGF} GF / ${allResult.leagueAvgGA} GA`;
   }
 
   const medals = ["🥇", "🥈", "🥉"];
@@ -3874,7 +3865,7 @@ function renderPlayerRankingsView(filteredPlayers) {
             </div>
           </div>
         `).join("")
-      : `<div class="px-4 py-6 text-center text-[11px] text-slate-500">No players meet the current match filter.</div>`;
+      : `<div class="px-4 py-6 text-center text-[11px] text-slate-500">No players with ≥ ${qualThresh}M yet.</div>`;
 
     return `
       <div class="glass-panel rounded-2xl border ${accentBorder} shadow-xl overflow-hidden flex flex-col">
@@ -3882,7 +3873,7 @@ function renderPlayerRankingsView(filteredPlayers) {
           <span class="text-xs font-black uppercase tracking-wider ${accentText} flex items-center gap-1.5">
             <span>${icon}</span><span>${title}</span>
           </span>
-          <span class="text-[10px] font-mono text-slate-500">Top 3</span>
+          <span class="text-[10px] font-mono text-slate-500">Top 3 (≥${qualThresh}M)</span>
         </div>
         <div class="divide-y divide-slate-800/60">${rowsHtml}</div>
       </div>
@@ -3900,20 +3891,18 @@ function renderPlayerRankingsView(filteredPlayers) {
     return;
   }
 
-  let rankCounter = 0;
-  tbodyEl.innerHTML = filteredResult.rankings.map(p => {
-    const isRanked = p.rankScore !== null && p.matches >= minMatches;
-    if (isRanked) rankCounter++;
-    const rankLabel = isRanked ? (rankCounter <= 3 ? medals[rankCounter - 1] : `#${rankCounter}`) : "—";
-    const scoreBadge = isRanked
-      ? `<span class="px-2 py-0.5 rounded-md font-mono font-black text-xs bg-amber-500/15 text-amber-300 border border-amber-500/30">${p.rankScore.toFixed(1)}</span>
+  const renderRow = (p, rankNum) => {
+    const isQualified = p.isQualified;
+    const rankLabel = isQualified ? (rankNum <= 3 ? medals[rankNum - 1] : `#${rankNum}`) : "—";
+    const scoreBadge = p.rankScore !== null
+      ? `<span class="px-2 py-0.5 rounded-md font-mono font-black text-xs ${isQualified ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' : 'bg-slate-800/80 text-slate-300 border border-slate-700'}">${p.rankScore.toFixed(1)}</span>
          <span class="block text-[9px] font-mono mt-0.5 ${p.rankDeltaVsOvr >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${p.rankDeltaVsOvr >= 0 ? '+' : ''}${p.rankDeltaVsOvr} vs OVR</span>`
-      : `<span class="text-[10px] text-slate-500 font-mono">Unranked</span>`;
+      : `<span class="text-[10px] text-slate-500 font-mono">0M</span>`;
     const gdColor = p.gdPerMatch > 0 ? "text-emerald-400" : p.gdPerMatch < 0 ? "text-rose-400" : "text-slate-400";
     const underdogText = p.adverseMatches > 0 ? `${p.adverseWins}W/${p.adverseMatches}M` : "—";
 
     return `
-      <tr class="hover:bg-slate-900/50 transition-colors ${isRanked ? '' : 'opacity-60'}">
+      <tr class="hover:bg-slate-900/50 transition-colors ${isQualified ? '' : 'opacity-65'}">
         <td class="py-2.5 px-3 font-mono font-bold text-slate-300">${rankLabel}</td>
         <td class="py-2.5 px-3">
           <div class="flex items-center gap-2">
@@ -3931,7 +3920,32 @@ function renderPlayerRankingsView(filteredPlayers) {
         <td class="py-2.5 px-3 text-center font-mono text-slate-400">${underdogText}</td>
       </tr>
     `;
-  }).join("");
+  };
+
+  const rows = [];
+  if (filteredResult.qualifiedRankings.length > 0) {
+    rows.push(`
+      <tr class="bg-emerald-950/25 border-b border-emerald-500/20">
+        <td colspan="9" class="py-1.5 px-3 text-[10px] font-black uppercase tracking-wider text-emerald-300">
+          ✓ Qualified Players (≥ ${qualThresh} Matches • ${filteredResult.qualifiedRankings.length})
+        </td>
+      </tr>
+    `);
+    filteredResult.qualifiedRankings.forEach((p, idx) => rows.push(renderRow(p, idx + 1)));
+  }
+
+  if (filteredResult.limitedRankings.length > 0) {
+    rows.push(`
+      <tr class="bg-slate-900/90 border-y border-slate-700/80">
+        <td colspan="9" class="py-1.5 px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+          ⏳ Not Enough Matches (&lt; ${qualThresh} Matches • ${filteredResult.limitedRankings.length})
+        </td>
+      </tr>
+    `);
+    filteredResult.limitedRankings.forEach(p => rows.push(renderRow(p, 0)));
+  }
+
+  tbodyEl.innerHTML = rows.join("");
 }
 
 function renderRosterView() {
